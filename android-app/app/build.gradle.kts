@@ -12,8 +12,8 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(keystorePropertiesFile.inputStream())
 }
 
-// Optional: set default API URL for debug/release without editing this file.
-// In android-app/local.properties add: pos.api.base.url=https://your-service.onrender.com/
+// Production API host (override only for dev): in android-app/local.properties set
+// pos.api.base.url=https://something-else.example/
 val localPropsFile = rootProject.file("local.properties")
 val localProps = Properties()
 if (localPropsFile.exists()) {
@@ -34,7 +34,7 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
-        // Default API base URL: override in local.properties (pos.api.base.url=...).
+        // Default API: https://doposai.com/ — override with pos.api.base.url in local.properties for dev only.
         buildConfigField("String", "DEFAULT_API_BASE_URL", "\"$defaultApiBaseUrl\"")
     }
     buildFeatures {

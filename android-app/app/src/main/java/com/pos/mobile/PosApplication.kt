@@ -18,13 +18,15 @@ class PosApplication : Application() {
     }
 
     /**
-     * Default API base URL from BuildConfig (your domain). When you move backend to cloud,
-     * change DEFAULT_API_BASE_URL in build.gradle or set "base_url" in app settings.
+     * Keep SharedPreferences "base_url" in sync with [BuildConfig.DEFAULT_API_BASE_URL]
+     * (production: https://doposai.com/). Override at build time via `pos.api.base.url` in local.properties.
      */
     private fun setDefaultServerUrlIfNeeded() {
         val prefs = getSharedPreferences("pos", MODE_PRIVATE)
-        if (!prefs.contains("base_url")) {
-            prefs.edit().putString("base_url", BuildConfig.DEFAULT_API_BASE_URL).apply()
+        val desired = BuildConfig.DEFAULT_API_BASE_URL
+        val current = prefs.getString("base_url", null)
+        if (current != desired) {
+            prefs.edit().putString("base_url", desired).apply()
         }
     }
 

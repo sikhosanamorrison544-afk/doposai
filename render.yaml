@@ -1,8 +1,9 @@
-# Render Blueprint: connect this repo in Render → New → Blueprint → select render.yaml
-# Or create a Web Service manually with the same build/start commands.
+# Render Blueprint: GitHub repo → Render → New → Blueprint → select this file.
+# Public web + API URL: https://doposai.com/ — add doposai.com under the service
+# Settings → Custom Domains, then DNS CNAME as Render instructs.
 #
-# After first deploy: set JWT_SECRET_KEY in the Render dashboard (Environment).
-# For a persistent DB, add a Render PostgreSQL instance and set DATABASE_URL to its Internal URL.
+# JWT_SECRET_KEY is generated here; rotate in the dashboard if needed.
+# For production data, add Render PostgreSQL and set DATABASE_URL to its Internal URL.
 
 services:
   - type: web
