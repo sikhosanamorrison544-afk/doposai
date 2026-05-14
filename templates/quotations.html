@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Quotation Management - {{ store_name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        // CRITICAL: Apply theme INSTANTLY - must be first script, runs synchronously
+        (function() {
+            'use strict';
+            try {
+                const savedTheme = localStorage.getItem('pos-theme') || 'default';
+                const validTheme = ['default', 'light', 'classic'].includes(savedTheme) ? savedTheme : 'default';
+                if (validTheme !== savedTheme) { try { localStorage.setItem('pos-theme', validTheme); } catch (e) {} }
+                const themeClass = validTheme !== 'default' ? 'theme-' + validTheme : '';
+                const themeBackgrounds = { 'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)', 'light': 'transparent', 'classic': '#e8e8e8' };
+                
+                if (themeClass) document.documentElement.className = (document.documentElement.className + ' ' + themeClass).trim();
+                function applyBodyTheme() {
+                    if (document.body) {
+                        document.body.classList.remove('theme-default', 'theme-light', 'theme-classic');
+                        if (themeClass) document.body.classList.add(themeClass);
+                    }
+                }
+                if (document.body) applyBodyTheme(); else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyBodyTheme); else setTimeout(applyBodyTheme, 0);
+                
+                const bg = themeBackgrounds[validTheme] || themeBackgrounds['default'];
+                const style = document.createElement('style');
+                style.id = 'theme-instant';
+                style.setAttribute('data-theme', validTheme);
+                if (bg !== 'transparent') {
+                    if (validTheme === 'default') {
+                        // Use pseudo-element with lower opacity to see 3D model through it
+                        // Canvas is at z-index: -1, overlay is at z-index: -2, so canvas shows through
+                        // Reduced opacity to 0.5 so 3D model is more visible
+                        style.textContent = 'html,body{background:transparent!important;background-size:400% 400%!important;min-height:100vh!important;margin:0!important;padding:0!important;position:relative!important;}html::before,body::before{content:"";position:fixed;top:0;left:0;width:100%;height:100%;background:' + bg + ';background-size:400% 400%;opacity:0.5;z-index:-2;pointer-events:none;}';
+                    } else {
+                        style.textContent = 'html,body{background:' + bg + '!important;min-height:100vh!important;margin:0!important;padding:0!important;}';
+                    }
+                } else {
+                    style.textContent = 'html,body{background:transparent!important;min-height:100vh!important;margin:0!important;padding:0!important;}';
+                }
+                if (document.head.firstChild) {
+                    document.head.insertBefore(style, document.head.firstChild);
+                } else {
+                    document.head.appendChild(style);
+                }
+            } catch (e) {}
+        })();
+    </script>
+    <!-- Preload 3D model for faster loading -->
+    <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script>
+    
+    </script>
+    <style>
+        .quotation-filters {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .quotation-filters select,
+        .quotation-filters input {
+            flex: 1;
+            min-width: 150px;
+        }
+        .quotation-item {
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .quotation-item:hover {
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+        .quotation-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+        .status-draft { background-color: #6b7280; color: #1a1a1a; }
+        .status-sent { background-color: #3b82f6; color: #1a1a1a; }
+        .status-accepted { background-color: #22c55e; color: #1a1a1a; }
+        .status-rejected { background-color: #ef4444; color: #1a1a1a; }
+        .status-expired { background-color: #f59e0b; color: #1a1a1a; }
+        .status-converted { background-color: #8b5cf6; color: #1a1a1a; }
+        .product-search-results {
+            max-height: 200px;
+            overflow-y: auto;
+            background: rgba(17, 24, 39, 0.3);
+            backdrop-filter: blur(10px) saturate(180%);
+            -webkit-backdrop-filter: blur(10px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            margin-top: 10px;
+            color: #1a1a1a;
+        }
+        .product-search-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            color: #1a1a1a;
+        }
+        .product-search-item:hover {
+            background-color: rgba(59, 130, 246, 0.3);
+        }
+        .quotation-items-list {
+            margin: 15px 0;
+        }
+        .quotation-item-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+<!-- 3D Background Canvas for Default Theme -->
+<canvas id="bg3d-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none; background: transparent;"></canvas>
+<!-- Video Background for Light Theme -->
+<video id="light-theme-video" autoplay loop muted playsinline style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; pointer-events: none; display: none;">
+    <source src="/static/background.mov" type="video/quicktime">
+    <source src="/static/background.mov" type="video/mp4">
+</video>
+<div id="app" class="screen active">
+    <header class="top-bar">
+        <span id="quotations-user-info"></span>
+        <div class="shop-name">{{ store_name }}</div>
+        <div class="top-bar-right">
+            <button id="btn-back-admin" class="small">Back to Admin</button>
+            <button id="btn-quotations-logout" class="danger small">Logout</button>
+        </div>
+    </header>
+    <main class="pos-layout">
+        <section class="left" style="flex: 1;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>Quotation Management</h2>
+                <button id="btn-create-quotation" class="primary">+ Create Quotation</button>
+            </div>
+            
+            <!-- Filters -->
+            <div class="quotation-filters">
+                <select id="filter-status">
+                    <option value="">All Statuses</option>
+                    <option value="draft">Draft</option>
+                    <option value="sent">Sent</option>
+                    <option value="accepted">Accepted</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="expired">Expired</option>
+                    <option value="converted">Converted</option>
+                </select>
+                <input type="text" id="filter-customer" placeholder="Filter by customer name">
+                <input type="text" id="filter-phone" placeholder="Filter by phone number">
+                <button id="btn-apply-filters" class="primary small">Apply Filters</button>
+                <button id="btn-clear-filters" class="small">Clear</button>
+            </div>
+            
+            <!-- Quotations List -->
+            <div id="quotations-list"></div>
+            
+            <!-- Loading indicator -->
+            <div id="loading-indicator" style="text-align: center; padding: 20px; display: none;">
+                Loading quotations...
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- Create/Edit Quotation Modal -->
+<div id="quotation-modal" class="floating-panel" style="display: none;">
+    <div class="floating-panel-header">
+        <h2 id="modal-title">Create Quotation</h2>
+        <button id="btn-close-modal" class="close-btn">×</button>
+    </div>
+    <div class="floating-panel-content">
+        <div class="input-row">
+            <label for="quotation-customer-name">Customer Name *</label>
+            <input type="text" id="quotation-customer-name" required>
+        </div>
+        <div class="input-row">
+            <label for="quotation-customer-phone">Phone Number</label>
+            <input type="text" id="quotation-customer-phone" placeholder="+1234567890">
+        </div>
+        <div class="input-row">
+            <label for="quotation-customer-email">Email</label>
+            <input type="email" id="quotation-customer-email">
+        </div>
+        
+        <h3 style="margin-top: 20px;">Add Products</h3>
+        <div class="input-row">
+            <label for="product-search">Search Product</label>
+            <input type="text" id="product-search" placeholder="Type product name...">
+            <div id="product-search-results" class="product-search-results" style="display: none;"></div>
+        </div>
+        
+        <div id="quotation-items-list" class="quotation-items-list">
+            <h4>Items:</h4>
+            <div id="quotation-items"></div>
+        </div>
+        
+        <div class="input-row">
+            <label for="quotation-valid-until">Valid Until</label>
+            <input type="date" id="quotation-valid-until">
+        </div>
+        <div class="input-row">
+            <label for="quotation-notes">Notes</label>
+            <textarea id="quotation-notes" rows="3"></textarea>
+        </div>
+        
+        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2);">
+            <div style="display: flex; justify-content: space-between; font-size: 1.2em; font-weight: bold;">
+                <span>Total:</span>
+                <span id="quotation-total">$0.00</span>
+            </div>
+        </div>
+        
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button id="btn-save-quotation" class="primary">Save Quotation</button>
+            <button id="btn-cancel-quotation" class="small">Cancel</button>
+        </div>
+        <div id="quotation-message" style="margin-top: 10px;"></div>
+    </div>
+</div>
+
+<!-- Quotation Detail Modal -->
+<div id="quotation-detail-modal" class="floating-panel" style="display: none;">
+    <div class="floating-panel-header">
+        <h2 id="detail-modal-title">Quotation Details</h2>
+        <button id="btn-close-detail-modal" class="close-btn">×</button>
+    </div>
+    <div class="floating-panel-content">
+        <div id="quotation-detail-content"></div>
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button id="btn-download-pdf" class="primary">Download PDF</button>
+            <button id="btn-convert-sale" class="primary">Convert to Sale</button>
+            <button id="btn-delete-quotation" class="danger">Delete</button>
+        </div>
+        <div id="quotation-detail-message" style="margin-top: 10px;"></div>
+    </div>
+</div>
+
+<div id="panel-backdrop" class="panel-backdrop" style="display: none;"></div>
+
+<script src="/static/js/price-input-formatter.js?v=7"></script>
+<script src="/static/js/quotations.js"></script>
+<!-- Three.js for 3D Background -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
+<script src="/static/js/background3d.js?v=5"></script>
+</body>
+</html>
+

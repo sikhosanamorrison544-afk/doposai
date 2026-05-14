@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Match web POS / parent app exactly -->
+    <color name="primary">#667eea</color>
+    <color name="primary_dark">#764ba2</color>
+    <color name="danger">#ef4444</color>
+    <color name="text_primary">#1a1a2e</color>
+    <color name="text_on_primary">#ffffff</color>
+    <color name="card_background">#FFFFFF</color>
+    <color name="top_bar_background">#EBFFFFFF</color>
+    <!-- Screenshot: light blue/cyan header -->
+    <color name="header_light_blue">#B8D4E8</color>
+    <color name="layby_blue">#3b82f6</color>
+    <color name="login_title">#1a1a1a</color>
+    <color name="cart_header_bg">#FFFFFF</color>
+    <!-- Muted blue/purple for Complete Sale button -->
+    <color name="button_complete_sale">#5B6B9E</color>
+</resources>

@@ -1,0 +1,23 @@
+# Render Blueprint: connect this repo in Render → New → Blueprint → select render.yaml
+# Or create a Web Service manually with the same build/start commands.
+#
+# After first deploy: set JWT_SECRET_KEY in the Render dashboard (Environment).
+# For a persistent DB, add a Render PostgreSQL instance and set DATABASE_URL to its Internal URL.
+
+services:
+  - type: web
+    name: pos-backend
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.11"
+      # Ephemeral SQLite (data resets on restart). Replace with DATABASE_URL from a Render Postgres.
+      - key: DATABASE_URL
+        value: sqlite:////tmp/pos.db
+      - key: JWT_SECRET_KEY
+        generateValue: true

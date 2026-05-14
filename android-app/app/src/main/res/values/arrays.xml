@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="collection_status_options">
+        <item>Collected (Items taken immediately)</item>
+        <item>To Collect (Reserve for later pickup)</item>
+    </string-array>
+</resources>

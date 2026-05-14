@@ -1,0 +1,610 @@
+==========================================
+Starting POS Server...
+==========================================
+
+Server will be accessible at:
+  - Local:    http://localhost:8000
+  - Network:  http://10.143.40.204:8000
+
+To find your IP address on other devices, use:
+  http://raspberrypi.local:8000
+  or check the IP above
+
+Press Ctrl+C to stop the server
+==========================================
+
+INFO:     Will watch for changes in these directories: ['/home/morrison/Desktop/pos']
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [27880] using WatchFiles
+INFO:     Started server process [27882]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:35058 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35064 - "GET /api/notifications/unread-count HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:34618 - "POST /api/notifications/test-email HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:55704 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49174 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44572 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33022 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57464 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38266 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54664 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60528 - "GET /api/backup/status HTTP/1.1" 200 OK
+ERROR: Traceback (most recent call last):
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 941, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: no such column: store_settings.notification_email
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/middleware/errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/fastapi/routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/fastapi/routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/morrison/Desktop/pos/app/main.py", line 3480, in test_email_notification
+    settings = db.query(StoreSettings).first()
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/orm/query.py", line 2728, in first
+    return self.limit(1)._iter().first()  # type: ignore
+           ~~~~~~~~~~~~~~~~~~~^^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/orm/query.py", line 2827, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+                                                  ~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+        params,
+        ^^^^^^^
+        execution_options={"_sa_orm_load_options": self.load_options},
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2362, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2247, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self,
+        ^^^^^
+    ...<4 lines>...
+        conn,
+        ^^^^^
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/orm/context.py", line 305, in orm_execute_statement
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1418, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 515, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1640, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 941, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: store_settings.notification_email
+[SQL: SELECT store_settings.id AS store_settings_id, store_settings.store_name AS store_settings_store_name, store_settings.store_phone AS store_settings_store_phone, store_settings.store_location AS store_settings_store_location, store_settings.notification_email AS store_settings_notification_email, store_settings.low_stock_email_enabled AS store_settings_low_stock_email_enabled, store_settings.default_low_stock_threshold AS store_settings_default_low_stock_threshold, store_settings.updated_at AS store_settings_updated_at 
+FROM store_settings
+ LIMIT ? OFFSET ?]
+[parameters: (1, 0)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+INFO:     127.0.0.1:60528 - "POST /api/notifications/test-email HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 941, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: no such column: store_settings.notification_email
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/uvicorn/protocols/http/httptools_impl.py", line 401, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/uvicorn/middleware/proxy_headers.py", line 70, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/fastapi/applications.py", line 1054, in __call__
+    await super().__call__(scope, receive, send)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/applications.py", line 113, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/middleware/errors.py", line 187, in __call__
+    raise exc
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/middleware/errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/starlette/routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/fastapi/routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/fastapi/routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/morrison/Desktop/pos/app/main.py", line 3480, in test_email_notification
+    settings = db.query(StoreSettings).first()
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/orm/query.py", line 2728, in first
+    return self.limit(1)._iter().first()  # type: ignore
+           ~~~~~~~~~~~~~~~~~~~^^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/orm/query.py", line 2827, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+                                                  ~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+        params,
+        ^^^^^^^
+        execution_options={"_sa_orm_load_options": self.load_options},
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2362, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2247, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self,
+        ^^^^^
+    ...<4 lines>...
+        conn,
+        ^^^^^
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/orm/context.py", line 305, in orm_execute_statement
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1418, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 515, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1640, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/morrison/Desktop/pos/.venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 941, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: store_settings.notification_email
+[SQL: SELECT store_settings.id AS store_settings_id, store_settings.store_name AS store_settings_store_name, store_settings.store_phone AS store_settings_store_phone, store_settings.store_location AS store_settings_store_location, store_settings.notification_email AS store_settings_notification_email, store_settings.low_stock_email_enabled AS store_settings_low_stock_email_enabled, store_settings.default_low_stock_threshold AS store_settings_default_low_stock_threshold, store_settings.updated_at AS store_settings_updated_at 
+FROM store_settings
+ LIMIT ? OFFSET ?]
+[parameters: (1, 0)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+INFO:     127.0.0.1:47894 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33550 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47268 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52158 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41708 - "GET /api/backup/status HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'migrate_add_notification_fields.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [27882]
+WARNING:  WatchFiles detected changes in 'migrate_add_notification_fields.py'. Reloading...
+INFO:     Started server process [28835]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'migrate_add_notification_fields.py'. Reloading...
+INFO:     Started server process [28878]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [28885]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:38698 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41118 - "GET /api/backup/status HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'migrate_add_notification_fields.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [28885]
+INFO:     Started server process [29099]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:59952 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35142 - "POST /api/notifications/test-email HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:53244 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57976 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57976 - "PUT /api/store-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57840 - "POST /api/notifications/test-email HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53968 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41828 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58406 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41222 - "GET /api/backup/status HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'app/main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [29099]
+INFO:     Started server process [29585]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:59834 - "GET /api/backup/status HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'app/email_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [29585]
+INFO:     Started server process [29711]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:36246 - "GET /api/backup/status HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'app/email_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [29711]
+INFO:     Started server process [29742]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/email_service.py', 'app/main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [29742]
+INFO:     Started server process [29840]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:42854 - "GET /api/backup/status HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'app/email_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [29840]
+INFO:     Started server process [29922]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:37866 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37866 - "POST /api/notifications/test-email HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34934 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57978 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47210 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57946 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43324 - "GET /api/backup/status HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'app/email_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [29922]
+INFO:     Started server process [30252]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/email_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [30252]
+INFO:     Started server process [30301]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:42020 - "GET /api/backup/status HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'app/email_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [30301]
+INFO:     Started server process [30326]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/email_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [30326]
+INFO:     Started server process [30352]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:56644 - "GET /api/backup/status HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'app/email_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [30352]
+INFO:     Started server process [30542]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:44534 - "GET /api/backup/status HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in '.venv/lib/python3.13/site-packages/reportlab/graphics/barcode/code39.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_enc_symbol.py', '.venv/lib/python3.13/site-packages/reportlab/platypus/flowables.py', '.venv/lib/python3.13/site-packages/reportlab/platypus/tableofcontents.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_enc_macexpert.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/samples/scatter_lines_markers.py', '.venv/lib/python3.13/site-packages/reportlab/pdfgen/pathobject.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/__init__.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/svgpath.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/charts/areas.py', '.venv/lib/python3.13/site-packages/reportlab/lib/styles.py', '.venv/lib/python3.13/site-packages/reportlab/lib/pagesizes.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_enc_pdfdoc.py', '.venv/lib/python3.13/site-packages/reportlab/pdfgen/pdfimages.py', '.venv/lib/python3.13/site-packages/reportlab/lib/colors.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/ttfonts.py', '.venv/lib/python3.13/site-packages/reportlab/lib/validators.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/pdfdoc.py', '.venv/lib/python3.13/site-packages/reportlab/lib/yaml.py', '.venv/lib/python3.13/site-packages/reportlab/__init__.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/charts/linecharts.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/charts/textlabels.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/samples/filled_radar.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_widths_helveticaoblique.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/widgets/signsandsymbols.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_widths_timesbolditalic.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/charts/utils.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_widths_symbol.py', '.venv/lib/python3.13/site-packages/reportlab/platypus/doctemplate.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/samples/bubble.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_widths_timesroman.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/testshapes.py', '.venv/lib/python3.13/site-packages/reportlab/lib/attrmap.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/charts/dotbox.py', '.venv/lib/python3.13/site-packages/reportlab/lib/formatters.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/barcode/test.py', '.venv/lib/python3.13/site-packages/reportlab/lib/logger.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/widgets/markers.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/samples/stacked_column.py', '.venv/lib/python3.13/site-packages/reportlab/lib/__init__.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/renderPS.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/widgets/table.py', '.venv/lib/python3.13/site-packages/reportlab/lib/sequencer.py', '.venv/lib/python3.13/site-packages/reportlab/lib/geomutils.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/barcode/code93.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/widgets/__init__.py', '.venv/lib/python3.13/site-packages/reportlab/platypus/multicol.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/widgetbase.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/samples/line_chart.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/barcode/ecc200datamatrix.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/samples/stacked_bar.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/barcode/qrencoder.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/utils.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/samples/runall.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/barcode/qr.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/barcode/code128.py', '.venv/lib/python3.13/site-packages/reportlab/lib/utils.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/charts/legends.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/barcode/common.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/cidfonts.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/barcode/lto.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/pdfmetrics.py', '.venv/lib/python3.13/site-packages/reportlab/lib/codecharts.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_cidfontdata.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_widths_helveticaboldoblique.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_widths_courierboldoblique.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_widths_helvetica.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/transform.py', '.venv/lib/python3.13/site-packages/reportlab/lib/testutils.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/__init__.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/charts/axes.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_widths_timesbold.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_widths_zapfdingbats.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/samples/radar.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/samples/linechart_with_markers.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_widths_timesitalic.py', '.venv/lib/python3.13/site-packages/reportlab/platypus/__init__.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/samples/clustered_bar.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_enc_macroman.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/barcode/fourstate.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/pdfutils.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/barcode/widgets.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/charts/spider.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/charts/doughnut.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/pdfform.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/samples/exploded_pie.py', '.venv/lib/python3.13/site-packages/reportlab/lib/extformat.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/charts/piecharts.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_enc_zapfdingbats.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/samples/clustered_column.py', '.venv/lib/python3.13/site-packages/reportlab/platypus/paraparser.py', '.venv/lib/python3.13/site-packages/reportlab/lib/rltempfile.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_can_cmap_data.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_glyphlist.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/testdrawings.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_enc_winansi.py', '.venv/lib/python3.13/site-packages/reportlab/pdfgen/pdfgeom.py', '.venv/lib/python3.13/site-packages/reportlab/rl_config.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/widgets/grids.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/rl_codecs.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/barcode/usps4s.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/charts/lineplots.py', '.venv/lib/python3.13/site-packages/reportlab/platypus/tables.py', '.venv/lib/python3.13/site-packages/reportlab/lib/arciv.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/pdfpattern.py', '.venv/lib/python3.13/site-packages/reportlab/platypus/frames.py', '.venv/lib/python3.13/site-packages/reportlab/lib/normalDate.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/renderbase.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_widths_courieroblique.py', '.venv/lib/python3.13/site-packages/reportlab/lib/textsplit.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_widths_courier.py', '.venv/lib/python3.13/site-packages/reportlab/lib/abag.py', '.venv/lib/python3.13/site-packages/reportlab/lib/enums.py', '.venv/lib/python3.13/site-packages/reportlab/lib/rl_safe_eval.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/samples/scatter_lines.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/samples/scatter.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/charts/markers.py', '.venv/lib/python3.13/site-packages/reportlab/lib/fonts.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/widgets/flags.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_widths_helveticabold.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/charts/barcharts.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/barcode/__init__.py', '.venv/lib/python3.13/site-packages/reportlab/pdfgen/textobject.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/barcode/eanbc.py', '.venv/lib/python3.13/site-packages/reportlab/pdfgen/canvas.py', '.venv/lib/python3.13/site-packages/reportlab/lib/units.py', '.venv/lib/python3.13/site-packages/reportlab/platypus/figures.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/acroform.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/barcode/dmtx.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/samples/simple_pie.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/renderPM.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/charts/__init__.py', '.venv/lib/python3.13/site-packages/reportlab/rl_settings.py', '.venv/lib/python3.13/site-packages/reportlab/lib/corp.py', '.venv/lib/python3.13/site-packages/reportlab/lib/randomtext.py', '.venv/lib/python3.13/site-packages/reportlab/lib/pygments2xpre.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_widths_courierbold.py', '.venv/lib/python3.13/site-packages/reportlab/platypus/paragraph.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/shapes.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/renderSVG.py', '.venv/lib/python3.13/site-packages/reportlab/pdfbase/_fontdata_enc_standard.py', '.venv/lib/python3.13/site-packages/reportlab/lib/rparsexml.py', '.venv/lib/python3.13/site-packages/reportlab/lib/boxstuff.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/barcode/usps.py', '.venv/lib/python3.13/site-packages/reportlab/platypus/xpreformatted.py', '.venv/lib/python3.13/site-packages/reportlab/lib/rl_accel.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/widgets/eventcal.py', '.venv/lib/python3.13/site-packages/reportlab/lib/fontfinder.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/charts/slidebox.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/widgets/adjustableArrow.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/charts/utils3d.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/samples/excelcolors.py', '.venv/lib/python3.13/site-packages/reportlab/lib/pdfencrypt.py', '.venv/lib/python3.13/site-packages/reportlab/platypus/para.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/samples/__init__.py', '.venv/lib/python3.13/site-packages/reportlab/graphics/renderPDF.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [30542]
+INFO:     Started server process [30684]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:45790 - "GET /api/backup/status HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'app/email_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [30684]
+INFO:     Started server process [30761]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:58200 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49268 - "GET /api/backup/status HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'app/email_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [30761]
+INFO:     Started server process [30895]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:53970 - "POST /api/notifications/test-email HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53982 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56930 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59390 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47000 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45752 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47692 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39498 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58800 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36388 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49820 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58334 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50020 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42696 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55378 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44522 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41088 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59716 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53816 - "GET /api/backup/status HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'app/scheduler_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [30895]
+WARNING:  WatchFiles detected changes in 'app/scheduler_service.py'. Reloading...
+INFO:     Started server process [32136]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [32146]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/main.py'. Reloading...
+INFO:     Shutting down
+INFO:     127.0.0.1:41694 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [32146]
+INFO:     Started server process [32175]
+INFO:     Waiting for application startup.
+ERROR:root:Failed to start scheduler service: No module named 'apscheduler'
+Traceback (most recent call last):
+  File "/home/morrison/Desktop/pos/app/main.py", line 106, in startup_event
+    from .scheduler_service import start_scheduler
+  File "/home/morrison/Desktop/pos/app/scheduler_service.py", line 9, in <module>
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+ModuleNotFoundError: No module named 'apscheduler'
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [32175]
+INFO:     Started server process [32239]
+INFO:     Waiting for application startup.
+ERROR:root:Failed to start scheduler service: No module named 'apscheduler'
+Traceback (most recent call last):
+  File "/home/morrison/Desktop/pos/app/main.py", line 106, in startup_event
+    from .scheduler_service import start_scheduler
+  File "/home/morrison/Desktop/pos/app/scheduler_service.py", line 9, in <module>
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+ModuleNotFoundError: No module named 'apscheduler'
+INFO:     Application startup complete.
+INFO:     127.0.0.1:50204 - "GET /api/backup/status HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in '.venv/lib/python3.13/site-packages/tzlocal/win32.py', '.venv/lib/python3.13/site-packages/apscheduler/schedulers/asyncio.py', '.venv/lib/python3.13/site-packages/apscheduler/triggers/date.py', '.venv/lib/python3.13/site-packages/apscheduler/executors/tornado.py', '.venv/lib/python3.13/site-packages/apscheduler/schedulers/base.py', '.venv/lib/python3.13/site-packages/pytz/tzinfo.py', '.venv/lib/python3.13/site-packages/apscheduler/executors/twisted.py', '.venv/lib/python3.13/site-packages/apscheduler/triggers/cron/expressions.py', '.venv/lib/python3.13/site-packages/apscheduler/__init__.py', '.venv/lib/python3.13/site-packages/apscheduler/events.py', '.venv/lib/python3.13/site-packages/apscheduler/jobstores/mongodb.py', '.venv/lib/python3.13/site-packages/apscheduler/jobstores/zookeeper.py', '.venv/lib/python3.13/site-packages/apscheduler/triggers/combining.py', '.venv/lib/python3.13/site-packages/pytz/tzfile.py', '.venv/lib/python3.13/site-packages/apscheduler/executors/debug.py', '.venv/lib/python3.13/site-packages/pytz/lazy.py', '.venv/lib/python3.13/site-packages/apscheduler/schedulers/gevent.py', '.venv/lib/python3.13/site-packages/tzlocal/unix.py', '.venv/lib/python3.13/site-packages/apscheduler/schedulers/qt.py', '.venv/lib/python3.13/site-packages/apscheduler/executors/asyncio.py', '.venv/lib/python3.13/site-packages/apscheduler/job.py', '.venv/lib/python3.13/site-packages/apscheduler/jobstores/rethinkdb.py', '.venv/lib/python3.13/site-packages/tzlocal/__init__.py', '.venv/lib/python3.13/site-packages/apscheduler/triggers/cron/fields.py', '.venv/lib/python3.13/site-packages/apscheduler/schedulers/tornado.py', '.venv/lib/python3.13/site-packages/apscheduler/jobstores/redis.py', '.venv/lib/python3.13/site-packages/pytz/exceptions.py', '.venv/lib/python3.13/site-packages/apscheduler/jobstores/sqlalchemy.py', '.venv/lib/python3.13/site-packages/pytz/reference.py', '.venv/lib/python3.13/site-packages/apscheduler/schedulers/twisted.py', '.venv/lib/python3.13/site-packages/apscheduler/util.py', '.venv/lib/python3.13/site-packages/tzlocal/utils.py', '.venv/lib/python3.13/site-packages/apscheduler/triggers/interval.py', '.venv/lib/python3.13/site-packages/apscheduler/triggers/base.py', '.venv/lib/python3.13/site-packages/apscheduler/schedulers/background.py', '.venv/lib/python3.13/site-packages/apscheduler/executors/base_py3.py', '.venv/lib/python3.13/site-packages/apscheduler/schedulers/blocking.py', '.venv/lib/python3.13/site-packages/pytz/__init__.py', '.venv/lib/python3.13/site-packages/apscheduler/executors/gevent.py', '.venv/lib/python3.13/site-packages/tzlocal/windows_tz.py', '.venv/lib/python3.13/site-packages/apscheduler/executors/base.py', '.venv/lib/python3.13/site-packages/apscheduler/schedulers/__init__.py', '.venv/lib/python3.13/site-packages/apscheduler/triggers/cron/__init__.py', '.venv/lib/python3.13/site-packages/apscheduler/executors/pool.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [32239]
+INFO:     Started server process [32312]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:54364 - "GET /api/backup/status HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'app/scheduler_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [32312]
+INFO:     Started server process [32486]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:45936 - "GET /api/backup/status HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'app/scheduler_service.py', 'app/main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [32486]
+INFO:     Started server process [32569]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:41008 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42572 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35704 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33018 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48306 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45918 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33714 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34054 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38984 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56392 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52280 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54178 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36020 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38454 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35566 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58810 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58458 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34362 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33762 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34408 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50988 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48810 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49070 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55526 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54002 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59698 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39742 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54610 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35306 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49752 - "GET /api/backup/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59080 - "GET /api/backup/status HTTP/1.1" 200 OK

@@ -1,0 +1,532 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Exact replica of web POS: gradient background, login card, top bar, cart layout -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_gradient">
+
+    <!-- Login screen (same as web: POS Login, card with username/password) -->
+    <ScrollView
+        android:id="@+id/login_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:gravity="center">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:padding="@dimen/login_padding">
+
+            <TextView
+                android:id="@+id/login_screen_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/pos_login"
+                android:textColor="@color/login_title"
+                android:textSize="@dimen/login_title_size"
+                android:textStyle="bold"
+                android:layout_marginTop="12dp" />
+
+            <LinearLayout
+                android:id="@+id/login_form_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_login"
+                android:padding="@dimen/login_padding"
+                android:layout_marginTop="16dp"
+                android:layout_marginStart="@dimen/login_padding"
+                android:layout_marginEnd="@dimen/login_padding"
+                android:maxWidth="@dimen/login_card_max_width"
+                android:elevation="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/login_or_email"
+                    android:textColor="@color/login_title"
+                    android:textSize="@dimen/login_label_size"
+                    android:layout_marginBottom="4dp" />
+                <EditText
+                    android:id="@+id/login_username"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:padding="@dimen/input_padding"
+                    android:background="@drawable/edit_text_web"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="12dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/password"
+                    android:textColor="@color/login_title"
+                    android:textSize="@dimen/login_label_size"
+                    android:layout_marginBottom="4dp" />
+                <EditText
+                    android:id="@+id/login_password"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textPassword"
+                    android:maxLines="1"
+                    android:padding="@dimen/input_padding"
+                    android:background="@drawable/edit_text_web"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="12dp" />
+
+                <Button
+                    android:id="@+id/login_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/login"
+                    android:textColor="@color/text_on_primary"
+                    android:backgroundTint="@color/login_title"
+                    android:layout_marginTop="8dp" />
+
+                <TextView
+                    android:id="@+id/login_error"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/danger"
+                    android:textSize="14sp"
+                    android:padding="8dp"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center"
+                    android:layout_marginTop="8dp">
+
+                    <TextView
+                        android:id="@+id/link_create_business"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/create_business"
+                        android:textColor="@color/login_title"
+                        android:textSize="14sp"
+                        android:padding="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=" · "
+                        android:textColor="@color/login_title" />
+
+                    <TextView
+                        android:id="@+id/link_forgot_password"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/forgot_password"
+                        android:textColor="@color/login_title"
+                        android:textSize="14sp"
+                        android:padding="8dp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/register_form_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:background="@drawable/card_login"
+                android:padding="@dimen/login_padding"
+                android:layout_marginTop="16dp"
+                android:layout_marginStart="@dimen/login_padding"
+                android:layout_marginEnd="@dimen/login_padding"
+                android:elevation="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/register_business_title"
+                    android:textColor="@color/login_title"
+                    android:textSize="@dimen/login_title_size"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="12dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/business_name"
+                    android:textColor="@color/login_title"
+                    android:textSize="@dimen/login_label_size"
+                    android:layout_marginBottom="4dp" />
+                <EditText
+                    android:id="@+id/reg_business_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textCapWords"
+                    android:maxLines="1"
+                    android:padding="@dimen/input_padding"
+                    android:background="@drawable/edit_text_web"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/owner_name"
+                    android:textColor="@color/login_title"
+                    android:textSize="@dimen/login_label_size"
+                    android:layout_marginBottom="4dp" />
+                <EditText
+                    android:id="@+id/reg_owner_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textPersonName"
+                    android:maxLines="1"
+                    android:padding="@dimen/input_padding"
+                    android:background="@drawable/edit_text_web"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/phone"
+                    android:textColor="@color/login_title"
+                    android:textSize="@dimen/login_label_size"
+                    android:layout_marginBottom="4dp" />
+                <EditText
+                    android:id="@+id/reg_phone"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="phone"
+                    android:maxLines="1"
+                    android:padding="@dimen/input_padding"
+                    android:background="@drawable/edit_text_web"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/email"
+                    android:textColor="@color/login_title"
+                    android:textSize="@dimen/login_label_size"
+                    android:layout_marginBottom="4dp" />
+                <EditText
+                    android:id="@+id/reg_email"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textEmailAddress"
+                    android:maxLines="1"
+                    android:padding="@dimen/input_padding"
+                    android:background="@drawable/edit_text_web"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/password"
+                    android:textColor="@color/login_title"
+                    android:textSize="@dimen/login_label_size"
+                    android:layout_marginBottom="4dp" />
+                <EditText
+                    android:id="@+id/reg_password"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textPassword"
+                    android:maxLines="1"
+                    android:padding="@dimen/input_padding"
+                    android:background="@drawable/edit_text_web"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="12dp" />
+
+                <Button
+                    android:id="@+id/register_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/register_submit"
+                    android:textColor="@color/text_on_primary"
+                    android:backgroundTint="@color/login_title" />
+
+                <TextView
+                    android:id="@+id/register_error"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/danger"
+                    android:textSize="14sp"
+                    android:padding="8dp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/link_back_to_login"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:text="@string/already_have_account"
+                    android:textColor="@color/login_title"
+                    android:textSize="14sp"
+                    android:padding="8dp" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- POS screen (same structure as web: top-bar + pos-layout left with barcode + cart) -->
+    <LinearLayout
+        android:id="@+id/pos_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:visibility="gone"
+        android:background="@android:color/transparent">
+
+        <!-- Top bar: responsive padding and button sizes; scrolls horizontally on very small screens -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none"
+            android:background="@drawable/header_light_blue"
+            android:elevation="4dp"
+            android:fillViewport="true">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="@dimen/top_bar_padding_h"
+                android:paddingEnd="@dimen/top_bar_padding_h"
+                android:paddingTop="@dimen/top_bar_padding_v"
+                android:paddingBottom="@dimen/top_bar_padding_v"
+                android:minWidth="200dp">
+
+                <TextView
+                    android:id="@+id/shop_name"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="0"
+                    android:gravity="start|center_vertical"
+                    android:text="@string/store_name"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/top_bar_title_text_size"
+                    android:textStyle="bold"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:minWidth="60dp" />
+
+                <TextView
+                    android:id="@+id/status_offline_indicator"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/status_offline"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/top_bar_status_text_size"
+                    android:visibility="gone"
+                    android:layout_marginEnd="@dimen/top_bar_btn_margin_end" />
+
+                <Button
+                    android:id="@+id/btn_more_pages"
+                    android:layout_width="wrap_content"
+                    android:layout_height="@dimen/top_bar_btn_height"
+                    android:minHeight="@dimen/top_bar_btn_height"
+                    android:text="More"
+                    android:textSize="@dimen/top_bar_btn_text_size"
+                    android:backgroundTint="@color/primary"
+                    android:textColor="@color/text_on_primary"
+                    android:layout_marginEnd="@dimen/top_bar_btn_margin_end" />
+
+                <Button
+                    android:id="@+id/btn_layby"
+                    android:layout_width="wrap_content"
+                    android:layout_height="@dimen/top_bar_btn_height"
+                    android:minHeight="@dimen/top_bar_btn_height"
+                    android:text="LAYBY"
+                    android:textSize="@dimen/top_bar_btn_text_size"
+                    android:backgroundTint="@color/layby_blue"
+                    android:textColor="@color/text_on_primary"
+                    android:layout_marginEnd="@dimen/top_bar_btn_margin_end" />
+
+                <Button
+                    android:id="@+id/btn_logout"
+                    android:layout_width="wrap_content"
+                    android:layout_height="@dimen/top_bar_btn_height"
+                    android:minHeight="@dimen/top_bar_btn_height"
+                    android:text="LOGOUT"
+                    android:textSize="@dimen/top_bar_btn_text_size"
+                    android:backgroundTint="@color/danger"
+                    android:textColor="@color/text_on_primary"
+                    android:layout_marginEnd="@dimen/top_bar_btn_margin_end" />
+
+                <!-- Floating-style icons: More, Notifications, Settings, Payment, Withdraw -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <Button
+                        android:id="@+id/icon_more"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:minWidth="36dp"
+                        android:minHeight="36dp"
+                        android:text="⋮"
+                        android:textSize="16sp"
+                        android:backgroundTint="@color/primary"
+                        android:textColor="@color/text_on_primary"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/icon_payment"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:minWidth="36dp"
+                        android:minHeight="36dp"
+                        android:text="💳"
+                        android:textSize="16sp"
+                        android:backgroundTint="@color/button_complete_sale"
+                        android:textColor="@color/text_on_primary"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/icon_theme"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:minWidth="36dp"
+                        android:minHeight="36dp"
+                        android:contentDescription="@string/theme"
+                        android:text="🎨"
+                        android:textSize="16sp"
+                        android:backgroundTint="@color/primary_dark"
+                        android:textColor="@color/text_on_primary"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/icon_settings"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:minWidth="36dp"
+                        android:minHeight="36dp"
+                        android:text="⚙️"
+                        android:textSize="16sp"
+                        android:backgroundTint="@color/primary_dark"
+                        android:textColor="@color/text_on_primary"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/icon_withdraw"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:minWidth="36dp"
+                        android:minHeight="36dp"
+                        android:text="💵"
+                        android:textSize="16sp"
+                        android:backgroundTint="@color/danger"
+                        android:textColor="@color/text_on_primary" />
+                </LinearLayout>
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <!-- Main: responsive padding and text sizes -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="@dimen/content_padding">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/barcode_search"
+                android:textColor="@color/text_primary"
+                android:textSize="@dimen/label_text_size"
+                android:layout_marginBottom="4dp" />
+            <EditText
+                android:id="@+id/barcode_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:hint="@string/barcode_placeholder"
+                android:padding="@dimen/input_padding"
+                android:background="@drawable/edit_text_web"
+                android:textColor="@color/text_primary"
+                android:textSize="@dimen/input_text_size"
+                android:imeOptions="actionDone" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/search_results"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="0"
+                android:minHeight="0dp"
+                android:maxHeight="@dimen/search_results_max_height"
+                android:visibility="gone"
+                android:background="@drawable/card_login"
+                android:padding="4dp"
+                android:elevation="4dp" />
+
+            <!-- Cart header row: responsive cell widths -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingVertical="@dimen/cart_header_padding_v"
+                android:paddingHorizontal="@dimen/cart_header_padding_h"
+                android:background="@color/cart_header_bg"
+                android:layout_marginTop="@dimen/content_margin_top"
+                android:elevation="2dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2" android:text="@string/cart_item" android:textColor="@color/text_primary" android:textSize="@dimen/cart_header_text_size" android:textStyle="bold" android:paddingEnd="4dp" android:maxLines="1" android:ellipsize="end" />
+                <TextView android:layout_width="@dimen/cart_header_cell_qty_width" android:layout_height="wrap_content" android:text="@string/cart_qty" android:textColor="@color/text_primary" android:textSize="@dimen/cart_header_text_size" android:textStyle="bold" android:gravity="center" />
+                <TextView android:layout_width="@dimen/cart_header_cell_price_width" android:layout_height="wrap_content" android:text="@string/cart_price" android:textColor="@color/text_primary" android:textSize="@dimen/cart_header_text_size" android:textStyle="bold" android:gravity="end" />
+                <TextView android:layout_width="@dimen/cart_header_cell_disc_width" android:layout_height="wrap_content" android:text="@string/cart_disc" android:textColor="@color/text_primary" android:textSize="@dimen/cart_header_text_size" android:textStyle="bold" android:gravity="center" android:layout_marginStart="4dp" />
+                <TextView android:layout_width="@dimen/cart_header_cell_price_width" android:layout_height="wrap_content" android:text="@string/cart_total" android:textColor="@color/text_primary" android:textSize="@dimen/cart_header_text_size" android:textStyle="bold" android:gravity="end" android:layout_marginStart="4dp" />
+                <View android:layout_width="@dimen/cart_header_remove_width" android:layout_height="@dimen/cart_header_remove_width" />
+            </LinearLayout>
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="@drawable/content_gradient_pink_purple">
+
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scrollbars="horizontal"
+                    android:fillViewport="true">
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:orientation="vertical">
+
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/cart_list"
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:minWidth="@dimen/cart_list_min_width"
+                            android:background="@android:color/transparent"
+                            android:nestedScrollingEnabled="false" />
+                    </LinearLayout>
+                </HorizontalScrollView>
+            </FrameLayout>
+
+            <Button
+                android:id="@+id/btn_payment"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/complete_sale_two_lines"
+                android:backgroundTint="@color/button_complete_sale"
+                android:textColor="@color/text_on_primary"
+                android:textSize="@dimen/btn_complete_text_size"
+                android:textStyle="bold"
+                android:paddingTop="@dimen/btn_complete_padding_v"
+                android:paddingBottom="@dimen/btn_complete_padding_v"
+                android:layout_marginTop="@dimen/content_margin_top"
+                android:gravity="center" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

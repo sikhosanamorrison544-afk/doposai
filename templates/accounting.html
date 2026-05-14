@@ -1,0 +1,1805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Accounting Reports - POS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        // CRITICAL: Apply theme INSTANTLY - must be first script, runs synchronously
+        (function() {
+            'use strict';
+            try {
+                const savedTheme = localStorage.getItem('pos-theme') || 'default';
+                const validTheme = ['default', 'light', 'classic'].includes(savedTheme) ? savedTheme : 'default';
+                if (validTheme !== savedTheme) { try { localStorage.setItem('pos-theme', validTheme); } catch (e) {} }
+                const themeClass = validTheme !== 'default' ? 'theme-' + validTheme : '';
+                const themeBackgrounds = { 'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)', 'light': 'transparent', 'classic': '#e8e8e8' };
+                
+                if (themeClass) {
+                    document.documentElement.className = (document.documentElement.className + ' ' + themeClass).trim();
+                }
+                function applyBodyTheme() {
+                    if (document.body) {
+                        document.body.classList.remove('theme-default', 'theme-light', 'theme-classic');
+                        if (themeClass) document.body.classList.add(themeClass);
+                    }
+                }
+                if (document.body) applyBodyTheme(); else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyBodyTheme); else setTimeout(applyBodyTheme, 0);
+                
+                const bg = themeBackgrounds[validTheme] || themeBackgrounds['default'];
+                const style = document.createElement('style');
+                style.id = 'theme-instant';
+                style.setAttribute('data-theme', validTheme);
+                if (bg !== 'transparent') {
+                    if (validTheme === 'default') {
+                        // Use pseudo-element with lower opacity to see 3D model through it
+                        // Canvas is at z-index: -1, overlay is at z-index: -2, so canvas shows through
+                        // Reduced opacity to 0.5 so 3D model is more visible
+                        style.textContent = 'html,body{background:transparent!important;background-size:400% 400%!important;min-height:100vh!important;margin:0!important;padding:0!important;position:relative!important;}html::before,body::before{content:"";position:fixed;top:0;left:0;width:100%;height:100%;background:' + bg + ';background-size:400% 400%;opacity:0.5;z-index:-2;pointer-events:none;}';
+                    } else {
+                        style.textContent = 'html,body{background:' + bg + '!important;min-height:100vh!important;margin:0!important;padding:0!important;}';
+                    }
+                } else {
+                    style.textContent = 'html,body{background:transparent!important;min-height:100vh!important;margin:0!important;padding:0!important;}';
+                }
+                if (document.head.firstChild) {
+                    document.head.insertBefore(style, document.head.firstChild);
+                } else {
+                    document.head.appendChild(style);
+                }
+            } catch (e) {}
+        })();
+    </script>
+    <!-- Preload 3D model for faster loading -->
+    <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script>
+    
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Three.js for 3D Background -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
+    <style>
+        /* Ensure full height layout */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        
+        /* Ensure header stays at top */
+        #app.accounting-page {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        #app.accounting-page .top-bar {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            flex-shrink: 0;
+        }
+        
+        .accounting-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        
+        /* Ensure tabs are always visible */
+        .accounting-tabs-container {
+            position: sticky;
+            top: 0;
+            background: rgba(2, 6, 23, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+            padding: 10px 0;
+            margin: -20px -20px 20px -20px;
+            padding-left: 20px;
+            padding-right: 20px;
+        }
+        .report-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .report-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .report-controls input, .report-controls select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.3);
+            color: #1a1a1a;
+        }
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .report-table th, .report-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .report-table th {
+            background: rgba(255, 255, 255, 0.1);
+            font-weight: bold;
+        }
+        .report-table tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .amount-positive {
+            color: #4ade80;
+        }
+        .amount-negative {
+            color: #f87171;
+        }
+        .accounting-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 0;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+            flex-wrap: nowrap;
+        }
+        .accounting-tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.7);
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+        }
+        .accounting-tab.active {
+            color: #1a1a1a;
+            border-bottom-color: #3b82f6;
+        }
+        
+        /* Light theme - Golden highlight for active tab */
+        html body.theme-light .accounting-tab.active {
+            color: #ffd700 !important;
+            border-bottom-color: #ffd700 !important;
+            background: rgba(255, 215, 0, 0.15) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .summary-card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .summary-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        .summary-card .value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        .error {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        
+        /* Light Theme - White Text and Frosted Glass */
+        html body.theme-light #app.accounting-page,
+        html body.theme-light #app.accounting-page * {
+            color: #1a1a1a !important;
+        }
+        
+        /* Frosted glass effect for all backgrounds in light theme */
+        html body.theme-light #app.accounting-page .top-bar {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+        }
+        
+        html body.theme-light .accounting-tabs-container {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+        }
+        
+        html body.theme-light .report-section {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        }
+        
+        html body.theme-light .summary-card {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        }
+        
+        html body.theme-light .report-table th {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            color: #1a1a1a !important;
+        }
+        
+        html body.theme-light .report-table td {
+            color: #1a1a1a !important;
+        }
+        
+        html body.theme-light .report-table tr:hover {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+        }
+        
+        html body.theme-light .report-controls input,
+        html body.theme-light .report-controls select {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            color: #1a1a1a !important;
+        }
+        
+        html body.theme-light .report-controls input::placeholder,
+        html body.theme-light .report-controls select::placeholder {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        
+        html body.theme-light .accounting-tab {
+            background: rgba(255, 255, 255, 0.05) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        
+        html body.theme-light .accounting-tab.active {
+            background: rgba(255, 215, 0, 0.15) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            color: #ffd700 !important;
+            border-bottom-color: #ffd700 !important;
+        }
+        
+        html body.theme-light .accounting-container {
+            background: rgba(255, 255, 255, 0.05) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+        }
+        
+        html body.theme-light .loading,
+        html body.theme-light .info,
+        html body.theme-light .error {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            color: #1a1a1a !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        }
+        
+        html body.theme-light .error {
+            background: rgba(239, 68, 68, 0.2) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border: 1px solid rgba(239, 68, 68, 0.5) !important;
+        }
+        
+        html body.theme-light button,
+        html body.theme-light .primary,
+        html body.theme-light .small {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            color: #1a1a1a !important;
+        }
+        
+        html body.theme-light button:hover,
+        html body.theme-light .primary:hover {
+            background: rgba(255, 255, 255, 0.2) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+        }
+        
+        html body.theme-light #add-asset-modal {
+            background: rgba(0, 0, 0, 0.5) !important;
+            backdrop-filter: blur(10px) !important;
+            -webkit-backdrop-filter: blur(10px) !important;
+        }
+        
+        html body.theme-light #add-asset-modal > div {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        }
+        
+        html body.theme-light #add-asset-modal input {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            color: #1a1a1a !important;
+        }
+        
+        html body.theme-light #add-asset-modal label {
+            color: #1a1a1a !important;
+        }
+        
+        html body.theme-light h2,
+        html body.theme-light h3,
+        html body.theme-light .shop-name {
+            color: #1a1a1a !important;
+        }
+        
+        html body.theme-light .amount-positive {
+            color: #4ade80 !important;
+        }
+        
+        html body.theme-light .amount-negative {
+            color: #f87171 !important;
+        }
+    </style>
+</head>
+<body>
+<!-- 3D Background Canvas for Default Theme -->
+<canvas id="bg3d-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none; background: transparent;"></canvas>
+<!-- Video Background for Light Theme -->
+<video id="light-theme-video" autoplay loop muted playsinline style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; pointer-events: none; display: none;">
+    <source src="/static/background.mov" type="video/quicktime">
+    <source src="/static/background.mov" type="video/mp4">
+</video>
+<div id="app" class="screen active accounting-page">
+    <header class="top-bar">
+        <span id="accounting-user-info"></span>
+        <div class="shop-name">{{ store_name }} - Accounting</div>
+        <div class="top-bar-right">
+            <button id="btn-back-admin" class="small" onclick="window.location.href='/admin'">Back to Admin</button>
+            <button id="btn-back-pos" class="small" onclick="window.location.href='/'">Back to POS</button>
+        </div>
+    </header>
+    
+    <div class="accounting-container">
+        <div class="accounting-tabs-container">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div class="accounting-tabs" style="flex:1;overflow-x:auto;">
+                    <button class="accounting-tab active" onclick="switchTab('trial-balance')">Trial Balance</button>
+                    <button class="accounting-tab" onclick="switchTab('profit-loss')">Profit & Loss</button>
+                    <button class="accounting-tab" onclick="switchTab('balance-sheet')">Balance Sheet</button>
+                    <button class="accounting-tab" onclick="switchTab('vat-report')">VAT Report</button>
+                    <button class="accounting-tab" onclick="switchTab('general-ledger')">General Ledger</button>
+                    <button class="accounting-tab" onclick="switchTab('fixed-assets')">Fixed Assets</button>
+                </div>
+                <button class="primary small" onclick="runBackfill()" style="margin-left:20px;flex-shrink:0;">📥 Backfill Historical Data</button>
+            </div>
+        </div>
+
+        <!-- Trial Balance Tab -->
+        <div id="trial-balance" class="tab-content active">
+            <div class="report-section">
+                <div class="report-header">
+                    <h2>Trial Balance</h2>
+                    <div style="display:flex;gap:10px;">
+                        <button class="small" onclick="downloadTrialBalance('csv')" id="btn-download-tb-csv" style="display:none;">📥 CSV</button>
+                        <button class="small" onclick="downloadTrialBalance('pdf')" id="btn-download-tb-pdf" style="display:none;">📄 PDF</button>
+                    </div>
+                </div>
+                <div class="report-controls">
+                    <input type="date" id="tb-date" onchange="loadTrialBalance()">
+                    <select id="tb-period" onchange="loadTrialBalance()">
+                        <option value="">All Periods</option>
+                    </select>
+                    <button class="primary small" onclick="loadTrialBalance()">Load Report</button>
+                </div>
+                <div id="trial-balance-content">
+                    <div class="loading">Select a date or period and click "Load Report"</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profit & Loss Tab -->
+        <div id="profit-loss" class="tab-content">
+            <div class="report-section">
+                <div class="report-header">
+                    <h2>Profit & Loss Statement</h2>
+                    <div style="display:flex;gap:10px;">
+                        <button class="small" onclick="downloadProfitLoss('csv')" id="btn-download-pnl-csv" style="display:none;">📥 CSV</button>
+                        <button class="small" onclick="downloadProfitLoss('pdf')" id="btn-download-pnl-pdf" style="display:none;">📄 PDF</button>
+                    </div>
+                </div>
+                <div class="report-controls">
+                    <label>Start Date: <input type="date" id="pnl-start-date"></label>
+                    <label>End Date: <input type="date" id="pnl-end-date"></label>
+                    <button class="primary small" onclick="loadProfitLoss()">Load Report</button>
+                </div>
+                <div id="profit-loss-content">
+                    <div class="loading">Select date range and click "Load Report"</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Balance Sheet Tab -->
+        <div id="balance-sheet" class="tab-content">
+            <div class="report-section">
+                <div class="report-header">
+                    <h2>Balance Sheet</h2>
+                    <div style="display:flex;gap:10px;">
+                        <button class="small" onclick="downloadBalanceSheet('csv')" id="btn-download-bs-csv" style="display:none;">📥 CSV</button>
+                        <button class="small" onclick="downloadBalanceSheet('pdf')" id="btn-download-bs-pdf" style="display:none;">📄 PDF</button>
+                    </div>
+                </div>
+                <div class="report-controls">
+                    <label>As of Date: <input type="date" id="bs-date"></label>
+                    <button class="primary small" onclick="loadBalanceSheet()">Load Report</button>
+                </div>
+                <div id="balance-sheet-content">
+                    <div class="loading">Select a date and click "Load Report"</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VAT Report Tab -->
+        <div id="vat-report" class="tab-content">
+            <div class="report-section">
+                <div class="report-header">
+                    <h2>VAT Report (ZIMRA)</h2>
+                    <div style="display:flex;gap:10px;">
+                        <button class="small" onclick="downloadVATReport('csv')" id="btn-download-vat-csv" style="display:none;">📥 CSV</button>
+                        <button class="small" onclick="downloadVATReport('pdf')" id="btn-download-vat-pdf" style="display:none;">📄 PDF</button>
+                    </div>
+                </div>
+                <div class="report-controls">
+                    <label>Start Date: <input type="date" id="vat-start-date"></label>
+                    <label>End Date: <input type="date" id="vat-end-date"></label>
+                    <button class="primary small" onclick="loadVATReport()">Load Report</button>
+                </div>
+                <div id="vat-report-content">
+                    <div class="loading">Select date range and click "Load Report"</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- General Ledger Tab -->
+        <div id="general-ledger" class="tab-content">
+            <div class="report-section">
+                <div class="report-header">
+                    <h2>General Ledger</h2>
+                    <div style="display:flex;gap:10px;">
+                        <button class="small" onclick="downloadGeneralLedger('csv')" id="btn-download-gl-csv" style="display:none;">📥 CSV</button>
+                        <button class="small" onclick="downloadGeneralLedger('pdf')" id="btn-download-gl-pdf" style="display:none;">📄 PDF</button>
+                    </div>
+                </div>
+                <div class="report-controls">
+                    <label>Account Code: <input type="text" id="gl-account-code" placeholder="e.g., 1000"></label>
+                    <label>Start Date: <input type="date" id="gl-start-date"></label>
+                    <label>End Date: <input type="date" id="gl-end-date"></label>
+                    <button class="primary small" onclick="loadGeneralLedger()">Load Report</button>
+                </div>
+                <div id="general-ledger-content">
+                    <div class="loading">Enter account code and date range, then click "Load Report"</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fixed Assets Tab -->
+        <div id="fixed-assets" class="tab-content">
+            <div class="report-section">
+                <div class="report-header">
+                    <h2>Fixed Assets</h2>
+                    <div style="display:flex;gap:10px;">
+                        <button class="small" onclick="downloadFixedAssets('csv')" id="btn-download-fa-csv" style="display:none;">📥 CSV</button>
+                        <button class="small" onclick="downloadFixedAssets('pdf')" id="btn-download-fa-pdf" style="display:none;">📄 PDF</button>
+                        <button class="primary small" onclick="showAddAssetModal()">Add Asset</button>
+                    </div>
+                </div>
+                <div id="fixed-assets-content">
+                    <div class="loading">Loading assets...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Asset Modal -->
+<div id="add-asset-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:10000;padding:20px;overflow:auto;">
+    <div style="max-width:600px;margin:50px auto;background:rgba(30,30,30,0.95);padding:30px;border-radius:8px;">
+        <h2 style="margin-top:0;">Add Fixed Asset</h2>
+        <div style="margin-bottom:15px;">
+            <label>Asset Code: <input type="text" id="asset-code" style="width:100%;padding:8px;margin-top:5px;"></label>
+        </div>
+        <div style="margin-bottom:15px;">
+            <label>Asset Name: <input type="text" id="asset-name" style="width:100%;padding:8px;margin-top:5px;"></label>
+        </div>
+        <div style="margin-bottom:15px;">
+            <label>Purchase Date: <input type="date" id="asset-purchase-date" style="width:100%;padding:8px;margin-top:5px;"></label>
+        </div>
+        <div style="margin-bottom:15px;">
+            <label>Purchase Cost: <input type="number" id="asset-cost" step="0.01" style="width:100%;padding:8px;margin-top:5px;"></label>
+        </div>
+        <div style="margin-bottom:15px;">
+            <label>Useful Life (months): <input type="number" id="asset-life" step="1" style="width:100%;padding:8px;margin-top:5px;"></label>
+        </div>
+        <div style="margin-bottom:15px;">
+            <label>Payment Account Code: <input type="text" id="asset-payment-account" value="1000" style="width:100%;padding:8px;margin-top:5px;"></label>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:20px;">
+            <button class="primary" onclick="saveAsset()">Save Asset</button>
+            <button onclick="closeAddAssetModal()">Cancel</button>
+        </div>
+        <div id="asset-message" style="margin-top:15px;"></div>
+    </div>
+</div>
+
+<script>
+let token = localStorage.getItem('pos_token');
+if (!token) {
+    window.location.href = '/';
+}
+
+// Theme management
+function applyTheme(themeName) {
+    // Remove all theme classes
+    document.body.classList.remove('theme-default', 'theme-light', 'theme-classic');
+    
+    // Add selected theme class
+    if (themeName && themeName !== 'default') {
+        document.body.classList.add(`theme-${themeName}`);
+    }
+}
+
+function loadTheme() {
+    const savedTheme = localStorage.getItem('pos-theme') || 'default';
+    applyTheme(savedTheme);
+}
+
+// Set default dates
+document.addEventListener('DOMContentLoaded', function() {
+    // Load theme first
+    loadTheme();
+    
+    const today = new Date().toISOString().split('T')[0];
+    const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+    
+    document.getElementById('tb-date').value = today;
+    document.getElementById('pnl-start-date').value = firstDay;
+    document.getElementById('pnl-end-date').value = today;
+    document.getElementById('bs-date').value = today;
+    document.getElementById('vat-start-date').value = firstDay;
+    document.getElementById('vat-end-date').value = today;
+    document.getElementById('gl-start-date').value = firstDay;
+    document.getElementById('gl-end-date').value = today;
+    document.getElementById('asset-purchase-date').value = today;
+    
+    loadFixedAssets();
+    loadUserInfo();
+});
+
+function switchTab(tabName) {
+    document.querySelectorAll('.accounting-tab').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    document.querySelector(`[onclick="switchTab('${tabName}')"]`).classList.add('active');
+    document.getElementById(tabName).classList.add('active');
+}
+
+async function loadTrialBalance() {
+    const date = document.getElementById('tb-date').value;
+    const period = document.getElementById('tb-period').value;
+    const content = document.getElementById('trial-balance-content');
+    
+    content.innerHTML = '<div class="loading">Loading trial balance...</div>';
+    
+    try {
+        let url = '/api/accounting/trial-balance?';
+        if (date) url += `as_of_date=${date}`;
+        if (period) url += `&period_name=${period}`;
+        
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) throw new Error('Failed to load trial balance');
+        
+        const data = await response.json();
+        if (!data.success) throw new Error(data.detail || 'Failed to load');
+        
+        if (!data.data || data.data.length === 0) {
+            content.innerHTML = '<div class="info">No accounting data found. Make some sales or withdrawals to generate journal entries.</div>';
+            return;
+        }
+        
+        let html = '<table class="report-table"><thead><tr><th>Account Code</th><th>Account Name</th><th>Account Type</th><th>Debit</th><th>Credit</th><th>Net Balance</th></tr></thead><tbody>';
+        
+        data.data.forEach(row => {
+            if (row.account_code === 'TOTAL') {
+                html += '<tr style="font-weight:bold;background:rgba(255,255,255,0.1);"><td colspan="3">TOTAL</td>';
+            } else {
+                html += `<tr><td>${row.account_code}</td><td>${row.account_name}</td><td>${row.account_type || ''}</td>`;
+            }
+            html += `<td>${formatCurrency(row.debit_balance)}</td>`;
+            html += `<td>${formatCurrency(row.credit_balance)}</td>`;
+            html += `<td class="${row.net_balance >= 0 ? 'amount-positive' : 'amount-negative'}">${formatCurrency(row.net_balance)}</td></tr>`;
+        });
+        
+        html += '</tbody></table>';
+        content.innerHTML = html;
+        
+        // Store data for download and show download buttons
+        window.trialBalanceData = data.data;
+        document.getElementById('btn-download-tb-csv').style.display = 'inline-block';
+        document.getElementById('btn-download-tb-pdf').style.display = 'inline-block';
+    } catch (error) {
+        content.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+    }
+}
+
+async function loadProfitLoss() {
+    const startDate = document.getElementById('pnl-start-date').value;
+    const endDate = document.getElementById('pnl-end-date').value;
+    const content = document.getElementById('profit-loss-content');
+    
+    if (!startDate || !endDate) {
+        content.innerHTML = '<div class="error">Please select both start and end dates</div>';
+        return;
+    }
+    
+    content.innerHTML = '<div class="loading">Loading profit & loss...</div>';
+    
+    try {
+        const response = await fetch(`/api/accounting/profit-loss?start_date=${startDate}&end_date=${endDate}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) throw new Error('Failed to load profit & loss');
+        
+        const data = await response.json();
+        if (!data.success) throw new Error(data.detail || 'Failed to load');
+        
+        const pnl = data.data;
+        let html = '<div class="summary-cards">';
+        html += `<div class="summary-card"><h3>Total Revenue</h3><div class="value amount-positive">${formatCurrency(pnl.revenue.total)}</div></div>`;
+        html += `<div class="summary-card"><h3>COGS</h3><div class="value amount-negative">${formatCurrency(pnl.cogs.total)}</div></div>`;
+        html += `<div class="summary-card"><h3>Gross Profit</h3><div class="value amount-positive">${formatCurrency(pnl.gross_profit.total)}</div></div>`;
+        html += `<div class="summary-card"><h3>Total Expenses</h3><div class="value amount-negative">${formatCurrency(pnl.expenses.total)}</div></div>`;
+        html += `<div class="summary-card"><h3>Net Profit</h3><div class="value ${pnl.net_profit.total >= 0 ? 'amount-positive' : 'amount-negative'}">${formatCurrency(pnl.net_profit.total)}</div></div>`;
+        html += '</div>';
+        
+        html += '<h3>Revenue Breakdown</h3><table class="report-table"><thead><tr><th>Account</th><th>Amount</th></tr></thead><tbody>';
+        pnl.revenue.items.forEach(item => {
+            html += `<tr><td>${item.account_code} - ${item.account_name}</td><td class="amount-positive">${formatCurrency(item.amount)}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        
+        html += '<h3>Expenses Breakdown</h3><table class="report-table"><thead><tr><th>Account</th><th>Amount</th></tr></thead><tbody>';
+        pnl.expenses.items.forEach(item => {
+            html += `<tr><td>${item.account_code} - ${item.account_name}</td><td class="amount-negative">${formatCurrency(item.amount)}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        
+        content.innerHTML = html;
+        
+        // Store data for download and show download buttons
+        window.profitLossData = pnl;
+        document.getElementById('btn-download-pnl-csv').style.display = 'inline-block';
+        document.getElementById('btn-download-pnl-pdf').style.display = 'inline-block';
+    } catch (error) {
+        content.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+    }
+}
+
+async function loadBalanceSheet() {
+    const date = document.getElementById('bs-date').value;
+    const content = document.getElementById('balance-sheet-content');
+    
+    if (!date) {
+        content.innerHTML = '<div class="error">Please select a date</div>';
+        return;
+    }
+    
+    content.innerHTML = '<div class="loading">Loading balance sheet...</div>';
+    
+    try {
+        const response = await fetch(`/api/accounting/balance-sheet?as_of_date=${date}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) throw new Error('Failed to load balance sheet');
+        
+        const data = await response.json();
+        if (!data.success) throw new Error(data.detail || 'Failed to load');
+        
+        const bs = data.data;
+        let html = '<div class="summary-cards">';
+        html += `<div class="summary-card"><h3>Total Assets</h3><div class="value amount-positive">${formatCurrency(bs.total_assets)}</div></div>`;
+        html += `<div class="summary-card"><h3>Total Liabilities</h3><div class="value amount-negative">${formatCurrency(bs.total_liabilities)}</div></div>`;
+        html += `<div class="summary-card"><h3>Total Equity</h3><div class="value amount-positive">${formatCurrency(bs.total_equity)}</div></div>`;
+        html += '</div>';
+        
+        html += '<h3>Assets</h3><table class="report-table"><thead><tr><th>Account</th><th>Balance</th></tr></thead><tbody>';
+        bs.assets.items.forEach(item => {
+            html += `<tr><td>${item.account_code} - ${item.account_name}</td><td class="amount-positive">${formatCurrency(item.balance)}</td></tr>`;
+        });
+        html += `<tr style="font-weight:bold;"><td>Total Assets</td><td>${formatCurrency(bs.total_assets)}</td></tr>`;
+        html += '</tbody></table>';
+        
+        html += '<h3>Liabilities</h3><table class="report-table"><thead><tr><th>Account</th><th>Balance</th></tr></thead><tbody>';
+        bs.liabilities.items.forEach(item => {
+            html += `<tr><td>${item.account_code} - ${item.account_name}</td><td class="amount-negative">${formatCurrency(item.balance)}</td></tr>`;
+        });
+        html += `<tr style="font-weight:bold;"><td>Total Liabilities</td><td>${formatCurrency(bs.total_liabilities)}</td></tr>`;
+        html += '</tbody></table>';
+        
+        html += '<h3>Equity</h3><table class="report-table"><thead><tr><th>Account</th><th>Balance</th></tr></thead><tbody>';
+        bs.equity.items.forEach(item => {
+            html += `<tr><td>${item.account_code} - ${item.account_name}</td><td class="amount-positive">${formatCurrency(item.balance)}</td></tr>`;
+        });
+        html += `<tr style="font-weight:bold;"><td>Total Equity</td><td>${formatCurrency(bs.total_equity)}</td></tr>`;
+        html += '</tbody></table>';
+        
+        content.innerHTML = html;
+        
+        // Store data for download and show download buttons
+        window.balanceSheetData = bs;
+        document.getElementById('btn-download-bs-csv').style.display = 'inline-block';
+        document.getElementById('btn-download-bs-pdf').style.display = 'inline-block';
+    } catch (error) {
+        content.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+    }
+}
+
+async function loadVATReport() {
+    const startDate = document.getElementById('vat-start-date').value;
+    const endDate = document.getElementById('vat-end-date').value;
+    const content = document.getElementById('vat-report-content');
+    
+    if (!startDate || !endDate) {
+        content.innerHTML = '<div class="error">Please select both start and end dates</div>';
+        return;
+    }
+    
+    content.innerHTML = '<div class="loading">Loading VAT report...</div>';
+    
+    try {
+        const response = await fetch(`/api/accounting/vat-report?start_date=${startDate}&end_date=${endDate}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) throw new Error('Failed to load VAT report');
+        
+        const data = await response.json();
+        if (!data.success) throw new Error(data.detail || 'Failed to load');
+        
+        const vat = data.data;
+        let html = '<div class="summary-cards">';
+        html += `<div class="summary-card"><h3>Output VAT</h3><div class="value amount-negative">${formatCurrency(vat.output_vat.total)}</div></div>`;
+        html += `<div class="summary-card"><h3>Input VAT</h3><div class="value amount-positive">${formatCurrency(vat.input_vat.total)}</div></div>`;
+        html += `<div class="summary-card"><h3>VAT Payable</h3><div class="value ${vat.vat_payable >= 0 ? 'amount-negative' : 'amount-positive'}">${formatCurrency(vat.vat_payable)}</div></div>`;
+        html += `<div class="summary-card"><h3>VAT Rate</h3><div class="value">${vat.vat_rate}%</div></div>`;
+        html += '</div>';
+        
+        html += '<h3>VAT Transactions</h3><table class="report-table"><thead><tr><th>Date</th><th>Entry #</th><th>Description</th><th>VAT Amount</th></tr></thead><tbody>';
+        vat.output_vat.transactions.forEach(txn => {
+            html += `<tr><td>${new Date(txn.date).toLocaleDateString()}</td><td>${txn.entry_number}</td><td>${txn.description}</td><td class="amount-negative">${formatCurrency(txn.vat_amount)}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        
+        content.innerHTML = html;
+        
+        // Store data for download and show download buttons
+        window.vatReportData = vat;
+        document.getElementById('btn-download-vat-csv').style.display = 'inline-block';
+        document.getElementById('btn-download-vat-pdf').style.display = 'inline-block';
+    } catch (error) {
+        content.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+    }
+}
+
+async function loadGeneralLedger() {
+    const accountCode = document.getElementById('gl-account-code').value;
+    const startDate = document.getElementById('gl-start-date').value;
+    const endDate = document.getElementById('gl-end-date').value;
+    const content = document.getElementById('general-ledger-content');
+    
+    if (!accountCode) {
+        content.innerHTML = '<div class="error">Please enter an account code</div>';
+        return;
+    }
+    
+    content.innerHTML = '<div class="loading">Loading general ledger...</div>';
+    
+    try {
+        let url = `/api/accounting/general-ledger?account_code=${accountCode}`;
+        if (startDate) url += `&start_date=${startDate}`;
+        if (endDate) url += `&end_date=${endDate}`;
+        
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) throw new Error('Failed to load general ledger');
+        
+        const data = await response.json();
+        if (!data.success) throw new Error(data.detail || 'Failed to load');
+        
+        const ledger = data.data;
+        let html = `<h3>${ledger.account_code} - ${ledger.account_name} (${ledger.account_type})</h3>`;
+        html += `<p>Opening Balance: <strong>${formatCurrency(ledger.opening_balance)}</strong></p>`;
+        html += '<table class="report-table"><thead><tr><th>Date</th><th>Entry #</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>';
+        
+        ledger.transactions.forEach(txn => {
+            html += `<tr><td>${new Date(txn.date).toLocaleDateString()}</td><td>${txn.entry_number}</td><td>${txn.description}</td>`;
+            html += `<td>${formatCurrency(txn.debit)}</td><td>${formatCurrency(txn.credit)}</td>`;
+            html += `<td class="${txn.balance >= 0 ? 'amount-positive' : 'amount-negative'}">${formatCurrency(txn.balance)}</td></tr>`;
+        });
+        
+        html += `<tr style="font-weight:bold;"><td colspan="5">Closing Balance</td><td>${formatCurrency(ledger.closing_balance)}</td></tr>`;
+        html += '</tbody></table>';
+        
+        content.innerHTML = html;
+        
+        // Store data for download and show download buttons
+        window.generalLedgerData = ledger;
+        document.getElementById('btn-download-gl-csv').style.display = 'inline-block';
+        document.getElementById('btn-download-gl-pdf').style.display = 'inline-block';
+    } catch (error) {
+        content.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+    }
+}
+
+async function loadFixedAssets() {
+    const content = document.getElementById('fixed-assets-content');
+    content.innerHTML = '<div class="loading">Loading fixed assets...</div>';
+    
+    try {
+        const response = await fetch('/api/accounting/fixed-assets', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) throw new Error('Failed to load fixed assets');
+        
+        const data = await response.json();
+        if (!data.success) throw new Error(data.detail || 'Failed to load');
+        
+        if (data.assets.length === 0) {
+            content.innerHTML = '<div class="info">No fixed assets found. Click "Add Asset" to create one.</div>';
+            return;
+        }
+        
+        let html = '<table class="report-table"><thead><tr><th>Code</th><th>Name</th><th>Purchase Date</th><th>Cost</th><th>Accumulated Depreciation</th><th>Current Value</th><th>Status</th></tr></thead><tbody>';
+        data.assets.forEach(asset => {
+            html += `<tr><td>${asset.asset_code}</td><td>${asset.name}</td>`;
+            html += `<td>${new Date(asset.purchase_date).toLocaleDateString()}</td>`;
+            html += `<td>${formatCurrency(asset.purchase_cost)}</td>`;
+            html += `<td>${formatCurrency(asset.accumulated_depreciation)}</td>`;
+            html += `<td>${formatCurrency(asset.current_value)}</td>`;
+            html += `<td>${asset.is_disposed ? 'Disposed' : 'Active'}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        
+        content.innerHTML = html;
+        
+        // Store data for download and show download buttons
+        window.fixedAssetsData = data.assets;
+        document.getElementById('btn-download-fa-csv').style.display = 'inline-block';
+        document.getElementById('btn-download-fa-pdf').style.display = 'inline-block';
+    } catch (error) {
+        content.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+    }
+}
+
+function showAddAssetModal() {
+    document.getElementById('add-asset-modal').style.display = 'block';
+}
+
+function closeAddAssetModal() {
+    document.getElementById('add-asset-modal').style.display = 'none';
+    document.getElementById('asset-message').innerHTML = '';
+}
+
+async function saveAsset() {
+    const assetCode = document.getElementById('asset-code').value;
+    const assetName = document.getElementById('asset-name').value;
+    const purchaseDate = document.getElementById('asset-purchase-date').value;
+    const cost = parseFloat(document.getElementById('asset-cost').value);
+    const life = parseInt(document.getElementById('asset-life').value);
+    const paymentAccount = document.getElementById('asset-payment-account').value || '1000';
+    const messageEl = document.getElementById('asset-message');
+    
+    if (!assetCode || !assetName || !purchaseDate || !cost || !life) {
+        messageEl.innerHTML = '<div class="error">Please fill in all fields</div>';
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/accounting/fixed-assets', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                asset_code: assetCode,
+                name: assetName,
+                purchase_date: purchaseDate,
+                purchase_cost: cost,
+                useful_life_months: life,
+                payment_account_code: paymentAccount
+            })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to create asset');
+        }
+        
+        const data = await response.json();
+        messageEl.innerHTML = '<div style="color:#4ade80;">Asset created successfully!</div>';
+        setTimeout(() => {
+            closeAddAssetModal();
+            loadFixedAssets();
+        }, 1500);
+    } catch (error) {
+        messageEl.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+    }
+}
+
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2
+    }).format(amount);
+}
+
+async function loadUserInfo() {
+    try {
+        // Get user info from localStorage (set during login)
+        const userStr = localStorage.getItem('pos_user');
+        if (userStr) {
+            const user = JSON.parse(userStr);
+            document.getElementById('accounting-user-info').textContent = user.username || 'User';
+        } else {
+            document.getElementById('accounting-user-info').textContent = 'User';
+        }
+    } catch (error) {
+        console.error('Failed to load user info:', error);
+        document.getElementById('accounting-user-info').textContent = 'User';
+    }
+}
+
+async function runBackfill() {
+    if (!confirm('This will create journal entries for all historical sales and layby payments. This may take a few minutes. Continue?')) {
+        return;
+    }
+    
+    // Disable button to prevent multiple clicks
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ Processing...';
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.id = 'backfill-message';
+    messageDiv.style.cssText = 'position:fixed;top:20px;right:20px;background:rgba(30,30,30,0.95);padding:20px;border-radius:8px;z-index:10000;max-width:400px;box-shadow:0 4px 6px rgba(0,0,0,0.3);';
+    messageDiv.innerHTML = '<div style="margin-bottom:10px;"><strong>Backfilling Historical Data...</strong></div><div id="backfill-progress">Starting...</div>';
+    document.body.appendChild(messageDiv);
+    
+    // Update progress message immediately (non-blocking)
+    const progressEl = document.getElementById('backfill-progress');
+    progressEl.innerHTML = '<div>Connecting to server...</div>';
+    
+    try {
+        // Use a longer timeout for large backfills
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout
+        
+        const response = await fetch('/api/accounting/backfill', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Backfill failed');
+        }
+        
+        const data = await response.json();
+        const stats = data.stats;
+        
+        let progressHtml = '<div style="color:#4ade80;margin-bottom:10px;">✓ Backfill completed!</div>';
+        progressHtml += `<div style="margin:5px 0;">Sales processed: ${stats.sales_processed}</div>`;
+        progressHtml += `<div style="margin:5px 0;">Sales skipped: ${stats.sales_skipped}</div>`;
+        progressHtml += `<div style="margin:5px 0;">Layby payments processed: ${stats.layby_payments_processed}</div>`;
+        progressHtml += `<div style="margin:5px 0;">Layby payments skipped: ${stats.layby_payments_skipped}</div>`;
+        
+        if (stats.errors && stats.errors.length > 0) {
+            progressHtml += `<div style="color:#f87171;margin-top:10px;">Errors: ${stats.errors.length}</div>`;
+            if (stats.errors.length <= 5) {
+                progressHtml += '<div style="font-size:12px;color:#f87171;margin-top:5px;">' + stats.errors.join('<br>') + '</div>';
+            }
+        }
+        
+        progressHtml += '<button onclick="this.parentElement.parentElement.remove(); location.reload();" class="primary small" style="margin-top:15px;width:100%;">Close & Refresh</button>';
+        
+        progressEl.innerHTML = progressHtml;
+        
+        // Re-enable button
+        btn.disabled = false;
+        btn.textContent = originalText;
+        
+        // Auto-close after 15 seconds
+        setTimeout(() => {
+            if (messageDiv.parentElement) {
+                messageDiv.remove();
+                location.reload();
+            }
+        }, 15000);
+        
+    } catch (error) {
+        // Re-enable button
+        btn.disabled = false;
+        btn.textContent = originalText;
+        
+        if (error.name === 'AbortError') {
+            progressEl.innerHTML = 
+                `<div style="color:#f87171;">Request timed out. The backfill may still be processing on the server.</div>
+                 <button onclick="this.parentElement.parentElement.remove();" class="small" style="margin-top:10px;">Close</button>`;
+        } else {
+            progressEl.innerHTML = 
+                `<div style="color:#f87171;">Error: ${error.message}</div>
+                 <button onclick="this.parentElement.parentElement.remove();" class="small" style="margin-top:10px;">Close</button>`;
+        }
+    }
+}
+
+// Download functions
+function downloadTrialBalance(format) {
+    if (!window.trialBalanceData) {
+        alert('Please load the report first');
+        return;
+    }
+    
+    const date = document.getElementById('tb-date').value || new Date().toISOString().split('T')[0];
+    const filename = `trial_balance_${date}_${new Date().toISOString().split('T')[0]}.${format}`;
+    
+    if (format === 'csv') {
+        let csv = ['Trial Balance Report'];
+        csv.push(`Date: ${date}`);
+        csv.push('');
+        csv.push('Account Code,Account Name,Account Type,Debit,Credit,Net Balance');
+        
+        window.trialBalanceData.forEach(row => {
+            if (row.account_code !== 'TOTAL') {
+                csv.push(`${row.account_code},"${row.account_name}",${row.account_type || ''},${row.debit_balance},${row.credit_balance},${row.net_balance}`);
+            }
+        });
+        
+        const csvContent = csv.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } else if (format === 'pdf') {
+        if (typeof window.jspdf === 'undefined') {
+            alert('PDF library not loaded. Please refresh the page.');
+            return;
+        }
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const storeName = document.querySelector('.shop-name')?.textContent || 'Store';
+        
+        doc.setFontSize(18);
+        doc.setFont(undefined, 'bold');
+        doc.text('Trial Balance', 14, 20);
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'normal');
+        doc.text(storeName, 14, 28);
+        doc.text(`Date: ${date}`, 14, 34);
+        
+        let yPos = 45;
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.text('Code', 14, yPos);
+        doc.text('Account Name', 30, yPos);
+        doc.text('Type', 100, yPos);
+        doc.text('Debit', 120, yPos);
+        doc.text('Credit', 145, yPos);
+        doc.text('Net Balance', 170, yPos);
+        yPos += 5;
+        doc.line(14, yPos, 196, yPos);
+        yPos += 8;
+        
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(9);
+        window.trialBalanceData.forEach(row => {
+            if (yPos > 270) {
+                doc.addPage();
+                yPos = 20;
+            }
+            if (row.account_code === 'TOTAL') {
+                doc.setFont(undefined, 'bold');
+                doc.text('TOTAL', 14, yPos);
+                doc.text(formatCurrency(row.debit_balance), 120, yPos);
+                doc.text(formatCurrency(row.credit_balance), 145, yPos);
+                doc.text(formatCurrency(row.net_balance), 170, yPos);
+                doc.setFont(undefined, 'normal');
+            } else {
+                doc.text(row.account_code, 14, yPos);
+                doc.text(row.account_name.substring(0, 30), 30, yPos);
+                doc.text((row.account_type || '').substring(0, 15), 100, yPos);
+                doc.text(formatCurrency(row.debit_balance), 120, yPos);
+                doc.text(formatCurrency(row.credit_balance), 145, yPos);
+                doc.text(formatCurrency(row.net_balance), 170, yPos);
+            }
+            yPos += 7;
+        });
+        
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.text(`Page ${i} of ${totalPages}`, 14, 285);
+            doc.text(`Generated: ${new Date().toLocaleString()}`, 100, 285);
+        }
+        
+        doc.save(filename);
+    }
+}
+
+function downloadProfitLoss(format) {
+    if (!window.profitLossData) {
+        alert('Please load the report first');
+        return;
+    }
+    
+    const startDate = document.getElementById('pnl-start-date').value;
+    const endDate = document.getElementById('pnl-end-date').value;
+    const filename = `profit_loss_${startDate}_to_${endDate}.${format}`;
+    const pnl = window.profitLossData;
+    
+    if (format === 'csv') {
+        let csv = ['Profit & Loss Statement'];
+        csv.push(`Period: ${startDate} to ${endDate}`);
+        csv.push('');
+        csv.push('Summary');
+        csv.push(`Total Revenue,${pnl.revenue.total}`);
+        csv.push(`COGS,${pnl.cogs.total}`);
+        csv.push(`Gross Profit,${pnl.gross_profit.total}`);
+        csv.push(`Total Expenses,${pnl.expenses.total}`);
+        csv.push(`Net Profit,${pnl.net_profit.total}`);
+        csv.push('');
+        csv.push('Revenue Breakdown');
+        csv.push('Account Code,Account Name,Amount');
+        pnl.revenue.items.forEach(item => {
+            csv.push(`${item.account_code},"${item.account_name}",${item.amount}`);
+        });
+        csv.push('');
+        csv.push('Expenses Breakdown');
+        csv.push('Account Code,Account Name,Amount');
+        pnl.expenses.items.forEach(item => {
+            csv.push(`${item.account_code},"${item.account_name}",${item.amount}`);
+        });
+        
+        const csvContent = csv.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } else if (format === 'pdf') {
+        if (typeof window.jspdf === 'undefined') {
+            alert('PDF library not loaded. Please refresh the page.');
+            return;
+        }
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const storeName = document.querySelector('.shop-name')?.textContent || 'Store';
+        
+        doc.setFontSize(18);
+        doc.setFont(undefined, 'bold');
+        doc.text('Profit & Loss Statement', 14, 20);
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'normal');
+        doc.text(storeName, 14, 28);
+        doc.text(`Period: ${startDate} to ${endDate}`, 14, 34);
+        
+        let yPos = 45;
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.text('Summary', 14, yPos);
+        yPos += 8;
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Total Revenue: ${formatCurrency(pnl.revenue.total)}`, 20, yPos);
+        yPos += 6;
+        doc.text(`COGS: ${formatCurrency(pnl.cogs.total)}`, 20, yPos);
+        yPos += 6;
+        doc.text(`Gross Profit: ${formatCurrency(pnl.gross_profit.total)}`, 20, yPos);
+        yPos += 6;
+        doc.text(`Total Expenses: ${formatCurrency(pnl.expenses.total)}`, 20, yPos);
+        yPos += 6;
+        doc.setFont(undefined, 'bold');
+        doc.text(`Net Profit: ${formatCurrency(pnl.net_profit.total)}`, 20, yPos);
+        yPos += 10;
+        
+        doc.setFont(undefined, 'bold');
+        doc.text('Revenue Breakdown', 14, yPos);
+        yPos += 8;
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        pnl.revenue.items.forEach(item => {
+            if (yPos > 270) {
+                doc.addPage();
+                yPos = 20;
+            }
+            doc.text(`${item.account_code} - ${item.account_name}: ${formatCurrency(item.amount)}`, 20, yPos);
+            yPos += 6;
+        });
+        
+        yPos += 5;
+        doc.setFont(undefined, 'bold');
+        doc.text('Expenses Breakdown', 14, yPos);
+        yPos += 8;
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        pnl.expenses.items.forEach(item => {
+            if (yPos > 270) {
+                doc.addPage();
+                yPos = 20;
+            }
+            doc.text(`${item.account_code} - ${item.account_name}: ${formatCurrency(item.amount)}`, 20, yPos);
+            yPos += 6;
+        });
+        
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.text(`Page ${i} of ${totalPages}`, 14, 285);
+            doc.text(`Generated: ${new Date().toLocaleString()}`, 100, 285);
+        }
+        
+        doc.save(filename);
+    }
+}
+
+function downloadBalanceSheet(format) {
+    if (!window.balanceSheetData) {
+        alert('Please load the report first');
+        return;
+    }
+    
+    const date = document.getElementById('bs-date').value;
+    const filename = `balance_sheet_${date}.${format}`;
+    const bs = window.balanceSheetData;
+    
+    if (format === 'csv') {
+        let csv = ['Balance Sheet'];
+        csv.push(`As of Date: ${date}`);
+        csv.push('');
+        csv.push('Summary');
+        csv.push(`Total Assets,${bs.total_assets}`);
+        csv.push(`Total Liabilities,${bs.total_liabilities}`);
+        csv.push(`Total Equity,${bs.total_equity}`);
+        csv.push('');
+        csv.push('Assets');
+        csv.push('Account Code,Account Name,Balance');
+        bs.assets.items.forEach(item => {
+            csv.push(`${item.account_code},"${item.account_name}",${item.balance}`);
+        });
+        csv.push(`TOTAL ASSETS,${bs.total_assets}`);
+        csv.push('');
+        csv.push('Liabilities');
+        csv.push('Account Code,Account Name,Balance');
+        bs.liabilities.items.forEach(item => {
+            csv.push(`${item.account_code},"${item.account_name}",${item.balance}`);
+        });
+        csv.push(`TOTAL LIABILITIES,${bs.total_liabilities}`);
+        csv.push('');
+        csv.push('Equity');
+        csv.push('Account Code,Account Name,Balance');
+        bs.equity.items.forEach(item => {
+            csv.push(`${item.account_code},"${item.account_name}",${item.balance}`);
+        });
+        csv.push(`TOTAL EQUITY,${bs.total_equity}`);
+        
+        const csvContent = csv.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } else if (format === 'pdf') {
+        if (typeof window.jspdf === 'undefined') {
+            alert('PDF library not loaded. Please refresh the page.');
+            return;
+        }
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const storeName = document.querySelector('.shop-name')?.textContent || 'Store';
+        
+        doc.setFontSize(18);
+        doc.setFont(undefined, 'bold');
+        doc.text('Balance Sheet', 14, 20);
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'normal');
+        doc.text(storeName, 14, 28);
+        doc.text(`As of Date: ${date}`, 14, 34);
+        
+        let yPos = 45;
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.text('Summary', 14, yPos);
+        yPos += 8;
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Total Assets: ${formatCurrency(bs.total_assets)}`, 20, yPos);
+        yPos += 6;
+        doc.text(`Total Liabilities: ${formatCurrency(bs.total_liabilities)}`, 20, yPos);
+        yPos += 6;
+        doc.text(`Total Equity: ${formatCurrency(bs.total_equity)}`, 20, yPos);
+        yPos += 10;
+        
+        doc.setFont(undefined, 'bold');
+        doc.text('Assets', 14, yPos);
+        yPos += 8;
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        bs.assets.items.forEach(item => {
+            if (yPos > 270) {
+                doc.addPage();
+                yPos = 20;
+            }
+            doc.text(`${item.account_code} - ${item.account_name}: ${formatCurrency(item.balance)}`, 20, yPos);
+            yPos += 6;
+        });
+        doc.setFont(undefined, 'bold');
+        doc.text(`Total Assets: ${formatCurrency(bs.total_assets)}`, 20, yPos);
+        yPos += 10;
+        
+        doc.setFont(undefined, 'bold');
+        doc.text('Liabilities', 14, yPos);
+        yPos += 8;
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        bs.liabilities.items.forEach(item => {
+            if (yPos > 270) {
+                doc.addPage();
+                yPos = 20;
+            }
+            doc.text(`${item.account_code} - ${item.account_name}: ${formatCurrency(item.balance)}`, 20, yPos);
+            yPos += 6;
+        });
+        doc.setFont(undefined, 'bold');
+        doc.text(`Total Liabilities: ${formatCurrency(bs.total_liabilities)}`, 20, yPos);
+        yPos += 10;
+        
+        doc.setFont(undefined, 'bold');
+        doc.text('Equity', 14, yPos);
+        yPos += 8;
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        bs.equity.items.forEach(item => {
+            if (yPos > 270) {
+                doc.addPage();
+                yPos = 20;
+            }
+            doc.text(`${item.account_code} - ${item.account_name}: ${formatCurrency(item.balance)}`, 20, yPos);
+            yPos += 6;
+        });
+        doc.setFont(undefined, 'bold');
+        doc.text(`Total Equity: ${formatCurrency(bs.total_equity)}`, 20, yPos);
+        
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.text(`Page ${i} of ${totalPages}`, 14, 285);
+            doc.text(`Generated: ${new Date().toLocaleString()}`, 100, 285);
+        }
+        
+        doc.save(filename);
+    }
+}
+
+function downloadVATReport(format) {
+    if (!window.vatReportData) {
+        alert('Please load the report first');
+        return;
+    }
+    
+    const startDate = document.getElementById('vat-start-date').value;
+    const endDate = document.getElementById('vat-end-date').value;
+    const filename = `vat_report_${startDate}_to_${endDate}.${format}`;
+    const vat = window.vatReportData;
+    
+    if (format === 'csv') {
+        let csv = ['VAT Report (ZIMRA)'];
+        csv.push(`Period: ${startDate} to ${endDate}`);
+        csv.push('');
+        csv.push('Summary');
+        csv.push(`Output VAT,${vat.output_vat.total}`);
+        csv.push(`Input VAT,${vat.input_vat.total}`);
+        csv.push(`VAT Payable,${vat.vat_payable}`);
+        csv.push(`VAT Rate,${vat.vat_rate}%`);
+        csv.push('');
+        csv.push('VAT Transactions');
+        csv.push('Date,Entry Number,Description,VAT Amount');
+        vat.output_vat.transactions.forEach(txn => {
+            csv.push(`${new Date(txn.date).toLocaleDateString()},${txn.entry_number},"${txn.description}",${txn.vat_amount}`);
+        });
+        
+        const csvContent = csv.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } else if (format === 'pdf') {
+        if (typeof window.jspdf === 'undefined') {
+            alert('PDF library not loaded. Please refresh the page.');
+            return;
+        }
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const storeName = document.querySelector('.shop-name')?.textContent || 'Store';
+        
+        doc.setFontSize(18);
+        doc.setFont(undefined, 'bold');
+        doc.text('VAT Report (ZIMRA)', 14, 20);
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'normal');
+        doc.text(storeName, 14, 28);
+        doc.text(`Period: ${startDate} to ${endDate}`, 14, 34);
+        
+        let yPos = 45;
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.text('Summary', 14, yPos);
+        yPos += 8;
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Output VAT: ${formatCurrency(vat.output_vat.total)}`, 20, yPos);
+        yPos += 6;
+        doc.text(`Input VAT: ${formatCurrency(vat.input_vat.total)}`, 20, yPos);
+        yPos += 6;
+        doc.text(`VAT Payable: ${formatCurrency(vat.vat_payable)}`, 20, yPos);
+        yPos += 6;
+        doc.text(`VAT Rate: ${vat.vat_rate}%`, 20, yPos);
+        yPos += 10;
+        
+        doc.setFont(undefined, 'bold');
+        doc.text('VAT Transactions', 14, yPos);
+        yPos += 8;
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        vat.output_vat.transactions.forEach(txn => {
+            if (yPos > 270) {
+                doc.addPage();
+                yPos = 20;
+            }
+            doc.text(`${new Date(txn.date).toLocaleDateString()} - ${txn.entry_number}: ${txn.description} - ${formatCurrency(txn.vat_amount)}`, 20, yPos);
+            yPos += 6;
+        });
+        
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.text(`Page ${i} of ${totalPages}`, 14, 285);
+            doc.text(`Generated: ${new Date().toLocaleString()}`, 100, 285);
+        }
+        
+        doc.save(filename);
+    }
+}
+
+function downloadGeneralLedger(format) {
+    if (!window.generalLedgerData) {
+        alert('Please load the report first');
+        return;
+    }
+    
+    const accountCode = document.getElementById('gl-account-code').value;
+    const startDate = document.getElementById('gl-start-date').value || '';
+    const endDate = document.getElementById('gl-end-date').value || '';
+    const filename = `general_ledger_${accountCode}_${startDate}_${endDate}.${format}`;
+    const ledger = window.generalLedgerData;
+    
+    if (format === 'csv') {
+        let csv = ['General Ledger'];
+        csv.push(`Account: ${ledger.account_code} - ${ledger.account_name}`);
+        csv.push(`Account Type: ${ledger.account_type}`);
+        csv.push(`Opening Balance: ${ledger.opening_balance}`);
+        csv.push(`Period: ${startDate} to ${endDate}`);
+        csv.push('');
+        csv.push('Date,Entry Number,Description,Debit,Credit,Balance');
+        ledger.transactions.forEach(txn => {
+            csv.push(`${new Date(txn.date).toLocaleDateString()},${txn.entry_number},"${txn.description}",${txn.debit},${txn.credit},${txn.balance}`);
+        });
+        csv.push(`Closing Balance,${ledger.closing_balance}`);
+        
+        const csvContent = csv.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } else if (format === 'pdf') {
+        if (typeof window.jspdf === 'undefined') {
+            alert('PDF library not loaded. Please refresh the page.');
+            return;
+        }
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const storeName = document.querySelector('.shop-name')?.textContent || 'Store';
+        
+        doc.setFontSize(18);
+        doc.setFont(undefined, 'bold');
+        doc.text('General Ledger', 14, 20);
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'normal');
+        doc.text(storeName, 14, 28);
+        doc.text(`Account: ${ledger.account_code} - ${ledger.account_name}`, 14, 34);
+        doc.text(`Account Type: ${ledger.account_type}`, 14, 40);
+        doc.text(`Opening Balance: ${formatCurrency(ledger.opening_balance)}`, 14, 46);
+        if (startDate && endDate) {
+            doc.text(`Period: ${startDate} to ${endDate}`, 14, 52);
+        }
+        
+        let yPos = 60;
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'bold');
+        doc.text('Date', 14, yPos);
+        doc.text('Entry #', 40, yPos);
+        doc.text('Description', 60, yPos);
+        doc.text('Debit', 120, yPos);
+        doc.text('Credit', 145, yPos);
+        doc.text('Balance', 170, yPos);
+        yPos += 5;
+        doc.line(14, yPos, 196, yPos);
+        yPos += 8;
+        
+        doc.setFont(undefined, 'normal');
+        ledger.transactions.forEach(txn => {
+            if (yPos > 270) {
+                doc.addPage();
+                yPos = 20;
+            }
+            doc.text(new Date(txn.date).toLocaleDateString(), 14, yPos);
+            doc.text(txn.entry_number, 40, yPos);
+            doc.text(txn.description.substring(0, 25), 60, yPos);
+            doc.text(formatCurrency(txn.debit), 120, yPos);
+            doc.text(formatCurrency(txn.credit), 145, yPos);
+            doc.text(formatCurrency(txn.balance), 170, yPos);
+            yPos += 7;
+        });
+        
+        doc.setFont(undefined, 'bold');
+        doc.text('Closing Balance:', 14, yPos);
+        doc.text(formatCurrency(ledger.closing_balance), 170, yPos);
+        
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.text(`Page ${i} of ${totalPages}`, 14, 285);
+            doc.text(`Generated: ${new Date().toLocaleString()}`, 100, 285);
+        }
+        
+        doc.save(filename);
+    }
+}
+
+function downloadFixedAssets(format) {
+    if (!window.fixedAssetsData || window.fixedAssetsData.length === 0) {
+        alert('Please load the report first');
+        return;
+    }
+    
+    const filename = `fixed_assets_${new Date().toISOString().split('T')[0]}.${format}`;
+    const assets = window.fixedAssetsData;
+    
+    if (format === 'csv') {
+        let csv = ['Fixed Assets Report'];
+        csv.push(`Generated: ${new Date().toLocaleString()}`);
+        csv.push('');
+        csv.push('Code,Name,Purchase Date,Cost,Accumulated Depreciation,Current Value,Status');
+        assets.forEach(asset => {
+            csv.push(`${asset.asset_code},"${asset.name}",${new Date(asset.purchase_date).toLocaleDateString()},${asset.purchase_cost},${asset.accumulated_depreciation},${asset.current_value},${asset.is_disposed ? 'Disposed' : 'Active'}`);
+        });
+        
+        const csvContent = csv.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } else if (format === 'pdf') {
+        if (typeof window.jspdf === 'undefined') {
+            alert('PDF library not loaded. Please refresh the page.');
+            return;
+        }
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const storeName = document.querySelector('.shop-name')?.textContent || 'Store';
+        
+        doc.setFontSize(18);
+        doc.setFont(undefined, 'bold');
+        doc.text('Fixed Assets Report', 14, 20);
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'normal');
+        doc.text(storeName, 14, 28);
+        doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 34);
+        
+        let yPos = 45;
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'bold');
+        doc.text('Code', 14, yPos);
+        doc.text('Name', 30, yPos);
+        doc.text('Purchase Date', 70, yPos);
+        doc.text('Cost', 110, yPos);
+        doc.text('Depreciation', 135, yPos);
+        doc.text('Current Value', 165, yPos);
+        doc.text('Status', 185, yPos);
+        yPos += 5;
+        doc.line(14, yPos, 196, yPos);
+        yPos += 8;
+        
+        doc.setFont(undefined, 'normal');
+        assets.forEach(asset => {
+            if (yPos > 270) {
+                doc.addPage();
+                yPos = 20;
+            }
+            doc.text(asset.asset_code, 14, yPos);
+            doc.text(asset.name.substring(0, 20), 30, yPos);
+            doc.text(new Date(asset.purchase_date).toLocaleDateString(), 70, yPos);
+            doc.text(formatCurrency(asset.purchase_cost), 110, yPos);
+            doc.text(formatCurrency(asset.accumulated_depreciation), 135, yPos);
+            doc.text(formatCurrency(asset.current_value), 165, yPos);
+            doc.text(asset.is_disposed ? 'Disposed' : 'Active', 185, yPos);
+            yPos += 7;
+        });
+        
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.text(`Page ${i} of ${totalPages}`, 14, 285);
+            doc.text(`Generated: ${new Date().toLocaleString()}`, 100, 285);
+        }
+        
+        doc.save(filename);
+    }
+    }
+</script>
+<script src="/static/js/price-input-formatter.js?v=7"></script>
+<script src="/static/js/background3d.js?v=5"></script>
+<!-- Final override for light theme - highest priority -->
+<style id="accounting-light-theme-fix">
+    /* This style tag comes last and will override everything */
+    html body.theme-light #app.accounting-page,
+    html body.theme-light #app.accounting-page *,
+    html body.theme-light #app.accounting-page h1,
+    html body.theme-light #app.accounting-page h2,
+    html body.theme-light #app.accounting-page h3,
+    html body.theme-light #app.accounting-page p,
+    html body.theme-light #app.accounting-page span,
+    html body.theme-light #app.accounting-page div,
+    html body.theme-light #app.accounting-page label,
+    html body.theme-light #app.accounting-page td,
+    html body.theme-light #app.accounting-page th {
+        color: #1a1a1a !important;
+    }
+    
+    /* Frosted glass for all backgrounds */
+    html body.theme-light .top-bar,
+    html body.theme-light .accounting-tabs-container,
+    html body.theme-light .report-section,
+    html body.theme-light .summary-card,
+    html body.theme-light .report-table th,
+    html body.theme-light .report-controls input,
+    html body.theme-light .report-controls select,
+    html body.theme-light .accounting-tab,
+    html body.theme-light .accounting-container,
+    html body.theme-light button,
+    html body.theme-light .primary,
+    html body.theme-light .small,
+    html body.theme-light .loading,
+    html body.theme-light .info {
+        background: rgba(255, 255, 255, 0.1) !important;
+        backdrop-filter: blur(20px) !important;
+        -webkit-backdrop-filter: blur(20px) !important;
+        border-color: rgba(255, 255, 255, 0.2) !important;
+    }
+    
+    html body.theme-light .accounting-tab.active {
+        background: rgba(255, 215, 0, 0.15) !important;
+        backdrop-filter: blur(20px) !important;
+        -webkit-backdrop-filter: blur(20px) !important;
+        color: #ffd700 !important;
+        border-bottom-color: #ffd700 !important;
+    }
+    
+    html body.theme-light button:hover,
+    html body.theme-light .primary:hover {
+        background: rgba(255, 255, 255, 0.2) !important;
+        backdrop-filter: blur(20px) !important;
+        -webkit-backdrop-filter: blur(20px) !important;
+    }
+</style>
+</body>
+</html>
+

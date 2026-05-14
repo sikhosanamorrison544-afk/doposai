@@ -1,0 +1,25 @@
+========================================
+POS SYSTEM HAS BEEN MOVED
+========================================
+
+The POS system files have been moved to a protected location to prevent
+accidental deletion.
+
+NEW LOCATION: /home/morrison/.local/share/pos-system
+
+You can still launch the application by:
+1. Double-clicking the "POS System" icon on your desktop
+2. Searching for "POS System" in your application menu
+3. Running: /home/morrison/.local/share/pos-system/.venv/bin/python3 /home/morrison/.local/share/pos-system/launch_pos.py
+
+The desktop shortcut is safe to keep or delete - it's just a launcher.
+
+If you need to access the files:
+  cd /home/morrison/.local/share/pos-system
+
+To remove the POS system completely:
+  rm -rf /home/morrison/.local/share/pos-system
+  rm -f /home/morrison/.local/share/applications/pos-system.desktop
+  rm -f /home/morrison/Desktop/pos-system.desktop
+
+========================================

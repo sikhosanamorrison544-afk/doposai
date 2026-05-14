@@ -1,0 +1,23 @@
+[Unit]
+Description=POS System FastAPI Application
+After=network.target
+
+[Service]
+Type=simple
+User=morrison
+WorkingDirectory=/home/morrison/Desktop/pos
+Environment="PATH=/home/morrison/Desktop/pos/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/home/morrison/Desktop/pos/.env
+ExecStart=/home/morrison/Desktop/pos/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+

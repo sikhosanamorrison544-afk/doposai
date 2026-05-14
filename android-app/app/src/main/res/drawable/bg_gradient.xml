@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Exact match to web POS body: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%) -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="135"
+                android:startColor="#667eea"
+                android:centerColor="#f093fb"
+                android:endColor="#00f2fe"
+                android:centerX="0.5"
+                android:centerY="0.5" />
+        </shape>
+    </item>
+</layer-list>

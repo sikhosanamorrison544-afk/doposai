@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>POS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Fallback: same as web POS so app never shows black -->
+    <style id="fallback-bg">html,body{min-height:100vh;margin:0;padding:0;background:linear-gradient(135deg,#667eea 0%,#764ba2 25%,#f093fb 50%,#4facfe 75%,#00f2fe 100%);background-size:400% 400%;color:#1a1a2e;}</style>
+    <script>
+        // CRITICAL: Apply theme INSTANTLY - must be first script, runs synchronously
+        (function() {
+            'use strict';
+            try {
+                const savedTheme = localStorage.getItem('pos-theme') || 'default';
+                const themeBackgrounds = {
+                    'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)',
+                    'light': 'transparent',
+                    'classic': '#e8e8e8'
+                };
+                const validTheme = ['default', 'light', 'classic'].includes(savedTheme) ? savedTheme : 'default';
+                if (validTheme !== savedTheme) {
+                    try { localStorage.setItem('pos-theme', validTheme); } catch (e) {}
+                }
+                
+                const themeClass = validTheme !== 'default' ? 'theme-' + validTheme : '';
+                if (themeClass) {
+                    document.documentElement.className = (document.documentElement.className.replace(/\btheme-\w+/g, '').trim() + ' ' + themeClass).trim();
+                } else {
+                    document.documentElement.className = document.documentElement.className.replace(/\btheme-\w+/g, '').trim();
+                }
+                
+                const bg = themeBackgrounds[validTheme] || themeBackgrounds['default'];
+                const style = document.createElement('style');
+                style.id = 'theme-instant';
+                style.setAttribute('data-theme', validTheme);
+                if (bg === 'transparent') {
+                    style.textContent = 'html,body{background:transparent!important;min-height:100vh!important;margin:0!important;padding:0!important;}';
+                } else if (validTheme === 'default') {
+                    style.textContent = 'html,body{background:transparent!important;background-size:400% 400%!important;min-height:100vh!important;margin:0!important;padding:0!important;position:relative!important;}html::before,body::before{content:"";position:fixed;top:0;left:0;width:100%;height:100%;background:' + bg + ';background-size:400% 400%;opacity:0.5;z-index:-2;pointer-events:none;}';
+                } else {
+                    style.textContent = 'html,body{background:' + bg + '!important;min-height:100vh!important;margin:0!important;padding:0!important;}';
+                }
+                // Use insertBefore to ensure it's first style in head
+                if (document.head.firstChild) {
+                    document.head.insertBefore(style, document.head.firstChild);
+                } else {
+                    document.head.appendChild(style);
+                }
+            } catch (e) {}
+        })();
+    </script>
+    <!-- Preload 3D model for faster loading -->
+    <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script>
+        // Immediately prevent password saving before page fully loads
+        (function() {
+            document.addEventListener('DOMContentLoaded', function() {
+                const passwordField = document.getElementById('login-password');
+                const usernameField = document.getElementById('login-username');
+                
+                if (passwordField) {
+                    // Remove name attribute
+                    passwordField.removeAttribute('name');
+                    // Set multiple anti-password-manager attributes
+                    passwordField.setAttribute('autocomplete', 'new-password');
+                    passwordField.setAttribute('data-lpignore', 'true');
+                    passwordField.setAttribute('data-1p-ignore', 'true');
+                    passwordField.setAttribute('data-form-type', 'other');
+                    passwordField.setAttribute('data-bwignore', 'true');
+                    passwordField.setAttribute('data-bitwardenignore', 'true');
+                }
+                
+                if (usernameField) {
+                    usernameField.removeAttribute('name');
+                    usernameField.setAttribute('autocomplete', 'off');
+                    usernameField.setAttribute('data-lpignore', 'true');
+                    usernameField.setAttribute('data-1p-ignore', 'true');
+                    
+                    // Username field: Enter key moves to password field
+                    usernameField.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter' || e.keyCode === 13) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (passwordField) {
+                                setTimeout(function() {
+                                    passwordField.focus();
+                                    passwordField.select();
+                                }, 10);
+                            }
+                            return false;
+                        }
+                    });
+                }
+                
+                if (passwordField) {
+                    // Password field: Enter key submits login
+                    passwordField.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter' || e.keyCode === 13) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            // Use setTimeout to ensure login function is loaded
+                            setTimeout(function() {
+                                // Try to call login function if it exists
+                                if (typeof login === 'function') {
+                                    login();
+                                } else {
+                                    // Fallback: trigger click on login button
+                                    const loginBtn = document.getElementById('login-button');
+                                    if (loginBtn) {
+                                        loginBtn.click();
+                                    }
+                                }
+                            }, 0);
+                            return false;
+                        }
+                    });
+                }
+            });
+        })();
+    </script>
+</head>
+<body>
+<!-- 3D Background Canvas for Default Theme -->
+<canvas id="bg3d-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none; background: transparent;"></canvas>
+<!-- Video Background for Light Theme -->
+<video id="light-theme-video" autoplay loop muted playsinline style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; pointer-events: none; display: none;">
+    <source src="/static/background.mov" type="video/quicktime">
+    <source src="/static/background.mov" type="video/mp4">
+</video>
+<div id="app">
+    <div id="login-screen" class="screen active">
+        <h1>POS Login</h1>
+        <form autocomplete="off" onsubmit="return false;">
+            <div class="card">
+                <!-- Hidden dummy fields to trick browsers -->
+                <input type="text" name="fake-username" autocomplete="off" style="position: absolute; left: -9999px; opacity: 0; pointer-events: none;" tabindex="-1">
+                <input type="password" name="fake-password" autocomplete="off" style="position: absolute; left: -9999px; opacity: 0; pointer-events: none;" tabindex="-1">
+                
+                <label for="login-username">Username</label>
+                <input type="text" id="login-username" autocomplete="off" spellcheck="false" data-lpignore="true" data-form-type="other" data-1p-ignore="true">
+                <label for="login-password">Password</label>
+                <input type="password" id="login-password" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-form-type="other" data-1p-ignore="true">
+                <button id="login-button" type="button">Login</button>
+                <div id="login-error" class="error"></div>
+            </div>
+        </form>
+    </div>
+
+    <div id="pos-screen" class="screen">
+        <header class="top-bar">
+            <span id="user-info" style="color: #1a1a1a !important;"></span>
+            <div class="shop-name" style="color: #1a1a1a !important;">{{ store_name }}</div>
+            <div class="top-bar-right" style="position: relative;">
+                <button id="btn-admin" class="small" style="display:none; color: #1a1a1a !important;">Admin</button>
+                <button id="btn-pending-collection" class="small" style="background: rgba(251, 191, 36, 0.8); display:none; color: #1a1a1a !important;" onclick="window.location.href='/pending-collection'; return false;">Pending Collection</button>
+                <button id="btn-layby" class="small" style="background: rgba(59, 130, 246, 0.8); color: #1a1a1a !important;">Layby</button>
+                <button id="btn-logout" class="danger small">Logout</button>
+                <!-- Floating Icons -->
+                <div class="pos-floating-icons">
+                    <button type="button" class="floating-icon more-button" title="More">
+                        ⋮
+                    </button>
+                    <button type="button" id="btn-notifications" class="floating-icon notification-icon" title="Notifications" style="background: rgba(59, 130, 246, 0.8);">
+                        🔔
+                        <span id="notification-badge" class="notification-badge" style="display:none;">0</span>
+                    </button>
+                    <button type="button" id="btn-toggle-settings" class="floating-icon settings-icon" title="Settings">
+                        ⚙️
+                    </button>
+                    <button type="button" id="btn-toggle-payment" class="floating-icon payment-icon" title="Checkout & Payment">
+                        💳
+                    </button>
+                    <button type="button" id="btn-withdraw" class="floating-icon withdraw-icon" title="Withdraw Money" style="background: rgba(239, 68, 68, 0.8); display: none;">
+                        💵
+                    </button>
+                </div>
+            </div>
+        </header>
+        <main class="pos-layout">
+            <section class="left">
+                <div class="input-row">
+                    <label for="barcode-input">Barcode / Search</label>
+                    <input type="text" id="barcode-input" name="barcode" autofocus placeholder="Scan barcode or type to search">
+                    <div id="search-results"></div>
+                </div>
+                <div id="cart">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Price</th>
+                            <th>Disc</th>
+                            <th>Total</th>
+                            <th></th>
+                        </tr>
+                        </thead>
+                        <tbody id="cart-body"></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+</div>
+
+<!-- Settings Panel (floating) -->
+<div id="settings-panel" class="floating-panel settings-panel" style="display:none;">
+    <div class="floating-panel-header">
+        <h2>Settings</h2>
+        <button id="btn-close-settings" class="close-btn" type="button">×</button>
+    </div>
+    <div class="settings-content">
+        <h3>Color Theme</h3>
+        <div class="theme-selector">
+            <button class="theme-btn" data-theme="default" title="Default">
+                <span class="theme-preview default-theme"></span>
+                <span>Default</span>
+            </button>
+            <button class="theme-btn" data-theme="light" title="Light">
+                <span class="theme-preview light-theme"></span>
+                <span>Light</span>
+            </button>
+            <button class="theme-btn" data-theme="classic" title="Classic POS">
+                <span class="theme-preview classic-theme"></span>
+                <span>Classic</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Notifications Panel (floating) -->
+<div id="notifications-panel" class="floating-panel notifications-panel" style="display:none;">
+    <div class="floating-panel-header">
+        <h2>Notifications</h2>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <button id="btn-mark-all-read" class="small" style="font-size:12px;">Mark All Read</button>
+            <button id="btn-close-notifications" class="close-btn" type="button">×</button>
+        </div>
+    </div>
+    <div id="notifications-content" style="max-height:400px;overflow-y:auto;padding:8px;">
+        <div style="text-align:center;padding:20px;color:rgba(255,255,255,0.5);">Loading notifications...</div>
+    </div>
+</div>
+
+<!-- Withdrawal Modal (hidden by default) -->
+<div id="withdrawal-modal" class="floating-panel" style="display:none;">
+    <div class="floating-panel-header">
+        <h2>Withdraw Money</h2>
+        <button id="btn-close-withdrawal" class="close-btn" type="button">×</button>
+    </div>
+    <!-- Content should render directly on the panel (no nested card/panel) -->
+    <div id="withdrawal-content" style="padding:16px;">
+        <div style="margin-bottom:12px;">
+            <label for="withdrawal-amount">Amount</label>
+            <input type="number" id="withdrawal-amount" step="0.01" min="0.01" placeholder="0.00" style="width:100%;">
+        </div>
+        <div style="margin-bottom:12px;">
+            <label for="withdrawal-reason">Reason</label>
+            <select id="withdrawal-reason" style="width:100%;">
+                <option value="">Select reason...</option>
+                <option value="Daily expenses">Daily expenses</option>
+                <option value="Buying company assets">Buying company assets</option>
+                <option value="Salary">Salary</option>
+                <option value="Other">Other</option>
+            </select>
+        </div>
+        <div style="margin-bottom:12px;display:none;" id="withdrawal-other-reason-container">
+            <label for="withdrawal-other-reason">Specify reason</label>
+            <input type="text" id="withdrawal-other-reason" placeholder="Enter reason..." style="width:100%;">
+        </div>
+        <!-- Salary Details Section (shown when Salary is selected) -->
+        <div style="margin-bottom:12px;display:none;background:rgba(59,130,246,0.1);border:2px solid rgba(59,130,246,0.3);border-radius:8px;padding:16px;" id="withdrawal-salary-details-container">
+            <h3 style="margin:0 0 12px 0;color:#3b82f6;font-size:16px;">📋 Employee Salary Details</h3>
+            <div style="margin-bottom:12px;">
+                <label for="salary-employee-name">Employee Name <span style="color:#ef4444;">*</span></label>
+                <input type="text" id="salary-employee-name" placeholder="Enter employee full name" style="width:100%;" required>
+            </div>
+            <div style="margin-bottom:12px;">
+                <label for="salary-employee-id">Employee ID</label>
+                <input type="text" id="salary-employee-id" placeholder="Employee ID (optional)" style="width:100%;">
+            </div>
+            <div style="margin-bottom:12px;">
+                <label for="salary-position">Position/Job Title</label>
+                <input type="text" id="salary-position" placeholder="e.g., Sales Associate, Manager" style="width:100%;">
+            </div>
+            <div style="margin-bottom:12px;">
+                <label for="salary-period">Salary Period <span style="color:#ef4444;">*</span></label>
+                <input type="text" id="salary-period" placeholder="e.g., January 2024, Week 1-15" style="width:100%;" required>
+            </div>
+            <div style="margin-bottom:0;">
+                <label for="salary-notes">Additional Notes</label>
+                <textarea id="salary-notes" rows="2" placeholder="Any additional information..." style="width:100%;resize:vertical;"></textarea>
+            </div>
+        </div>
+        <div style="margin-bottom:12px;">
+            <label for="withdrawal-notes">Notes (Optional)</label>
+            <textarea id="withdrawal-notes" rows="3" placeholder="Additional notes..." style="width:100%;resize:vertical;"></textarea>
+        </div>
+        <button id="btn-process-withdrawal" class="primary" style="width:100%;">Withdraw & Print Receipt</button>
+        <div id="withdrawal-message" class="info" style="margin-top:8px;"></div>
+    </div>
+</div>
+
+<!-- Payment Panel (floating) -->
+<div id="pos-backdrop" class="panel-backdrop" style="display:none;"></div>
+<div id="payment-panel" class="floating-panel payment-panel" style="display:none;">
+    <div class="floating-panel-header">
+        <h2>Checkout & Payment</h2>
+        <button id="btn-close-payment" class="close-btn" type="button">×</button>
+    </div>
+    <div class="totals">
+        <div><span>Subtotal</span><span id="subtotal">0.00</span></div>
+        <div><span>Discount</span><span id="discount">0.00</span></div>
+        <div class="grand"><span>Total</span><span id="total">0.00</span></div>
+    </div>
+    <div class="payments">
+        <label for="customer-name">Customer</label>
+        <input type="text" id="customer-name" name="customer-name" placeholder="Customer (optional)">
+        <label for="pay-cash">Cash</label>
+        <input type="number" id="pay-cash" name="pay-cash" step="0.01">
+        <label for="pay-mobile">Mobile Money</label>
+        <input type="number" id="pay-mobile" name="pay-mobile" step="0.01">
+        <label for="pay-card">Card</label>
+        <input type="number" id="pay-card" name="pay-card" step="0.01">
+        <label for="pay-credit">Credit</label>
+        <input type="number" id="pay-credit" name="pay-credit" step="0.01">
+    </div>
+    <div style="margin-bottom:12px;">
+        <label for="collection-status">Collection Status</label>
+        <select id="collection-status" name="collection-status" style="width:100%;">
+            <option value="collected">Collected (Items taken immediately)</option>
+            <option value="to_collect">To Collect (Reserve items for later pickup)</option>
+        </select>
+        <small style="color:rgba(255,255,255,0.7);font-size:11px;display:block;margin-top:4px;">
+            "To Collect" reserves items - they won't be available for other sales until collected
+        </small>
+    </div>
+    
+    <button id="btn-complete-sale" class="primary big">Complete Sale &amp; Print Receipt</button>
+    <div id="pos-message" class="info"></div>
+    
+    <!-- Layby Toggle Button -->
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.2);">
+        <button id="btn-toggle-layby" class="primary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <span>Layby</span>
+            <span id="layby-toggle-icon" style="transition: transform 0.3s ease;">▼</span>
+        </button>
+    </div>
+    
+    <!-- Layby Sections Container (Hidden by default) -->
+    <div id="layby-sections-container" style="display: none; margin-top: 12px;">
+        <!-- Add New Layby Customer Section -->
+        <div class="layby-create-section" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+            <h3 style="margin-top: 0; margin-bottom: 12px; text-align: center; font-size: 16px;">Add New Layby Customer</h3>
+            <div class="payments">
+                <label for="new-layby-customer-name">Customer Name *</label>
+                <input type="text" id="new-layby-customer-name" name="new-layby-customer-name" placeholder="Enter customer name" required>
+                
+                <label for="new-layby-customer-phone">Phone *</label>
+                <input type="text" id="new-layby-customer-phone" name="new-layby-customer-phone" placeholder="Phone Number" required>
+                
+                <label for="new-layby-customer-email">Email</label>
+                <input type="email" id="new-layby-customer-email" name="new-layby-customer-email" placeholder="Email (optional)">
+                
+                <label for="new-layby-customer-address">Address *</label>
+                <input type="text" id="new-layby-customer-address" name="new-layby-customer-address" placeholder="Address" required>
+                
+                <label for="new-layby-customer-item">Layby Item Name *</label>
+                <input type="text" id="new-layby-customer-item" name="new-layby-customer-item" placeholder="Search for product..." autocomplete="off" required>
+                <div id="new-layby-product-results" style="display: none; max-height: 200px; overflow-y: auto; background: rgba(17, 24, 39, 0.3); backdrop-filter: blur(10px) saturate(180%); -webkit-backdrop-filter: blur(10px) saturate(180%); border-radius: 8px; margin-top: 4px; padding: 4px; border: 1px solid rgba(255,255,255,0.2); position: relative; z-index: 10000;"></div>
+                
+                <label for="new-layby-initial-payment">Initial Payment *</label>
+                <input type="number" id="new-layby-initial-payment" name="new-layby-initial-payment" step="0.01" min="0.01" placeholder="0.00" required>
+                
+                <label for="new-layby-payment-method">Payment Method *</label>
+                <select id="new-layby-payment-method" name="new-layby-payment-method" required>
+                    <option value="">Select Payment Method</option>
+                    <option value="cash">Cash</option>
+                    <option value="mobile_money">Mobile Money</option>
+                    <option value="card">Card</option>
+                </select>
+            </div>
+            <button id="btn-add-new-layby-customer" class="primary" style="width: 100%; margin-top: 12px;">Add Layby Customer</button>
+            <div id="new-layby-customer-message" class="info" style="margin-top: 8px;"></div>
+        </div>
+        
+        <!-- Layby Payment Section -->
+        <div class="layby-section" style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.2);">
+            <h3 style="margin-top: 0; margin-bottom: 12px; text-align: center; font-size: 16px;">Layby Payment</h3>
+            <div class="payments">
+                <label for="layby-customer-name">Customer Name *</label>
+                <input type="text" id="layby-customer-name" name="layby-customer-name" placeholder="Enter customer name" autocomplete="off">
+                <div id="layby-customer-results" style="display: none; max-height: 150px; overflow-y: auto; background: rgba(17, 24, 39, 0.3); backdrop-filter: blur(10px) saturate(180%); -webkit-backdrop-filter: blur(10px) saturate(180%); border-radius: 8px; margin-top: 4px; padding: 4px; border: 1px solid rgba(255,255,255,0.2);"></div>
+                
+                <label for="layby-transaction-select" style="display: none;">Select Transaction</label>
+                <select id="layby-transaction-select" name="layby-transaction-select" style="display: none;">
+                    <option value="">Select Transaction</option>
+                </select>
+                
+                <div id="layby-outstanding-info" style="display: none; padding: 8px; background: rgba(59, 130, 246, 0.2); border-radius: 8px; margin: 8px 0;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                        <span>Total Amount:</span>
+                        <span id="layby-total-amount">0.00</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                        <span>Paid Amount:</span>
+                        <span id="layby-paid-amount">0.00</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-weight: bold; color: #fbbf24;">
+                        <span>Outstanding Amount:</span>
+                        <span id="layby-outstanding-amount">0.00</span>
+                    </div>
+                </div>
+                
+                <label for="layby-amount-paid">Amount Paid *</label>
+                <input type="number" id="layby-amount-paid" name="layby-amount-paid" step="0.01" min="0.01" placeholder="0.00">
+                
+                <label for="layby-payment-method">Payment Method *</label>
+                <select id="layby-payment-method" name="layby-payment-method">
+                    <option value="">Select Method</option>
+                    <option value="cash">Cash</option>
+                    <option value="mobile_money">Mobile Money</option>
+                    <option value="card">Card</option>
+                </select>
+            </div>
+            <button id="btn-record-layby-payment" class="primary" style="width: 100%; margin-top: 12px;">Record Layby Payment &amp; Print Receipt</button>
+            <div id="layby-message" class="info" style="margin-top: 8px;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Three.js for 3D Background -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
+<script src="/static/js/price-input-formatter.js?v=7"></script>
+<script src="/static/js/app.js?v=5"></script>
+<script src="/static/js/background3d.js?v=5"></script>
+</body>
+</html>
+
+

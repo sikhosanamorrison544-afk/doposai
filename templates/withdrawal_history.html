@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Withdrawal History - {{ store_name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        // CRITICAL: Apply theme INSTANTLY - must be first script, runs synchronously
+        (function() {
+            'use strict';
+            try {
+                const savedTheme = localStorage.getItem('pos-theme') || 'default';
+                const validTheme = ['default', 'light', 'classic'].includes(savedTheme) ? savedTheme : 'default';
+                if (validTheme !== savedTheme) { try { localStorage.setItem('pos-theme', validTheme); } catch (e) {} }
+                const themeClass = validTheme !== 'default' ? 'theme-' + validTheme : '';
+                const themeBackgrounds = { 'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)', 'light': 'transparent', 'classic': '#e8e8e8' };
+                
+                if (themeClass) document.documentElement.className = (document.documentElement.className + ' ' + themeClass).trim();
+                function applyBodyTheme() {
+                    if (document.body) {
+                        document.body.classList.remove('theme-default', 'theme-light', 'theme-classic');
+                        if (themeClass) document.body.classList.add(themeClass);
+                    }
+                }
+                if (document.body) applyBodyTheme(); else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyBodyTheme); else setTimeout(applyBodyTheme, 0);
+                
+                const bg = themeBackgrounds[validTheme] || themeBackgrounds['default'];
+                const style = document.createElement('style');
+                style.id = 'theme-instant';
+                style.setAttribute('data-theme', validTheme);
+                if (bg !== 'transparent') {
+                    if (validTheme === 'default') {
+                        // Use pseudo-element with lower opacity to see 3D model through it
+                        // Canvas is at z-index: -1, overlay is at z-index: -2, so canvas shows through
+                        // Reduced opacity to 0.5 so 3D model is more visible
+                        style.textContent = 'html,body{background:transparent!important;background-size:400% 400%!important;min-height:100vh!important;margin:0!important;padding:0!important;position:relative!important;}html::before,body::before{content:"";position:fixed;top:0;left:0;width:100%;height:100%;background:' + bg + ';background-size:400% 400%;opacity:0.5;z-index:-2;pointer-events:none;}';
+                    } else {
+                        style.textContent = 'html,body{background:' + bg + '!important;min-height:100vh!important;margin:0!important;padding:0!important;}';
+                    }
+                } else {
+                    style.textContent = 'html,body{background:transparent!important;min-height:100vh!important;margin:0!important;padding:0!important;}';
+                }
+                if (document.head.firstChild) {
+                    document.head.insertBefore(style, document.head.firstChild);
+                } else {
+                    document.head.appendChild(style);
+                }
+            } catch (e) {}
+        })();
+    </script>
+    <!-- Preload 3D model for faster loading -->
+    <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script>
+    
+    </script>
+    <style>
+        /* Override pos-layout overflow for withdrawal history page */
+        main.pos-layout {
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            height: calc(100vh - 60px) !important;
+        }
+        section {
+            min-height: 100%;
+        }
+    </style>
+</head>
+<body>
+<!-- 3D Background Canvas for Default Theme -->
+<canvas id="bg3d-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none; background: transparent;"></canvas>
+<!-- Video Background for Light Theme -->
+<video id="light-theme-video" autoplay loop muted playsinline style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; pointer-events: none; display: none;">
+    <source src="/static/background.mov" type="video/quicktime">
+    <source src="/static/background.mov" type="video/mp4">
+</video>
+<div id="app" class="screen active">
+    <header class="top-bar">
+        <span id="withdrawals-user-info"></span>
+        <div class="shop-name">{{ store_name }}</div>
+        <div class="top-bar-right">
+            <button id="btn-back-to-admin" class="small">Back to Admin</button>
+            <button id="btn-withdrawals-logout" class="danger small">Logout</button>
+        </div>
+    </header>
+    <main class="pos-layout">
+        <section style="flex: 1; width: 100%; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                <h2 style="margin: 0;">Withdrawal History - Assets & Expenses</h2>
+                <button id="btn-sync-withdrawals-backup" class="primary small">🔄 Sync to Google Sheets</button>
+            </div>
+            
+            <!-- Summary Cards -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px;">
+                <div style="background: rgba(17, 24, 39, 0.5); border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 8px; padding: 16px; text-align: center;">
+                    <div style="font-size: 14px; color: #1a1a1a; margin-bottom: 8px;">Total Withdrawals</div>
+                    <div id="withdrawal-total-count" style="font-size: 24px; font-weight: bold; color: #1a1a1a;">0</div>
+                </div>
+                <div style="background: rgba(239, 68, 68, 0.2); border: 2px solid rgba(239, 68, 68, 0.5); border-radius: 8px; padding: 16px; text-align: center;">
+                    <div style="font-size: 14px; color: #1a1a1a; margin-bottom: 8px;">Total Amount</div>
+                    <div id="withdrawal-total-amount" style="font-size: 24px; font-weight: bold; color: #ef4444;">$0.00</div>
+                </div>
+                <div style="background: rgba(245, 158, 11, 0.2); border: 2px solid rgba(245, 158, 11, 0.5); border-radius: 8px; padding: 16px; text-align: center;">
+                    <div style="font-size: 14px; color: #1a1a1a; margin-bottom: 8px;">Daily Expenses</div>
+                    <div id="withdrawal-expenses-total" style="font-size: 24px; font-weight: bold; color: #f59e0b;">$0.00</div>
+                </div>
+                <div style="background: rgba(59, 130, 246, 0.2); border: 2px solid rgba(59, 130, 246, 0.5); border-radius: 8px; padding: 16px; text-align: center;">
+                    <div style="font-size: 14px; color: #1a1a1a; margin-bottom: 8px;">Company Assets</div>
+                    <div id="withdrawal-assets-total" style="font-size: 24px; font-weight: bold; color: #3b82f6;">$0.00</div>
+                </div>
+            </div>
+            
+            <!-- Filters -->
+            <div style="background: rgba(17, 24, 39, 0.3); border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: center;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <label for="withdrawal-filter-reason" style="display: block; margin-bottom: 8px; color: #1a1a1a;">Filter by Reason</label>
+                        <select id="withdrawal-filter-reason" style="width: 100%; padding: 8px; border-radius: 4px; background: rgba(17, 24, 39, 0.5); color: #1a1a1a; border: 1px solid rgba(255, 255, 255, 0.2);">
+                            <option value="">All Reasons</option>
+                            <option value="Daily expenses">Daily expenses</option>
+                            <option value="Buying company assets">Buying company assets</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div style="flex: 1; min-width: 200px;">
+                        <label for="withdrawal-search" style="display: block; margin-bottom: 8px; color: #1a1a1a;">Search (Cashier, Receipt #, Notes)</label>
+                        <input type="text" id="withdrawal-search" placeholder="Search..." style="width: 100%; padding: 8px; border-radius: 4px; background: rgba(17, 24, 39, 0.5); color: #1a1a1a; border: 1px solid rgba(255, 255, 255, 0.2);">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Table -->
+            <div id="withdrawals-table-container" style="overflow-y: auto; overflow-x: auto; height: calc(100vh - 450px); min-height: 400px; background: rgba(17, 24, 39, 0.3); border-radius: 8px; padding: 8px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead style="position: sticky; top: 0; background: rgba(17, 24, 39, 0.3); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); z-index: 10;">
+                        <tr>
+                            <th style="text-align: center; padding: 12px; border-bottom: 2px solid rgba(255, 255, 255, 0.2); color: #1a1a1a;">#</th>
+                            <th style="padding: 12px; border-bottom: 2px solid rgba(255, 255, 255, 0.2); color: #1a1a1a;">Date & Time</th>
+                            <th style="padding: 12px; border-bottom: 2px solid rgba(255, 255, 255, 0.2); color: #1a1a1a;">Receipt #</th>
+                            <th style="padding: 12px; border-bottom: 2px solid rgba(255, 255, 255, 0.2); text-align: right; color: #1a1a1a;">Amount</th>
+                            <th style="padding: 12px; border-bottom: 2px solid rgba(255, 255, 255, 0.2); color: #1a1a1a;">Reason</th>
+                            <th style="padding: 12px; border-bottom: 2px solid rgba(255, 255, 255, 0.2); color: #1a1a1a;">Cashier</th>
+                            <th style="padding: 12px; border-bottom: 2px solid rgba(255, 255, 255, 0.2); color: #1a1a1a;">Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="withdrawals-body"></tbody>
+                </table>
+            </div>
+            
+            <div id="withdrawals-message" style="margin-top: 12px; padding: 12px; border-radius: 4px; display: none;"></div>
+        </section>
+    </main>
+</div>
+
+<script src="/static/js/withdrawal_history.js"></script>
+<!-- Three.js for 3D Background -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="/static/js/price-input-formatter.js?v=7"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
+<!-- Three.js for 3D Background -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
+<script src="/static/js/background3d.js?v=5"></script>
+</body>
+</html>
+

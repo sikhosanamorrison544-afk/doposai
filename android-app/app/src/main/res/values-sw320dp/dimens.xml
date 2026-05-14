@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Small screens (smallest width ~320dp): reduce sizes so UI fits -->
+    <dimen name="top_bar_padding_h">8dp</dimen>
+    <dimen name="top_bar_padding_v">6dp</dimen>
+    <dimen name="top_bar_btn_height">36dp</dimen>
+    <dimen name="top_bar_btn_text_size">11sp</dimen>
+    <dimen name="top_bar_title_text_size">18sp</dimen>
+    <dimen name="top_bar_status_text_size">10sp</dimen>
+    <dimen name="top_bar_btn_margin_end">4dp</dimen>
+
+    <dimen name="content_padding">6dp</dimen>
+    <dimen name="label_text_size">14sp</dimen>
+    <dimen name="input_text_size">14sp</dimen>
+    <dimen name="input_padding">8dp</dimen>
+    <dimen name="search_results_max_height">100dp</dimen>
+
+    <dimen name="cart_header_padding_v">6dp</dimen>
+    <dimen name="cart_header_padding_h">4dp</dimen>
+    <dimen name="cart_header_text_size">12sp</dimen>
+    <dimen name="cart_header_cell_qty_width">36dp</dimen>
+    <dimen name="cart_header_cell_price_width">56dp</dimen>
+    <dimen name="cart_header_cell_disc_width">40dp</dimen>
+    <dimen name="cart_header_remove_width">32dp</dimen>
+
+    <dimen name="cart_row_min_height">36dp</dimen>
+    <dimen name="cart_row_cell_qty_width">36dp</dimen>
+    <dimen name="cart_row_cell_price_width">56dp</dimen>
+    <dimen name="cart_row_cell_disc_width">40dp</dimen>
+    <dimen name="cart_row_cell_total_width">56dp</dimen>
+    <dimen name="cart_row_icon_size">32dp</dimen>
+    <dimen name="cart_row_text_size">12sp</dimen>
+    <dimen name="cart_row_input_height">30dp</dimen>
+
+    <dimen name="cart_list_min_width">320dp</dimen>
+
+    <dimen name="btn_complete_text_size">13sp</dimen>
+    <dimen name="btn_complete_padding_v">10dp</dimen>
+    <dimen name="content_margin_top">6dp</dimen>
+
+    <dimen name="login_title_size">22sp</dimen>
+    <dimen name="login_label_size">14sp</dimen>
+    <dimen name="login_padding">16dp</dimen>
+    <dimen name="login_card_max_width">320dp</dimen>
+
+    <dimen name="payment_label_size">14sp</dimen>
+    <dimen name="payment_btn_text_size">15sp</dimen>
+</resources>

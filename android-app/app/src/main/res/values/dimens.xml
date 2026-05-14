@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Reduced panel sizes so everything fits clearly without looking squashed -->
+    <!-- Top bar -->
+    <dimen name="top_bar_padding_h">10dp</dimen>
+    <dimen name="top_bar_padding_v">8dp</dimen>
+    <dimen name="top_bar_btn_height">36dp</dimen>
+    <dimen name="top_bar_btn_text_size">12sp</dimen>
+    <dimen name="top_bar_title_text_size">20sp</dimen>
+    <dimen name="top_bar_status_text_size">11sp</dimen>
+    <dimen name="top_bar_btn_margin_end">6dp</dimen>
+
+    <!-- Main content -->
+    <dimen name="content_padding">6dp</dimen>
+    <dimen name="label_text_size">15sp</dimen>
+    <dimen name="input_text_size">15sp</dimen>
+    <dimen name="input_padding">8dp</dimen>
+    <dimen name="search_results_max_height">100dp</dimen>
+
+    <!-- Cart header row -->
+    <dimen name="cart_header_padding_v">6dp</dimen>
+    <dimen name="cart_header_padding_h">6dp</dimen>
+    <dimen name="cart_header_text_size">13sp</dimen>
+    <dimen name="cart_header_cell_qty_width">42dp</dimen>
+    <dimen name="cart_header_cell_price_width">60dp</dimen>
+    <dimen name="cart_header_cell_disc_width">44dp</dimen>
+    <dimen name="cart_header_remove_width">36dp</dimen>
+
+    <!-- Cart row item -->
+    <dimen name="cart_row_min_height">38dp</dimen>
+    <dimen name="cart_row_cell_qty_width">42dp</dimen>
+    <dimen name="cart_row_cell_price_width">60dp</dimen>
+    <dimen name="cart_row_cell_disc_width">44dp</dimen>
+    <dimen name="cart_row_cell_total_width">60dp</dimen>
+    <dimen name="cart_row_icon_size">36dp</dimen>
+    <dimen name="cart_row_text_size">13sp</dimen>
+    <dimen name="cart_row_input_height">32dp</dimen>
+
+    <dimen name="cart_list_min_width">360dp</dimen>
+
+    <!-- Complete sale button -->
+    <dimen name="btn_complete_text_size">14sp</dimen>
+    <dimen name="btn_complete_padding_v">10dp</dimen>
+    <dimen name="content_margin_top">6dp</dimen>
+
+    <!-- Login: compact card so it fits on screen -->
+    <dimen name="login_title_size">22sp</dimen>
+    <dimen name="login_label_size">15sp</dimen>
+    <dimen name="login_padding">16dp</dimen>
+    <dimen name="login_card_max_width">320dp</dimen>
+
+    <!-- Payment bottom sheet -->
+    <dimen name="payment_label_size">15sp</dimen>
+    <dimen name="payment_btn_text_size">16sp</dimen>
+</resources>

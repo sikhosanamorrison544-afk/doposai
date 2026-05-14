@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Customer Payment History - {{ store_name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        // CRITICAL: Apply theme INSTANTLY - must be first script, runs synchronously
+        (function() {
+            'use strict';
+            try {
+                const savedTheme = localStorage.getItem('pos-theme') || 'default';
+                const validTheme = ['default', 'light', 'classic'].includes(savedTheme) ? savedTheme : 'default';
+                if (validTheme !== savedTheme) { try { localStorage.setItem('pos-theme', validTheme); } catch (e) {} }
+                const themeClass = validTheme !== 'default' ? 'theme-' + validTheme : '';
+                const themeBackgrounds = { 'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)', 'light': 'transparent', 'classic': '#e8e8e8' };
+                
+                if (themeClass) document.documentElement.className = (document.documentElement.className + ' ' + themeClass).trim();
+                function applyBodyTheme() {
+                    if (document.body) {
+                        document.body.classList.remove('theme-default', 'theme-light', 'theme-classic');
+                        if (themeClass) document.body.classList.add(themeClass);
+                    }
+                }
+                if (document.body) applyBodyTheme(); else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyBodyTheme); else setTimeout(applyBodyTheme, 0);
+                
+                const bg = themeBackgrounds[validTheme] || themeBackgrounds['default'];
+                const style = document.createElement('style');
+                style.id = 'theme-instant';
+                style.setAttribute('data-theme', validTheme);
+                if (bg !== 'transparent') {
+                    if (validTheme === 'default') {
+                        // Use pseudo-element with lower opacity to see 3D model through it
+                        // Canvas is at z-index: -1, overlay is at z-index: -2, so canvas shows through
+                        // Reduced opacity to 0.5 so 3D model is more visible
+                        style.textContent = 'html,body{background:transparent!important;background-size:400% 400%!important;min-height:100vh!important;margin:0!important;padding:0!important;position:relative!important;}html::before,body::before{content:"";position:fixed;top:0;left:0;width:100%;height:100%;background:' + bg + ';background-size:400% 400%;opacity:0.5;z-index:-2;pointer-events:none;}';
+                    } else {
+                        style.textContent = 'html,body{background:' + bg + '!important;min-height:100vh!important;margin:0!important;padding:0!important;}';
+                    }
+                } else {
+                    style.textContent = 'html,body{background:transparent!important;min-height:100vh!important;margin:0!important;padding:0!important;}';
+                }
+                if (document.head.firstChild) {
+                    document.head.insertBefore(style, document.head.firstChild);
+                } else {
+                    document.head.appendChild(style);
+                }
+            } catch (e) {}
+        })();
+    </script>
+    <!-- Preload 3D model for faster loading -->
+    <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script>
+    
+    </script>
+</head>
+<body>
+<!-- 3D Background Canvas for Default Theme -->
+<canvas id="bg3d-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none; background: transparent;"></canvas>
+<!-- Video Background for Light Theme -->
+<video id="light-theme-video" autoplay loop muted playsinline style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; pointer-events: none; display: none;">
+    <source src="/static/background.mov" type="video/quicktime">
+    <source src="/static/background.mov" type="video/mp4">
+</video>
+<div id="app" class="screen active" style="height: 100vh; overflow: hidden;">
+    <header class="top-bar">
+        <div class="shop-name">{{ store_name }}</div>
+        <div class="top-bar-right">
+            <button id="btn-download-history" class="small primary">Download History</button>
+            <button id="btn-back-layby" class="small">Back to Layby</button>
+            <button id="btn-logout" class="danger small">Logout</button>
+        </div>
+    </header>
+    <main style="height: calc(100vh - 60px); overflow-y: auto; padding: 20px;">
+        <div style="max-width: 1400px; margin: 0 auto;">
+            <h1 style="margin-top: 0; margin-bottom: 24px; text-align: center;">Customer Payment History</h1>
+            
+            <!-- Customer Information Summary -->
+            <div id="customer-info-full" style="margin-bottom: 24px; padding: 24px; background: rgba(59, 130, 246, 0.15); border-radius: 12px; border: 2px solid rgba(59, 130, 246, 0.3);">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; font-size: 16px;">
+                    <div><strong style="color: #1a1a1a;">Customer ID:</strong> <span id="history-customer-id-full" style="font-size: 20px; font-weight: bold;">{{ customer_id }}</span></div>
+                    <div><strong style="color: #1a1a1a;">Customer Name:</strong> <span id="history-customer-name-full" style="font-size: 20px; font-weight: bold;">{{ customer_name }}</span></div>
+                    <div><strong style="color: #1a1a1a;">Total Amount:</strong> <span id="history-total-amount-full" style="font-size: 20px; font-weight: bold; color: #3b82f6;">$0.00</span></div>
+                    <div><strong style="color: #1a1a1a;">Total Paid:</strong> <span id="history-total-paid-full" style="font-size: 20px; font-weight: bold; color: #10b981;">$0.00</span></div>
+                    <div style="grid-column: 1 / -1; padding-top: 16px; border-top: 2px solid rgba(255,255,255,0.2);">
+                        <strong style="color: #1a1a1a; font-size: 20px;">Outstanding Amount:</strong> 
+                        <span id="history-outstanding-full" style="color: #fbbf24; font-weight: bold; font-size: 28px; margin-left: 16px;">$0.00</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Financial Statement Section -->
+            <div style="background: rgba(17, 24, 39, 0.4); border-radius: 12px; padding: 24px; backdrop-filter: blur(20px); margin-bottom: 24px;">
+                <h2 style="margin-top: 0; margin-bottom: 20px; font-size: 24px; border-bottom: 2px solid rgba(255,255,255,0.2); padding-bottom: 12px;">
+                    Financial Statement
+                </h2>
+                <div id="financial-statement" style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; min-width: 800px;">
+                        <thead>
+                            <tr style="background: rgba(255,255,255,0.1);">
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid rgba(255,255,255,0.2); font-weight: bold;">Transaction ID</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid rgba(255,255,255,0.2); font-weight: bold;">Product</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid rgba(255,255,255,0.2); font-weight: bold;">Date</th>
+                                <th style="padding: 12px; text-align: right; border-bottom: 2px solid rgba(255,255,255,0.2); font-weight: bold;">Total Amount</th>
+                                <th style="padding: 12px; text-align: right; border-bottom: 2px solid rgba(255,255,255,0.2); font-weight: bold;">Amount Paid</th>
+                                <th style="padding: 12px; text-align: right; border-bottom: 2px solid rgba(255,255,255,0.2); font-weight: bold;">Balance</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid rgba(255,255,255,0.2); font-weight: bold;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="financial-statement-body">
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 40px; color: #1a1a1a; font-size: 16px;">
+                                    Loading financial statement...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Payment History Table -->
+            <div style="background: rgba(17, 24, 39, 0.4); border-radius: 12px; padding: 24px; backdrop-filter: blur(20px);">
+                <h2 style="margin-top: 0; margin-bottom: 20px; font-size: 24px; border-bottom: 2px solid rgba(255,255,255,0.2); padding-bottom: 12px;">
+                    Payment History
+                </h2>
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; min-width: 800px;">
+                        <thead>
+                            <tr style="background: rgba(255,255,255,0.1);">
+                                <th style="padding: 14px; text-align: left; border-bottom: 2px solid rgba(255,255,255,0.2); font-weight: bold; font-size: 16px;">Date & Time</th>
+                                <th style="padding: 14px; text-align: left; border-bottom: 2px solid rgba(255,255,255,0.2); font-weight: bold; font-size: 16px;">Transaction ID</th>
+                                <th style="padding: 14px; text-align: left; border-bottom: 2px solid rgba(255,255,255,0.2); font-weight: bold; font-size: 16px;">Product</th>
+                                <th style="padding: 14px; text-align: right; border-bottom: 2px solid rgba(255,255,255,0.2); font-weight: bold; font-size: 16px;">Amount Paid</th>
+                                <th style="padding: 14px; text-align: left; border-bottom: 2px solid rgba(255,255,255,0.2); font-weight: bold; font-size: 16px;">Payment Method</th>
+                                <th style="padding: 14px; text-align: left; border-bottom: 2px solid rgba(255,255,255,0.2); font-weight: bold; font-size: 16px;">Receipt Number</th>
+                            </tr>
+                        </thead>
+                        <tbody id="payment-history-body-full">
+                            <tr>
+                                <td colspan="6" style="text-align: center; padding: 40px; color: #1a1a1a; font-size: 16px;">
+                                    Loading payment history...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="/static/js/price-input-formatter.js?v=7"></script>
+<script src="/static/js/customer_history.js"></script>
+<!-- Three.js for 3D Background -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
+<script src="/static/js/background3d.js?v=5"></script>
+</body>
+</html>
+

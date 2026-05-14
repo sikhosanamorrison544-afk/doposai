@@ -1,0 +1,76 @@
+"""Optional Firestore sync for tenant subscription security records."""
+import logging
+import os
+from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
+
+
+def is_firestore_configured() -> bool:
+    return bool(os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or os.getenv("FIREBASE_PROJECT_ID"))
+
+
+def _ensure_firebase_app() -> bool:
+    try:
+        import firebase_admin
+        from firebase_admin import credentials
+    except ImportError:
+        return False
+    try:
+        firebase_admin.get_app()
+        return True
+    except ValueError:
+        pass
+    try:
+        cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        if cred_path and os.path.isfile(cred_path):
+            firebase_admin.initialize_app(credentials.Certificate(cred_path))
+        else:
+            firebase_admin.initialize_app()
+        return True
+    except Exception as e:
+        logger.error("Firebase init failed: %s", e, exc_info=True)
+        return False
+
+
+def upsert_tenant_security_record(
+    tenant_uid: str,
+    data: Dict[str, Any],
+) -> Optional[str]:
+    if not is_firestore_configured():
+        logger.info("Firestore not configured; skipping tenant cloud record.")
+        return None
+    try:
+        from firebase_admin import firestore
+    except ImportError:
+        logger.warning("firebase-admin not installed; skipping Firestore.")
+        return None
+    if not _ensure_firebase_app():
+        return None
+    try:
+        db = firestore.client()
+        doc_ref = db.collection("tenants").document(tenant_uid)
+        doc_ref.set(data, merge=True)
+        return doc_ref.id
+    except Exception as e:
+        logger.error("Firestore upsert failed: %s", e, exc_info=True)
+        return None
+
+
+def fetch_tenant_subscription(tenant_uid: str) -> Optional[Dict[str, Any]]:
+    if not is_firestore_configured():
+        return None
+    try:
+        from firebase_admin import firestore
+    except ImportError:
+        return None
+    if not _ensure_firebase_app():
+        return None
+    try:
+        db = firestore.client()
+        snap = db.collection("tenants").document(tenant_uid).get()
+        if snap.exists:
+            return dict(snap.to_dict() or {})
+    except Exception as e:
+        logger.warning("Firestore fetch failed: %s", e)
+    return None

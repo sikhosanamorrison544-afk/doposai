@@ -1,0 +1,5 @@
+-keepattributes *Annotation*
+-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }
+-keep class com.pos.mobile.data.** { *; }
+-dontwarn okhttp3.**
+-dontwarn retrofit2.**

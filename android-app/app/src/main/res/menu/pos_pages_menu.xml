@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/page_store" android:title="Store" />
+    <item android:id="@+id/page_admin" android:title="Admin" />
+    <item android:id="@+id/page_layby" android:title="Layby" />
+    <item android:id="@+id/page_pending_collection" android:title="Pending Collection" />
+    <item android:id="@+id/page_store_settings" android:title="Store Settings" />
+    <item android:id="@+id/page_analytics" android:title="Analytics" />
+    <item android:id="@+id/page_accounting" android:title="Accounting" />
+    <item android:id="@+id/page_withdrawals" android:title="Withdrawals History" />
+    <item android:id="@+id/page_outstanding_debts" android:title="Outstanding Debts" />
+</menu>

@@ -1,0 +1,19 @@
+========================================
+QUICK START: Protect POS Files
+========================================
+
+To protect your POS system files from accidental deletion,
+run this command:
+
+  ./move_to_protected_location.sh
+
+This will:
+  ✓ Move files to ~/.local/share/pos-system (protected)
+  ✓ Create a safe desktop launcher
+  ✓ Make files read-only (except database)
+  ✓ Allow you to delete the original desktop folder safely
+
+After running, your desktop shortcut will still work!
+
+For more options, see: PROTECT_FILES.md
+========================================

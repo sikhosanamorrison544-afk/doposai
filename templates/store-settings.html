@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Store Settings - POS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        // CRITICAL: Apply theme INSTANTLY - must be first script, runs synchronously
+        (function() {
+            'use strict';
+            try {
+                const savedTheme = localStorage.getItem('pos-theme') || 'default';
+                const validTheme = ['default', 'light', 'classic'].includes(savedTheme) ? savedTheme : 'default';
+                const themeBackgrounds = { 'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)', 'light': 'transparent', 'classic': '#e8e8e8' };
+                const themeClass = validTheme !== 'default' ? 'theme-' + validTheme : '';
+                if (themeClass) document.documentElement.className = (document.documentElement.className.replace(/\btheme-\w+/g, '').trim() + ' ' + themeClass).trim();
+                else document.documentElement.className = document.documentElement.className.replace(/\btheme-\w+/g, '').trim();
+                if (document.body) {
+                    document.body.classList.remove('theme-default', 'theme-light', 'theme-classic');
+                    if (themeClass) document.body.classList.add(themeClass);
+                } else {
+                    const bodyObserver = new MutationObserver(function() {
+                        if (document.body) { bodyObserver.disconnect(); document.body.classList.remove('theme-default', 'theme-light', 'theme-classic'); if (themeClass) document.body.classList.add(themeClass); }
+                    });
+                    bodyObserver.observe(document.documentElement, { childList: true });
+                }
+                const bg = themeBackgrounds[validTheme] || themeBackgrounds['default'];
+                const style = document.createElement('style');
+                style.id = 'theme-instant';
+                style.setAttribute('data-theme', validTheme);
+                if (bg === 'transparent') style.textContent = 'html,body{background:transparent!important;min-height:100vh!important;margin:0!important;padding:0!important;}';
+                else if (validTheme === 'default') style.textContent = 'html,body{background:transparent!important;background-size:400% 400%!important;min-height:100vh!important;margin:0!important;padding:0!important;position:relative!important;}html::before,body::before{content:"";position:fixed;top:0;left:0;width:100%;height:100%;background:' + bg + ';background-size:400% 400%;opacity:0.5;z-index:-2;pointer-events:none;}';
+                else style.textContent = 'html,body{background:' + bg + '!important;min-height:100vh!important;margin:0!important;padding:0!important;}';
+                if (document.head.firstChild) {
+                    document.head.insertBefore(style, document.head.firstChild);
+                } else {
+                    document.head.appendChild(style);
+                }
+            } catch (e) {}
+        })();
+    </script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="page-store-settings">
+<!-- Video Background for Light Theme -->
+<video id="light-theme-video" autoplay loop muted playsinline style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; pointer-events: none; display: none;">
+    <source src="/static/background.mov" type="video/quicktime">
+    <source src="/static/background.mov" type="video/mp4">
+</video>
+<div id="app" class="screen active">
+    <header class="top-bar">
+        <span></span>
+        <div class="shop-name">{{ store_name }} - Store Settings</div>
+        <div class="top-bar-right">
+            <button id="btn-back-to-admin" class="small" onclick="window.location.href='/admin'; return false;">Back to Admin</button>
+        </div>
+    </header>
+    
+    <main class="store-settings-page-content">
+        <!-- Page Navigation: left/right arrows -->
+        <div class="settings-page-nav">
+            <button class="settings-page-btn settings-page-arrow" data-page="1" onclick="switchSettingsPage(1)" aria-label="Page 1: Store & Notifications" title="Page 1: Store & Notifications">←</button>
+            <button class="settings-page-btn settings-page-arrow" data-page="2" onclick="switchSettingsPage(2)" aria-label="Page 2: Users & Backup" title="Page 2: Users & Backup">→</button>
+        </div>
+
+        <div class="store-settings-content settings-accordion">
+            <!-- PAGE 1: Store Information & Notifications -->
+            <div class="settings-page" id="settings-page-1">
+                <details class="settings-section" open>
+                    <summary class="settings-section-summary">🏪 Store Information</summary>
+                    <div>
+                        <label for="store-name">Store Name</label>
+                        <input type="text" id="store-name" name="store-name" placeholder="Store Name">
+                    </div>
+                    <div>
+                        <label for="store-phone">Phone Number</label>
+                        <input type="text" id="store-phone" name="store-phone" placeholder="Phone Number">
+                    </div>
+                    <div>
+                        <label for="store-location">Location/Address</label>
+                        <textarea id="store-location" name="store-location" rows="3" placeholder="Store Location/Address"></textarea>
+                    </div>
+                    <div class="settings-actions">
+                        <button id="btn-save-settings" class="primary small">Save Settings</button>
+                    </div>
+                    <div id="settings-message" class="info"></div>
+                </details>
+
+                <details class="settings-section" open>
+                    <summary class="settings-section-summary">📧 Low Stock Email Notifications</summary>
+                    <div>
+                        <label for="notification-email">Notification Email Address</label>
+                        <input type="email" id="notification-email" name="notification-email" placeholder="email@example.com">
+                        <small class="help-text">Email address to receive low-stock alerts</small>
+                    </div>
+                    <div class="settings-inline">
+                        <label for="low-stock-email-enabled" class="checkbox-label">
+                            <input type="checkbox" id="low-stock-email-enabled" name="low-stock-email-enabled">
+                            Enable low-stock email alerts
+                        </label>
+                    </div>
+                </details>
+
+                <details class="settings-section">
+                    <summary class="settings-section-summary">⚙️ More Settings</summary>
+                    <div id="more-settings-content">
+                        <div class="settings-subcard">
+                            <label for="default-low-stock-threshold" class="settings-subtitle">Low Stock Threshold Quantity</label>
+                            <input type="number" id="default-low-stock-threshold" name="default-low-stock-threshold" min="0" step="0.1" value="10" placeholder="10">
+                            <small class="help-text">
+                                <strong>What is this?</strong><br>
+                                This is the default quantity threshold for low-stock alerts. When a product's stock falls below this number, you'll receive a notification.<br>
+                                Example: If set to 5, you'll be alerted when any product has 5 or fewer units remaining.<br>
+                                You can also set a custom threshold for individual products in the product edit screen.
+                            </small>
+                        </div>
+
+                        <div class="settings-subcard">
+                            <strong class="settings-subtitle">📧 Test Email Configuration</strong>
+                            <p class="help-text">
+                                Click the button below to send a test email to verify your email configuration is working correctly.
+                            </p>
+                            <button id="btn-test-email" class="primary small">📧 Send Test Email</button>
+                            <div id="test-email-message" class="info" style="display:none;"></div>
+
+                            <strong class="settings-subtitle" style="margin-top:16px;">🔔 Check &amp; Create Notifications</strong>
+                            <p class="help-text">
+                                Click the button below to check all products and create notifications for out-of-stock items and items with quantity ≤ 5.
+                            </p>
+                            <button id="btn-check-notifications" class="primary small">🔔 Check Products &amp; Create Notifications</button>
+                            <div id="check-notifications-message" class="info" style="display:none;"></div>
+                        </div>
+
+                        <div class="settings-subcard">
+                            <strong class="settings-subtitle">Email Configuration</strong>
+                            <p class="help-text">
+                                Configure SMTP settings using environment variables:<br>
+                                <code>SMTP_HOST</code>, <code>SMTP_PORT</code>, <code>SMTP_USER</code>, <code>SMTP_PASSWORD</code>
+                            </p>
+                        </div>
+                    </div>
+                </details>
+            </div>
+
+            <!-- PAGE 2: Users, Backup & Factory Reset -->
+            <div class="settings-page" id="settings-page-2" style="display:none !important;">
+                <details class="settings-section" open>
+                    <summary class="settings-section-summary">👥 User Management</summary>
+                    <div class="settings-wide">
+                        <div class="grid-2">
+                            <div>
+                                <label for="cashier-username">Username</label>
+                                <input type="text" id="cashier-username" name="cashier-username" placeholder="Username">
+                            </div>
+                            <div>
+                                <label for="cashier-fullname">Full Name</label>
+                                <input type="text" id="cashier-fullname" name="cashier-fullname" placeholder="Full Name (optional)">
+                            </div>
+                            <div>
+                                <label for="cashier-password">Password</label>
+                                <input type="password" id="cashier-password" name="cashier-password" placeholder="Password">
+                            </div>
+                            <div>
+                                <label for="cashier-role">Role</label>
+                                <select id="cashier-role" name="cashier-role">
+                                    <option value="cashier">Cashier</option>
+                                    <option value="supervisor">Supervisor</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="settings-actions settings-actions-row">
+                            <button id="btn-add-cashier" class="primary small">Add User</button>
+                            <button id="btn-clear-cashier" class="small">Clear</button>
+                        </div>
+                        <div id="cashier-message" class="info"></div>
+
+                        <h4 class="settings-subheading">Existing Users</h4>
+                        <div class="table-scroll">
+                            <table class="users-table">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Full Name</th>
+                                        <th>Role</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cashiers-body">
+                                    <tr>
+                                        <td colspan="5" class="table-loading">Loading...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </details>
+
+                <details class="settings-section">
+                    <summary class="settings-section-summary">📊 Google Sheets Backup</summary>
+                    <div class="settings-wide">
+                        <p class="help-text">
+                            Automatically backup your inventory to Google Sheets. Changes made offline will be synced when internet is available.
+                        </p>
+
+                        <div id="backup-status" class="settings-subcard">
+                            <div>Status: <span id="backup-status-text">Loading...</span></div>
+                            <div>Internet: <span id="backup-internet-status">Checking...</span></div>
+                            <div>Pending Changes: <span id="backup-pending-count">0</span></div>
+                        </div>
+
+                        <div class="settings-inline">
+                            <label for="backup-enabled" class="checkbox-label">
+                                <input type="checkbox" id="backup-enabled">
+                                Enable Google Sheets Backup
+                            </label>
+                        </div>
+                        <div>
+                            <label for="backup-web-app-url">Google Apps Script Web App URL</label>
+                            <input type="text" id="backup-web-app-url" placeholder="https://script.google.com/macros/s/.../exec">
+                            <small class="help-text">Paste the Web App URL from your deployed Google Apps Script (see setup instructions)</small>
+                        </div>
+                        <div>
+                            <label for="backup-api-key">API Key (Optional - for security)</label>
+                            <input type="text" id="backup-api-key" placeholder="Leave empty to disable">
+                            <small class="help-text">Optional: Set an API key in your Apps Script for extra security</small>
+                        </div>
+
+                        <h4 class="settings-subheading">Simple Manual Backup (No Setup Required)</h4>
+                        <div class="settings-actions settings-actions-row">
+                            <button id="btn-export-csv" class="primary small">📥 Download CSV Backup</button>
+                            <button id="btn-import-backup" class="small">📤 Import from CSV</button>
+                        </div>
+                        <p class="help-text">
+                            Download your inventory as CSV, then upload it to Google Sheets manually. To restore, download from Google Sheets and import it here.
+                        </p>
+
+                        <h4 class="settings-subheading">Automatic Backup (Google Apps Script)</h4>
+                        <div class="settings-actions settings-actions-row">
+                            <button id="btn-save-backup-config" class="small" onclick="
+                                console.log('Save backup config clicked');
+                                var config = {
+                                    enabled: document.getElementById('backup-enabled').checked,
+                                    web_app_url: document.getElementById('backup-web-app-url').value.trim(),
+                                    api_key: document.getElementById('backup-api-key').value.trim()
+                                };
+                                if (config.enabled && !config.web_app_url) {
+                                    var msg = document.getElementById('backup-message');
+                                    if (msg) {
+                                        msg.textContent = 'Web App URL is required when backup is enabled';
+                                        msg.style.color = 'rgba(239, 68, 68, 1)';
+                                    }
+                                    return false;
+                                }
+                                var token = localStorage.getItem('pos_token');
+                                if (!token) {
+                                    alert('Not authenticated. Please log in again.');
+                                    return false;
+                                }
+                                var msg = document.getElementById('backup-message');
+                                if (msg) msg.textContent = 'Saving...';
+                                fetch('/api/backup/config', {
+                                    method: 'PUT',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': 'Bearer ' + token
+                                    },
+                                    body: JSON.stringify(config)
+                                })
+                                .then(r => r.json())
+                                .then(result => {
+                                    if (msg) {
+                                        msg.textContent = 'Backup configuration saved';
+                                        msg.style.color = 'rgba(34, 197, 94, 1)';
+                                    }
+                                    if (typeof loadBackupStatus === 'function') loadBackupStatus();
+                                })
+                                .catch(e => {
+                                    console.error(e);
+                                    if (msg) {
+                                        msg.textContent = 'Failed to save: ' + (e.message || 'Unknown error');
+                                        msg.style.color = 'rgba(239, 68, 68, 1)';
+                                    }
+                                });
+                                return false;
+                            ">Save Configuration</button>
+                            <button id="btn-sync-all-backup" class="small" onclick="
+                                console.log('Sync all clicked');
+                                var msg = document.getElementById('backup-message');
+                                if (msg) {
+                                    msg.textContent = 'Syncing all products to Google Sheets...';
+                                    msg.style.color = 'rgba(255, 255, 255, 0.9)';
+                                }
+                                var token = localStorage.getItem('pos_token');
+                                if (!token) {
+                                    alert('Not authenticated. Please log in again.');
+                                    return false;
+                                }
+                                fetch('/api/backup/sync-all', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Authorization': 'Bearer ' + token
+                                    }
+                                })
+                                .then(r => {
+                                    if (!r.ok) {
+                                        return r.text().then(text => {
+                                            throw new Error('HTTP ' + r.status + ': ' + text);
+                                        });
+                                    }
+                                    return r.json();
+                                })
+                                .then(result => {
+                                    console.log('Sync result:', result);
+                                    if (msg) {
+                                        if (result.success) {
+                                            msg.textContent = result.message || 'Sync completed successfully';
+                                            msg.style.color = 'rgba(34, 197, 94, 1)';
+                                        } else {
+                                            msg.textContent = result.message || result.error || 'Sync failed';
+                                            msg.style.color = 'rgba(239, 68, 68, 1)';
+                                        }
+                                    }
+                                    if (typeof loadBackupStatus === 'function') loadBackupStatus();
+                                })
+                                .catch(e => {
+                                    console.error('Sync error:', e);
+                                    if (msg) {
+                                        msg.textContent = 'Sync failed: ' + (e.message || 'Unknown error');
+                                        msg.style.color = 'rgba(239, 68, 68, 1)';
+                                    }
+                                });
+                                return false;
+                            ">Sync All Products Now</button>
+                            <button id="btn-sync-debtors" class="small" onclick="
+                                console.log('Sync debtors clicked');
+                                var msg = document.getElementById('backup-message');
+                                if (msg) {
+                                    msg.textContent = 'Syncing debtors to Google Sheets...';
+                                    msg.style.color = 'rgba(255, 255, 255, 0.9)';
+                                }
+                                var token = localStorage.getItem('pos_token');
+                                if (!token) {
+                                    alert('Not authenticated. Please log in again.');
+                                    return false;
+                                }
+                                fetch('/api/backup/sync-debtors', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Authorization': 'Bearer ' + token
+                                    }
+                                })
+                                .then(r => r.json())
+                                .then(result => {
+                                    if (msg) {
+                                        if (result.success) {
+                                            msg.textContent = result.message || 'Debtors synced successfully';
+                                            msg.style.color = 'rgba(34, 197, 94, 1)';
+                                        } else {
+                                            msg.textContent = result.message || 'Sync failed';
+                                            msg.style.color = 'rgba(239, 68, 68, 1)';
+                                        }
+                                    }
+                                })
+                                .catch(e => {
+                                    console.error(e);
+                                    if (msg) {
+                                        msg.textContent = 'Sync failed: ' + (e.message || 'Unknown error');
+                                        msg.style.color = 'rgba(239, 68, 68, 1)';
+                                    }
+                                });
+                                return false;
+                            ">💳 Sync Debtors to Google Sheets</button>
+                            <button id="btn-process-queue" class="small" onclick="
+                                console.log('Process queue clicked');
+                                var msg = document.getElementById('backup-message');
+                                if (msg) {
+                                    msg.textContent = 'Processing pending changes...';
+                                    msg.style.color = 'rgba(255, 255, 255, 0.9)';
+                                }
+                                var token = localStorage.getItem('pos_token');
+                                if (!token) {
+                                    alert('Not authenticated. Please log in again.');
+                                    return false;
+                                }
+                                fetch('/api/backup/process-queue', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Authorization': 'Bearer ' + token
+                                    }
+                                })
+                                .then(r => r.json())
+                                .then(result => {
+                                    if (msg) {
+                                        if (result.success) {
+                                            msg.textContent = result.message || 'Processed ' + (result.processed || 0) + ' changes';
+                                            msg.style.color = 'rgba(34, 197, 94, 1)';
+                                        } else {
+                                            msg.textContent = result.message || 'Processing failed';
+                                            msg.style.color = 'rgba(239, 68, 68, 1)';
+                                        }
+                                    }
+                                    if (typeof loadBackupStatus === 'function') loadBackupStatus();
+                                })
+                                .catch(e => {
+                                    console.error(e);
+                                    if (msg) {
+                                        msg.textContent = 'Processing failed: ' + (e.message || 'Unknown error');
+                                        msg.style.color = 'rgba(239, 68, 68, 1)';
+                                    }
+                                });
+                                return false;
+                            ">Process Pending Changes</button>
+                        </div>
+
+                        <div id="backup-message" class="info"></div>
+                    </div>
+                </details>
+
+                <details class="settings-section">
+                    <summary class="settings-section-summary">⚠️ Factory Reset</summary>
+                    <div class="settings-danger">
+                        <p class="help-text">
+                            This will permanently delete ALL data including products, sales, customers, layby transactions, users, and settings.
+                            The database will be reset to factory defaults with a new admin user (username: admin, password: admin).
+                            <strong>This action CANNOT be undone.</strong>
+                        </p>
+                        <button id="btn-factory-reset" type="button" class="danger" onclick="if(typeof window.factoryReset === 'function') { window.factoryReset(); } else { console.error('factoryReset not found, available:', typeof factoryReset, typeof window.factoryReset); alert('Error: Reset function not loaded. Please refresh the page.'); } return false;">Reset to Factory Settings</button>
+                        <div id="reset-message" class="info"></div>
+                    </div>
+                </details>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="/static/js/admin.js?v=2"></script>
+<script>
+    // Switch between settings pages
+    window.switchSettingsPage = function(pageNum) {
+        console.log('Switching to settings page:', pageNum);
+        
+        const page1 = document.getElementById('settings-page-1');
+        const page2 = document.getElementById('settings-page-2');
+        
+        const buttons = document.querySelectorAll('.settings-page-btn');
+        buttons.forEach(btn => btn.classList.remove('active'));
+        
+        if (pageNum === 1) {
+            if (page1) {
+                page1.style.display = 'flex';
+                page1.style.setProperty('display', 'flex', 'important');
+            }
+            if (page2) {
+                page2.style.display = 'none';
+                page2.style.setProperty('display', 'none', 'important');
+            }
+            const btn1 = document.querySelector('.settings-page-btn[data-page="1"]');
+            if (btn1) btn1.classList.add('active');
+        } else if (pageNum === 2) {
+            if (page1) {
+                page1.style.display = 'none';
+                page1.style.setProperty('display', 'none', 'important');
+            }
+            if (page2) {
+                page2.style.display = 'flex';
+                page2.style.setProperty('display', 'flex', 'important');
+            }
+            const btn2 = document.querySelector('.settings-page-btn[data-page="2"]');
+            if (btn2) btn2.classList.add('active');
+        }
+        
+        const settingsContent = document.querySelector('.store-settings-content');
+        if (settingsContent) {
+            settingsContent.scrollTop = 0;
+        }
+    };
+    
+    // Ensure page 2 is hidden on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        const page2 = document.getElementById('settings-page-2');
+        if (page2) {
+            page2.style.display = 'none';
+            page2.style.setProperty('display', 'none', 'important');
+        }
+        const page1 = document.getElementById('settings-page-1');
+        if (page1) {
+            page1.style.display = 'flex';
+            page1.style.setProperty('display', 'flex', 'important');
+        }
+    });
+    
+    // Load settings on page load
+    window.addEventListener('load', function() {
+        if (typeof loadStoreSettings === 'function') {
+            loadStoreSettings();
+        }
+        if (typeof loadCashiers === 'function') {
+            loadCashiers();
+        }
+        if (typeof loadBackupStatus === 'function') {
+            loadBackupStatus();
+        }
+    });
+</script>
+</body>
+</html>
+

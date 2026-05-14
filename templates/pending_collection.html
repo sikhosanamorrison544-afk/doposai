@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pending Collection - {{ store_name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        // CRITICAL: Apply theme INSTANTLY - must be first script, runs synchronously
+        (function() {
+            'use strict';
+            try {
+                const savedTheme = localStorage.getItem('pos-theme') || 'default';
+                const validTheme = ['default', 'light', 'classic'].includes(savedTheme) ? savedTheme : 'default';
+                if (validTheme !== savedTheme) { try { localStorage.setItem('pos-theme', validTheme); } catch (e) {} }
+                const themeClass = validTheme !== 'default' ? 'theme-' + validTheme : '';
+                const themeBackgrounds = { 'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)', 'light': 'transparent', 'classic': '#e8e8e8' };
+                
+                function applyThemeClasses(el) {
+                    if (!el) return;
+                    el.className = el.className.replace(/\btheme-\w+/g, '').trim();
+                    if (themeClass) el.className = (el.className + ' ' + themeClass).trim();
+                }
+                applyThemeClasses(document.documentElement);
+                if (document.body) applyThemeClasses(document.body);
+                else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function() { if (document.body) applyThemeClasses(document.body); }, { once: true });
+                else setTimeout(function() { if (document.body) applyThemeClasses(document.body); }, 0);
+                
+                const bg = themeBackgrounds[validTheme] || themeBackgrounds['default'];
+                const style = document.createElement('style');
+                style.id = 'theme-instant';
+                style.setAttribute('data-theme', validTheme);
+                if (bg !== 'transparent') {
+                    if (validTheme === 'default') {
+                        style.textContent = 'html,body{background:transparent!important;background-size:400% 400%!important;min-height:100vh!important;margin:0!important;padding:0!important;position:relative!important;}html::before,body::before{content:"";position:fixed;top:0;left:0;width:100%;height:100%;background:' + bg + ';background-size:400% 400%;opacity:0.5;z-index:-2;pointer-events:none;}';
+                    } else {
+                        style.textContent = 'html,body{background:' + bg + '!important;min-height:100vh!important;margin:0!important;padding:0!important;}';
+                    }
+                } else {
+                    style.textContent = 'html,body{background:transparent!important;min-height:100vh!important;margin:0!important;padding:0!important;}';
+                }
+                if (document.head.firstChild) {
+                    document.head.insertBefore(style, document.head.firstChild);
+                } else {
+                    document.head.appendChild(style);
+                }
+            } catch (e) {}
+        })();
+    </script>
+    <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
+    <link rel="stylesheet" href="/static/css/style.css?v=2">
+    <style>
+        /* Items table: no whitish background - transparent */
+        #pending-collection-list table,
+        #pending-collection-list table thead,
+        #pending-collection-list table thead th,
+        #pending-collection-list table th,
+        #pending-collection-list table td {
+            background: transparent !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+        
+        body.theme-light #pending-collection-list table,
+        body.theme-light #pending-collection-list table thead,
+        body.theme-light #pending-collection-list table thead th,
+        body.theme-light #pending-collection-list table th,
+        body.theme-light #pending-collection-list table td {
+            background: transparent !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+        
+        /* Items table: larger font and bold text */
+        #pending-collection-list table th {
+            font-size: clamp(1rem, 2vw, 1.25rem) !important;
+            font-weight: bold !important;
+            padding: clamp(0.75rem, 1.5vw, 1rem) clamp(0.5rem, 1vw, 0.75rem) !important;
+        }
+        #pending-collection-list table td {
+            font-size: clamp(0.95rem, 1.8vw, 1.15rem) !important;
+            font-weight: bold !important;
+            padding: clamp(0.75rem, 1.5vw, 1rem) clamp(0.5rem, 1vw, 0.75rem) !important;
+        }
+        
+        /* More vibrant blue and green text for light theme on frosted background */
+        body.theme-light #pending-collection-list h3 {
+            color: #2563eb !important; /* More vibrant blue */
+            text-shadow: 0 2px 4px rgba(37, 99, 235, 0.3) !important;
+        }
+        
+        body.theme-light #pending-collection-list [style*="#3b82f6"] {
+            color: #2563eb !important; /* More vibrant blue */
+            text-shadow: 0 2px 4px rgba(37, 99, 235, 0.3) !important;
+        }
+        
+        body.theme-light #pending-collection-list [style*="#10b981"] {
+            color: #059669 !important; /* More vibrant green */
+            text-shadow: 0 2px 4px rgba(5, 150, 105, 0.3) !important;
+        }
+        
+        body.theme-light #pending-collection-list .primary {
+            background: #2563eb !important; /* More vibrant blue */
+            border-color: #1d4ed8 !important;
+            color: #1a1a1a !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4) !important;
+        }
+        
+        body.theme-light #pending-collection-list .primary:hover {
+            background: #1d4ed8 !important;
+            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.5) !important;
+        }
+    </style>
+</head>
+<body>
+<!-- 3D Background Canvas for Default Theme -->
+<canvas id="bg3d-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none; background: transparent;"></canvas>
+<!-- Video Background for Light Theme -->
+<video id="light-theme-video" autoplay loop muted playsinline style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; pointer-events: none; display: none;">
+    <source src="/static/background.mov" type="video/quicktime">
+    <source src="/static/background.mov" type="video/mp4">
+</video>
+<div id="app" class="screen active" style="height: 100vh; overflow: hidden; display: flex; flex-direction: column;">
+    <header class="top-bar" style="flex-shrink: 0; position: relative; z-index: 100; color: #1a1a1a !important;">
+        <div style="flex: 0 0 auto; color: #1a1a1a !important; font-weight: 600;">Pending Collection</div>
+        <div class="shop-name" style="color: #1a1a1a !important; font-weight: bold; flex: 1; text-align: center; margin: 0 auto;">{{ store_name }}</div>
+        <div class="top-bar-right" style="flex: 0 0 auto; display: flex; gap: 8px; align-items: center; color: #1a1a1a !important;">
+            <button id="btn-refresh" class="small primary">Refresh</button>
+            <button id="btn-back-pos" class="small" style="color: #1a1a1a !important; background: rgba(59, 130, 246, 0.8) !important;">Back to POS</button>
+            <button id="btn-logout" class="danger small">Logout</button>
+        </div>
+    </header>
+    <main style="flex: 1; overflow-y: auto; overflow-x: hidden; padding: 20px; position: relative; z-index: 1;">
+        <div style="width: 100%; max-width: 100%; margin: 0; padding: 0;">
+            <div style="text-align: center; margin-bottom: 32px;">
+                <h1 style="margin: 0 0 12px 0; color: #1a1a1a !important; font-size: 36px; font-weight: bold; line-height: 1.2;">Items Pending Collection</h1>
+                <p style="margin: 0; color: rgba(255,255,255,0.9) !important; font-size: 16px; line-height: 1.5;">
+                    Items that have been paid for but not yet collected by customers
+                </p>
+            </div>
+            
+            <div id="pending-collection-list" style="display: grid; gap: 20px; grid-template-columns: 1fr; width: 100%;">
+                <div style="text-align: center; padding: 40px; color: rgba(255,255,255,0.9) !important; background: rgba(17, 24, 39, 0.6); border-radius: 12px; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); width: 100%; box-sizing: border-box;">
+                    Loading pending collection items...
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+// Don't load app.js on this page - it expects POS page structure
+// We'll implement our own API and theme functions
+
+let currentTheme = localStorage.getItem('pos-theme') || 'default';
+
+// Force theme application on load
+console.log('Pending Collection page loading, theme:', currentTheme);
+
+// Check authentication before making any API calls
+async function ensureAuthenticated() {
+    const savedToken = localStorage.getItem('pos_token');
+    const savedUser = localStorage.getItem('pos_user');
+    
+    if (!savedToken || !savedUser) {
+        console.error('No authentication found in localStorage - redirecting to login');
+        window.location.href = '/';
+        return false;
+    }
+    
+    console.log('Authentication verified. Token present:', !!savedToken);
+    return true;
+}
+
+async function api(url, options = {}) {
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+    };
+    
+    // Always refresh token from localStorage
+    const savedToken = localStorage.getItem('pos_token');
+    let authToken = savedToken ? savedToken.trim() : null;
+    
+    if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+    } else {
+        console.error('No token found in localStorage - redirecting to login');
+        localStorage.removeItem('pos_token');
+        localStorage.removeItem('pos_user');
+        window.location.href = '/';
+        throw new Error('Not authenticated. Please login again.');
+    }
+    
+    console.log('API call:', url, 'Token present:', !!authToken);
+    
+    try {
+        const response = await fetch(url, { ...options, headers });
+        console.log('API response status:', response.status, response.statusText);
+        
+        if (response.status === 401) {
+            console.error('Authentication failed - redirecting to login');
+            localStorage.removeItem('pos_token');
+            localStorage.removeItem('pos_user');
+            window.location.href = '/';
+            return;
+        }
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('API error response:', errorText);
+            let errorMsg = errorText;
+            try {
+                const errorJson = JSON.parse(errorText);
+                errorMsg = errorJson.detail || errorJson.message || errorText;
+            } catch (e) {
+                // Not JSON, use text as is
+            }
+            throw new Error(errorMsg || 'Request failed');
+        }
+        
+        const data = await response.json();
+        console.log('API response data:', data);
+        return data;
+    } catch (error) {
+        console.error('API call error:', error);
+        throw error;
+    }
+}
+
+function formatUSD(amount) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+async function loadPendingCollection() {
+    const container = document.getElementById('pending-collection-list');
+    if (!container) {
+        console.error('Container element not found!');
+        return;
+    }
+    
+    // Determine theme for all states
+    const isClassicTheme = document.body.classList.contains('theme-classic');
+    const isLightTheme = document.body.classList.contains('theme-light');
+    const loadingBg = isClassicTheme ? 'rgba(255, 255, 255, 0.85)' : 'rgba(17, 24, 39, 0.6)';
+    const loadingTextColor = isClassicTheme ? '#1a1a2e' : 'rgba(255,255,255,0.9)';
+    const loadingBorder = isClassicTheme ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255,255,255,0.1)';
+    
+    // Show loading state
+    container.innerHTML = `
+        <div style="text-align: center; padding: 40px; color: ${loadingTextColor} !important; background: ${loadingBg}; border-radius: 12px; backdrop-filter: blur(20px); border: 1px solid ${loadingBorder};">
+            Loading pending collection items...
+        </div>
+    `;
+    
+    try {
+        console.log('Loading pending collection sales...');
+        const sales = await api('/api/sales/pending-collection');
+        console.log('Received sales:', sales);
+        console.log('Number of sales:', sales ? sales.length : 0);
+        
+        if (!sales || sales.length === 0) {
+            const emptyBg = isImageColorPicker ? 'rgba(255, 255, 255, 0.85)' : 'rgba(17, 24, 39, 0.6)';
+            const emptyTextColor = isImageColorPicker ? '#1a1a2e' : 'rgba(255,255,255,0.9)';
+            const emptyBorder = isImageColorPicker ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255,255,255,0.1)';
+            container.innerHTML = `
+                <div style="text-align: center; padding: 60px; background: ${emptyBg}; border-radius: 12px; backdrop-filter: blur(20px); border: 1px solid ${emptyBorder}; width: 100%; box-sizing: border-box;">
+                    <p style="color: ${emptyTextColor} !important; font-size: 18px; margin: 0;">No items pending collection</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Determine vibrant colors based on theme
+        const saleColor = isImageColorPicker ? '#2596be' : (isLightTheme ? '#2563eb' : '#3b82f6'); // Theme-appropriate blue
+        const totalColor = isImageColorPicker ? '#48bb78' : (isLightTheme ? '#059669' : '#10b981'); // Theme-appropriate green
+        
+        // Determine background and text colors for cards
+        const cardBg = isImageColorPicker ? 'rgba(255, 255, 255, 0.85)' : 'rgba(17, 24, 39, 0.6)';
+        const cardBorder = isImageColorPicker ? 'rgba(37, 150, 190, 0.3)' : 'rgba(59, 130, 246, 0.3)';
+        const textColor = isImageColorPicker ? '#1a1a2e' : 'rgba(255,255,255,0.8)';
+        const textColorStrong = isImageColorPicker ? '#1a1a2e' : 'rgba(255,255,255,0.95)';
+        const borderColor = isImageColorPicker ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255,255,255,0.1)';
+        
+        container.innerHTML = sales.map(sale => `
+            <div class="card" style="background: ${cardBg}; backdrop-filter: blur(20px); border: 2px solid ${cardBorder}; border-radius: 12px; padding: 24px; margin: 0; width: 100%; max-width: 100%; box-sizing: border-box;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 2px solid ${borderColor};">
+                    <div style="flex: 1;">
+                        <h3 style="margin: 0 0 8px 0; color: ${saleColor} !important; font-size: 24px; font-weight: bold; ${isLightTheme ? 'text-shadow: 0 2px 4px rgba(37, 99, 235, 0.3) !important;' : ''}">Sale #${sale.id}</h3>
+                        <p style="margin: 0; color: ${textColor} !important; font-size: 14px;">
+                            ${formatDate(sale.created_at)}
+                        </p>
+                    </div>
+                    <div style="text-align: right; flex: 0 0 auto; margin-left: 20px;">
+                        <div style="font-size: 28px; font-weight: bold; color: ${totalColor} !important; margin-bottom: 12px; ${isLightTheme ? 'text-shadow: 0 2px 4px rgba(5, 150, 105, 0.3) !important;' : ''}">${formatUSD(sale.total)}</div>
+                        <button class="small primary" onclick="markAsCollected(${sale.id})" style="white-space: nowrap;">
+                            Mark as Collected
+                        </button>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid ${borderColor};">
+                    <div style="margin-bottom: 8px;">
+                        <strong style="color: ${textColorStrong} !important; font-size: 14px;">Customer:</strong>
+                        <span style="color: ${textColor} !important; margin-left: 8px; font-size: 14px;">
+                            ${sale.customer_name || 'Walk-in Customer'}
+                        </span>
+                    </div>
+                    <div>
+                        <strong style="color: ${textColorStrong} !important; font-size: 14px;">Cashier:</strong>
+                        <span style="color: ${textColor} !important; margin-left: 8px; font-size: 14px;">${sale.cashier_name}</span>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <strong style="color: ${textColorStrong} !important; display: block; margin-bottom: 12px; font-size: 16px;">Items:</strong>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; min-width: 500px;">
+                            <thead>
+                                <tr style="border-bottom: 2px solid ${borderColor};">
+                                    <th style="text-align: left; padding: 12px 8px; color: ${textColorStrong} !important; font-weight: bold; font-size: 14px; background: transparent !important;">Product</th>
+                                    <th style="text-align: right; padding: 12px 8px; color: ${textColorStrong} !important; font-weight: bold; font-size: 14px; background: transparent !important;">Qty</th>
+                                    <th style="text-align: right; padding: 12px 8px; color: ${textColorStrong} !important; font-weight: bold; font-size: 14px; background: transparent !important;">Price</th>
+                                    <th style="text-align: right; padding: 12px 8px; color: ${textColorStrong} !important; font-weight: bold; font-size: 14px; background: transparent !important;">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${sale.items.map(item => `
+                                    <tr style="border-bottom: 1px solid ${borderColor};">
+                                        <td style="padding: 12px 8px; color: ${textColor} !important; font-size: 14px;">${item.product_name}</td>
+                                        <td style="text-align: right; padding: 12px 8px; color: ${textColor} !important; font-size: 14px;">${item.quantity}</td>
+                                        <td style="text-align: right; padding: 12px 8px; color: ${textColor} !important; font-size: 14px;">${formatUSD(item.unit_price)}</td>
+                                        <td style="text-align: right; padding: 12px 8px; color: ${textColor} !important; font-size: 14px;">${formatUSD(item.line_total)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading pending collection:', error);
+        const errorMsg = error.message || 'Unknown error occurred';
+        console.error('Error details:', errorMsg);
+        
+        const container = document.getElementById('pending-collection-list');
+        if (container) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px; background: rgba(239, 68, 68, 0.2); border-radius: 12px; border: 2px solid rgba(239, 68, 68, 0.3);">
+                    <p style="color: #ef4444 !important; font-size: 18px; margin: 0; font-weight: bold;">Error loading pending collection</p>
+                    <p style="color: rgba(255,255,255,0.8) !important; font-size: 14px; margin: 8px 0 0 0;">${errorMsg}</p>
+                    <button onclick="loadPendingCollection()" class="small primary" style="margin-top: 16px;">Retry</button>
+                </div>
+            `;
+        }
+    }
+}
+
+window.markAsCollected = async function(saleId) {
+    if (!confirm('Mark this sale as collected? This will deduct the items from stock.')) {
+        return;
+    }
+    
+    try {
+        console.log('Marking sale as collected:', saleId);
+        await api(`/api/sales/${saleId}/mark-collected`, { method: 'PUT' });
+        alert('Sale marked as collected successfully!');
+        await loadPendingCollection();
+    } catch (error) {
+        console.error('Error marking sale as collected:', error);
+        alert(`Error: ${error.message}`);
+    }
+};
+
+// Theme management
+function applyTheme(themeName) {
+    // Remove all theme classes from both body and html elements
+    const themeClasses = ['theme-default', 'theme-light', 'theme-classic'];
+    document.body.classList.remove(...themeClasses);
+    document.documentElement.classList.remove(...themeClasses);
+    
+    // Add selected theme class to both body and html elements
+    if (themeName && themeName !== 'default') {
+        const themeClass = 'theme-' + themeName;
+        document.body.classList.add(themeClass);
+        document.documentElement.classList.add(themeClass);
+    }
+    
+    // Handle video background for light theme
+    const video = document.getElementById('light-theme-video');
+    if (video) {
+        if (themeName === 'light') {
+            video.style.display = 'block';
+            video.play().catch(err => {
+                console.log('Video autoplay prevented:', err);
+                document.addEventListener('click', function playVideoOnce() {
+                    video.play().catch(() => {});
+                    document.removeEventListener('click', playVideoOnce);
+                }, { once: true });
+            });
+            // Add water droplets for light theme
+            setTimeout(() => {
+                if (typeof window.addWaterDroplets === 'function') {
+                    window.addWaterDroplets();
+                }
+            }, 200);
+        } else {
+            video.style.display = 'none';
+            video.pause();
+            // Remove water droplets for other themes
+            document.querySelectorAll('.water-droplet').forEach(droplet => droplet.remove());
+        }
+    }
+    
+    // Save to localStorage
+    localStorage.setItem('pos-theme', themeName || 'default');
+    currentTheme = themeName || 'default';
+}
+
+function loadTheme() {
+    const savedTheme = localStorage.getItem('pos-theme') || 'default';
+    applyTheme(savedTheme);
+    
+    // Ensure video plays if light theme is already active
+    if (savedTheme === 'light') {
+        setTimeout(() => {
+            const video = document.getElementById('light-theme-video');
+            if (video && video.paused) {
+                video.play().catch(err => {
+                    console.log('Video autoplay on load prevented:', err);
+                });
+            }
+            // Add water droplets
+            if (typeof window.addWaterDroplets === 'function') {
+                window.addWaterDroplets();
+            }
+        }, 200);
+    }
+}
+
+// Listen for theme changes from other pages
+window.addEventListener('storage', function(e) {
+    if (e.key === 'pos-theme') {
+        applyTheme(e.newValue || 'default');
+    }
+});
+
+// Also check for theme changes periodically (in case same-tab changes)
+let lastTheme = localStorage.getItem('pos-theme') || 'default';
+setInterval(() => {
+    const currentTheme = localStorage.getItem('pos-theme') || 'default';
+    if (currentTheme !== lastTheme) {
+        lastTheme = currentTheme;
+        applyTheme(currentTheme);
+    }
+}, 500);
+
+// Initialize - ensure authentication and theme are loaded first
+async function initializePage() {
+    console.log('Initializing pending collection page...');
+    
+    // Check authentication first - redirect to login if not authenticated
+    const isAuthenticated = await ensureAuthenticated();
+    if (!isAuthenticated) {
+        return; // ensureAuthenticated already redirects, but stop execution here
+    }
+    
+    // Load theme immediately
+    loadTheme();
+    
+    // Setup event listeners
+    const btnRefresh = document.getElementById('btn-refresh');
+    const btnBackPos = document.getElementById('btn-back-pos');
+    const btnLogout = document.getElementById('btn-logout');
+    
+    if (btnRefresh) {
+        btnRefresh.addEventListener('click', () => {
+            console.log('Refresh button clicked');
+            loadPendingCollection();
+        });
+    } else {
+        console.error('Refresh button not found!');
+    }
+    
+    if (btnBackPos) {
+        btnBackPos.addEventListener('click', () => {
+            window.location.href = '/';
+        });
+    }
+    
+    if (btnLogout) {
+        btnLogout.addEventListener('click', () => {
+            localStorage.removeItem('pos_token');
+            localStorage.removeItem('pos_user');
+            window.location.href = '/';
+        });
+    }
+    
+    // Wait a bit for theme to apply, then load data
+    setTimeout(() => {
+        console.log('Loading pending collection data...');
+        loadPendingCollection();
+    }, 200);
+}
+
+// Run initialization when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializePage);
+} else {
+    // DOM is already loaded
+    initializePage();
+}
+</script>
+<script src="/static/js/price-input-formatter.js?v=7"></script>
+<!-- Three.js for 3D Background -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
+<script src="/static/js/background3d.js?v=5"></script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Exclude encrypted credentials from backup (key may not be available on restore) -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="pos_credentials_enc.xml" />
+</full-backup-content>
