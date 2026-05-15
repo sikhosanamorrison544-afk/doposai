@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
+from starlette.middleware.gzip import GZipMiddleware
 
 from . import auth
 try:
@@ -30,7 +31,14 @@ except ImportError as e:
     OLLAMA_MODEL = None
     OLLAMA_BASE_URL = None
 from .backup_service import get_backup_service
-from .config import BASE_DIR, DATABASE_URL, STORE_NAME, STORE_PHONE, STORE_LOCATION
+from .config import (
+    BASE_DIR,
+    DATABASE_URL,
+    STORE_NAME,
+    STORE_PHONE,
+    STORE_LOCATION,
+    get_cors_origins_and_credentials,
+)
 from .database import Base, engine, get_db, SessionLocal
 from .accounting_models import (
     ChartOfAccount, JournalEntry, JournalEntryLine, AccountingPeriod,
@@ -81,18 +89,24 @@ logging.basicConfig(
 
 app = FastAPI(title="Raspberry Pi Offline POS", docs_url=None, redoc_url=None)
 
-# Configure CORS to allow requests from any origin (needed for Cloudflare Tunnel)
+_cors_origins, _cors_credentials = get_cors_origins_and_credentials()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins (Cloudflare Tunnel handles security)
-    allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods
-    allow_headers=["*"],  # Allow all headers
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_credentials,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
+from starlette.middleware.gzip import GZipMiddleware
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+from .billing.routes import router as billing_router
 from .saas_auth_routes import router as saas_auth_router
 
 app.include_router(saas_auth_router)
+app.include_router(billing_router)
 
 # Background task to periodically process offline backup queue
 async def process_backup_queue_periodically():
@@ -118,6 +132,16 @@ async def process_backup_queue_periodically():
 async def startup_event():
     """Start background tasks on application startup."""
     import asyncio
+
+    from .config import APP_ENV
+
+    if APP_ENV == "production" and (
+        "change" in (auth.SECRET_KEY or "").lower() or len(auth.SECRET_KEY or "") < 32
+    ):
+        logging.warning(
+            "JWT_SECRET_KEY looks weak or default. Set a strong JWT_SECRET_KEY in the host environment."
+        )
+
     # Start backup queue processor in background
     asyncio.create_task(process_backup_queue_periodically())
     
@@ -288,9 +312,13 @@ class Token(BaseModel):
 
 @app.post("/api/auth/token", response_model=Token)
 async def login_for_access_token(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
+    from .http_rate_limit import rate_limit_hit
+
+    rate_limit_hit(request, "legacy_oauth_token", max_calls=40, window_sec=60)
     logging.info(f"Login attempt for username: {form_data.username}")
     user = auth.authenticate_user(db, form_data.username, form_data.password)
     if not user:

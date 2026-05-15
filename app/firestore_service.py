@@ -5,9 +5,18 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+# Firestore collection names (security / billing plane; Postgres = POS transactional data)
+COLLECTION_TENANTS = "tenants"
+COLLECTION_DEVICES = "devices"
+COLLECTION_SUBSCRIPTIONS = "subscriptions"
+COLLECTION_BILLING_EVENTS = "billing_events"
+COLLECTION_TENANT_SECURITY = "tenant_security"
+
 
 def is_firestore_configured() -> bool:
-    return bool(os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or os.getenv("FIREBASE_PROJECT_ID"))
+    return bool(
+        os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or os.getenv("FIREBASE_PROJECT_ID")
+    )
 
 
 def _ensure_firebase_app() -> bool:
@@ -49,7 +58,7 @@ def upsert_tenant_security_record(
         return None
     try:
         db = firestore.client()
-        doc_ref = db.collection("tenants").document(tenant_uid)
+        doc_ref = db.collection(COLLECTION_TENANTS).document(tenant_uid)
         doc_ref.set(data, merge=True)
         return doc_ref.id
     except Exception as e:
@@ -68,9 +77,49 @@ def fetch_tenant_subscription(tenant_uid: str) -> Optional[Dict[str, Any]]:
         return None
     try:
         db = firestore.client()
-        snap = db.collection("tenants").document(tenant_uid).get()
+        snap = db.collection(COLLECTION_TENANTS).document(tenant_uid).get()
         if snap.exists:
             return dict(snap.to_dict() or {})
     except Exception as e:
         logger.warning("Firestore fetch failed: %s", e)
+    return None
+
+
+def upsert_device_record(device_id: str, data: Dict[str, Any]) -> Optional[str]:
+    """Bind app installs to tenants; anti–trial-abuse / reinstall signals (implement policy later)."""
+    if not is_firestore_configured():
+        return None
+    try:
+        from firebase_admin import firestore
+    except ImportError:
+        return None
+    if not _ensure_firebase_app():
+        return None
+    try:
+        db = firestore.client()
+        ref = db.collection(COLLECTION_DEVICES).document(device_id)
+        ref.set(data, merge=True)
+        return ref.id
+    except Exception as e:
+        logger.warning("Firestore device upsert failed: %s", e)
+    return None
+
+
+def append_billing_event(event_id: str, data: Dict[str, Any]) -> Optional[str]:
+    """Immutable billing audit trail (webhooks, trial conversions)."""
+    if not is_firestore_configured():
+        return None
+    try:
+        from firebase_admin import firestore
+    except ImportError:
+        return None
+    if not _ensure_firebase_app():
+        return None
+    try:
+        db = firestore.client()
+        ref = db.collection(COLLECTION_BILLING_EVENTS).document(event_id)
+        ref.set(data, merge=False)
+        return ref.id
+    except Exception as e:
+        logger.warning("Firestore billing event write failed: %s", e)
     return None

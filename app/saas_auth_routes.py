@@ -4,9 +4,7 @@ from __future__ import annotations
 import logging
 import re
 import secrets
-import time
 import uuid
-from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -27,18 +25,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-_rate_hits: Dict[str, List[float]] = defaultdict(list)
-
-
-def _rate_limit(request: Request, key: str, max_calls: int = 30, window_sec: int = 60) -> None:
-    ip = request.client.host if request.client else "unknown"
-    bucket_key = f"{key}:{ip}"
-    now = time.time()
-    window_start = now - window_sec
-    _rate_hits[bucket_key] = [t for t in _rate_hits[bucket_key] if t > window_start]
-    if len(_rate_hits[bucket_key]) >= max_calls:
-        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
-    _rate_hits[bucket_key].append(now)
+from .http_rate_limit import rate_limit_hit as _rate_limit
 
 
 def _slug(s: str) -> str:

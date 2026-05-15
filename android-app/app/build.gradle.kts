@@ -22,7 +22,7 @@ if (localPropsFile.exists()) {
 val defaultApiBaseUrl =
     (localProps.getProperty("pos.api.base.url")?.trim()?.let { u ->
         if (u.endsWith("/")) u else "$u/"
-    }) ?: "https://doposai.com/"
+    }) ?: "https://api.doposai.com/"
 
 android {
     namespace = "com.pos.mobile"

@@ -1,0 +1,36 @@
+# Local production-like stack: API + PostgreSQL
+# Usage: cp .env.production.example .env && docker compose up --build
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pos
+      POSTGRES_PASSWORD: pos
+      POSTGRES_DB: pos
+    ports:
+      - "5432:5432"
+    volumes:
+      - pos_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pos -d pos"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://pos:pos@db:5432/pos
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
+      APP_ENV: production
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:8000,https://doposai.com,https://www.doposai.com,https://api.doposai.com}
+      WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-https://doposai.com}
+      API_PUBLIC_URL: ${API_PUBLIC_URL:-https://api.doposai.com}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pos_pgdata:

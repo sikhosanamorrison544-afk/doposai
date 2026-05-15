@@ -1,0 +1,8 @@
+Generic single-database configuration. Run from repo root:
+
+  export DATABASE_URL=postgresql://...
+  alembic revision --autogenerate -m "describe change"
+  alembic upgrade head
+
+Initial production deploy: tables are also created by SQLAlchemy `create_all` at app startup;
+use Alembic for subsequent schema changes once live.

@@ -1,24 +1,40 @@
-# Render Blueprint: GitHub repo → Render → New → Blueprint → select this file.
-# Public web + API URL: https://doposai.com/ — add doposai.com under the service
-# Settings → Custom Domains, then DNS CNAME as Render instructs.
+# Render Blueprint — POS API (FastAPI) + managed PostgreSQL
 #
-# JWT_SECRET_KEY is generated here; rotate in the dashboard if needed.
-# For production data, add Render PostgreSQL and set DATABASE_URL to its Internal URL.
+# Public URLs:
+#   https://api.doposai.com — API + Web POS (same FastAPI process today)
+#   https://doposai.com     — add as second Custom Domain on this service (or separate static site later)
+#
+# After deploy: Render dashboard → Custom Domains → add api + root domain → DNS CNAMEs as shown.
+
+databases:
+  - name: doposai-postgres
+    databaseName: doposai
+    user: doposai
+    plan: basic-256mb
 
 services:
   - type: web
-    name: pos-backend
+    name: doposai-api
     runtime: python
-    plan: free
     region: oregon
+    plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: sh scripts/render_start.sh
     healthCheckPath: /
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.11"
-      # Ephemeral SQLite (data resets on restart). Replace with DATABASE_URL from a Render Postgres.
+      - key: APP_ENV
+        value: production
+      - key: WEB_PUBLIC_URL
+        value: https://doposai.com
+      - key: API_PUBLIC_URL
+        value: https://api.doposai.com
+      - key: CORS_ALLOW_ORIGINS
+        value: https://doposai.com,https://www.doposai.com,https://api.doposai.com
       - key: DATABASE_URL
-        value: sqlite:////tmp/pos.db
+        fromDatabase:
+          name: doposai-postgres
+          property: connectionString
       - key: JWT_SECRET_KEY
         generateValue: true
