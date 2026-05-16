@@ -103,10 +103,12 @@ from starlette.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 from .billing.routes import router as billing_router
+from .platform_routes import router as platform_router
 from .saas_auth_routes import router as saas_auth_router
 
 app.include_router(saas_auth_router)
 app.include_router(billing_router)
+app.include_router(platform_router)
 
 # Background task to periodically process offline backup queue
 async def process_backup_queue_periodically():
@@ -278,6 +280,20 @@ async def admin_page(request: Request, db: Session = Depends(get_db)):
     else:
         store_name = STORE_NAME.upper()
     return templates.TemplateResponse("admin.html", {"request": request, "store_name": store_name})
+
+
+@app.get("/platform/tenants", response_class=HTMLResponse)
+async def platform_tenants_page(request: Request, db: Session = Depends(get_db)):
+    """Platform owner: list all businesses (tenants) on this POS deployment."""
+    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
+    if store_settings:
+        store_name = store_settings.store_name.upper()
+    else:
+        store_name = STORE_NAME.upper()
+    return templates.TemplateResponse(
+        "platform-tenants.html",
+        {"request": request, "store_name": store_name},
+    )
 
 
 @app.get("/store-settings", response_class=HTMLResponse)

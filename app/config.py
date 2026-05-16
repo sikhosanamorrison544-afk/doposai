@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 from pathlib import Path
 from typing import List, Tuple
@@ -68,3 +70,19 @@ PWD_HASH_SCHEME = "pbkdf2_sha256"
 STORE_NAME = "J & B MALL"
 STORE_PHONE = ""
 STORE_LOCATION = ""
+
+
+def _parse_platform_owner_usernames() -> frozenset[str]:
+    """
+    Comma-separated usernames (case-insensitive) allowed to use /platform/tenants
+    and GET /api/platform/tenants. Must be admin accounts. Set env e.g.:
+    PLATFORM_OWNER_USERNAMES=admin,yourusername
+    """
+    raw = os.environ.get("PLATFORM_OWNER_USERNAMES", "").strip()
+    if not raw:
+        return frozenset()
+    return frozenset(p.strip().lower() for p in raw.split(",") if p.strip())
+
+
+# Parsed once at import; restart app after changing env.
+PLATFORM_OWNER_USERNAMES: frozenset[str] = _parse_platform_owner_usernames()

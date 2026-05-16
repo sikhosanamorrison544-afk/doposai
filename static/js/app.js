@@ -417,149 +417,219 @@ async function api(path, options = {}) {
     return res.json();
 }
 
+async function parseFastApiErrorResponse(res) {
+    const text = await res.text();
+    try {
+        const j = JSON.parse(text);
+        if (typeof j.detail === 'string') return j.detail;
+        if (Array.isArray(j.detail) && j.detail.length > 0) {
+            const msg = j.detail[0].msg;
+            if (typeof msg === 'string') return msg.replace(/^Value error,\s*/, '').trim();
+        }
+    } catch (_) {}
+    return text ? text.slice(0, 350) : res.statusText;
+}
+
+function meetsSaaSRegisterPasswordRules(password) {
+    if (!password || password.length < 8 || password.length > 128) return false;
+    const hasLetter = /[A-Za-z]/.test(password);
+    const hasDigit = /\d/.test(password);
+    return hasLetter && hasDigit;
+}
+
+/** After OAuth token or SaaS /auth/register — same JWT shape for API calls */
+async function enterPosAfterAuth(data) {
+    token = data.access_token;
+    currentUser = { username: data.username, role: data.role };
+    localStorage.setItem('pos_token', token);
+    localStorage.setItem('pos_user', JSON.stringify(currentUser));
+    document.getElementById('user-info').textContent = `${currentUser.username} (${currentUser.role})`;
+    const adminBtn = document.getElementById('btn-admin');
+    if (currentUser.role === 'admin') {
+        adminBtn.style.display = 'inline-block';
+    } else {
+        adminBtn.style.display = 'none';
+    }
+
+    const btnPendingCollection = document.getElementById('btn-pending-collection');
+    if (btnPendingCollection) {
+        if (currentUser.role === 'admin' || currentUser.role === 'supervisor') {
+            btnPendingCollection.style.display = 'inline-block';
+        } else {
+            btnPendingCollection.style.display = 'none';
+        }
+    }
+
+    const btnWithdraw = document.getElementById('btn-withdraw');
+    if (btnWithdraw) {
+        if (currentUser.role === 'supervisor' || currentUser.role === 'admin') {
+            btnWithdraw.style.display = 'flex';
+        } else {
+            btnWithdraw.style.display = 'none';
+        }
+    }
+
+    await loadProducts();
+    showScreen('pos-screen');
+
+    const btnTogglePayment = document.getElementById('btn-toggle-payment');
+    if (btnTogglePayment) {
+        btnTogglePayment.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Payment icon clicked (after login)');
+            window.togglePaymentPanel();
+            return false;
+        };
+    }
+
+    if (btnWithdraw && (currentUser.role === 'supervisor' || currentUser.role === 'admin')) {
+        btnWithdraw.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Withdraw button clicked');
+            window.toggleWithdrawalModal();
+            return false;
+        };
+    }
+
+    const btnCloseWithdrawal = document.getElementById('btn-close-withdrawal');
+    if (btnCloseWithdrawal) {
+        btnCloseWithdrawal.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.closeWithdrawalModal();
+            return false;
+        };
+    }
+
+    const withdrawalReason = document.getElementById('withdrawal-reason');
+    const withdrawalOtherReason = document.getElementById('withdrawal-other-reason-container');
+    const withdrawalSalaryDetails = document.getElementById('withdrawal-salary-details-container');
+    if (withdrawalReason) {
+        withdrawalReason.addEventListener('change', function () {
+            const reason = this.value;
+
+            if (withdrawalOtherReason) {
+                if (reason === 'Other') {
+                    withdrawalOtherReason.style.display = 'block';
+                    document.getElementById('withdrawal-other-reason').required = true;
+                } else {
+                    withdrawalOtherReason.style.display = 'none';
+                    document.getElementById('withdrawal-other-reason').required = false;
+                    document.getElementById('withdrawal-other-reason').value = '';
+                }
+            }
+
+            if (withdrawalSalaryDetails) {
+                if (reason === 'Salary') {
+                    withdrawalSalaryDetails.style.display = 'block';
+                    document.getElementById('salary-employee-name').required = true;
+                    document.getElementById('salary-period').required = true;
+                } else {
+                    withdrawalSalaryDetails.style.display = 'none';
+                    document.getElementById('salary-employee-name').required = false;
+                    document.getElementById('salary-period').required = false;
+                    document.getElementById('salary-employee-name').value = '';
+                    document.getElementById('salary-employee-id').value = '';
+                    document.getElementById('salary-position').value = '';
+                    document.getElementById('salary-period').value = '';
+                    document.getElementById('salary-notes').value = '';
+                }
+            }
+        });
+    }
+
+    const btnProcessWithdrawal = document.getElementById('btn-process-withdrawal');
+    if (btnProcessWithdrawal) {
+        btnProcessWithdrawal.onclick = async function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            await processWithdrawal();
+            return false;
+        };
+    }
+
+    document.getElementById('barcode-input').focus();
+}
+
+async function registerBusiness() {
+    const errorEl = document.getElementById('register-error');
+    errorEl.textContent = '';
+
+    const business_name = document.getElementById('reg-business-name').value.trim();
+    const owner_name = document.getElementById('reg-owner-name').value.trim();
+    const phone = document.getElementById('reg-phone').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    const password = document.getElementById('reg-password').value;
+
+    if (business_name.length < 2 || owner_name.length < 2 || phone.length < 6 || !email.includes('@')) {
+        errorEl.textContent = 'Please fill all fields correctly.';
+        return;
+    }
+    if (!meetsSaaSRegisterPasswordRules(password)) {
+        errorEl.textContent = 'Use at least 8 characters with letters and numbers.';
+        return;
+    }
+
+    try {
+        const res = await fetch('/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                business_name,
+                owner_name,
+                phone,
+                email,
+                password,
+            }),
+        });
+        if (!res.ok) {
+            errorEl.textContent = (await parseFastApiErrorResponse(res)) || 'Could not complete registration';
+            return;
+        }
+        const data = await res.json();
+        document.getElementById('register-form-card').style.display = 'none';
+        document.getElementById('login-form-card').style.display = '';
+        const titleEl = document.getElementById('login-screen-title');
+        if (titleEl) titleEl.textContent = 'POS Login';
+        await enterPosAfterAuth(data);
+    } catch (e) {
+        errorEl.textContent = 'Registration failed';
+        console.error(e);
+    }
+}
+
 async function login() {
     const username = document.getElementById('login-username').value.trim();
     const password = document.getElementById('login-password').value;
     const errorEl = document.getElementById('login-error');
     errorEl.textContent = '';
-    const form = new URLSearchParams();
-    form.append('username', username);
-    form.append('password', password);
-    form.append('grant_type', 'password');
     try {
-        const res = await fetch('/api/auth/token', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: form.toString(),
-        });
+        let res;
+        if (username.includes('@')) {
+            res = await fetch('/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: username, password: password }),
+            });
+        } else {
+            const form = new URLSearchParams();
+            form.append('username', username);
+            form.append('password', password);
+            form.append('grant_type', 'password');
+            res = await fetch('/api/auth/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: form.toString(),
+            });
+        }
         if (!res.ok) {
             errorEl.textContent = 'Invalid username or password';
             return;
         }
         const data = await res.json();
-        token = data.access_token;
-        currentUser = {username: data.username, role: data.role};
-        // Persist token so the admin page can reuse it
-        localStorage.setItem('pos_token', token);
-        localStorage.setItem('pos_user', JSON.stringify(currentUser));
-        document.getElementById('user-info').textContent = `${currentUser.username} (${currentUser.role})`;
-        const adminBtn = document.getElementById('btn-admin');
-        if (currentUser.role === 'admin') {
-            adminBtn.style.display = 'inline-block';
-        } else {
-            adminBtn.style.display = 'none';
-        }
-        
-        // Show pending collection button for admin and supervisor
-        const btnPendingCollection = document.getElementById('btn-pending-collection');
-        if (btnPendingCollection) {
-            if (currentUser.role === 'admin' || currentUser.role === 'supervisor') {
-                btnPendingCollection.style.display = 'inline-block';
-            } else {
-                btnPendingCollection.style.display = 'none';
-            }
-        }
-        
-        // Show/hide withdrawal button based on role (only supervisor and admin can withdraw)
-        const btnWithdraw = document.getElementById('btn-withdraw');
-        if (btnWithdraw) {
-            if (currentUser.role === 'supervisor' || currentUser.role === 'admin') {
-                btnWithdraw.style.display = 'flex';
-            } else {
-                btnWithdraw.style.display = 'none';
-            }
-        }
-        
-        await loadProducts();
-        showScreen('pos-screen');
-        
-        // Re-setup payment button handlers after screen is shown
-        const btnTogglePayment = document.getElementById('btn-toggle-payment');
-        if (btnTogglePayment) {
-            btnTogglePayment.onclick = function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('Payment icon clicked (after login)');
-                window.togglePaymentPanel();
-                return false;
-            };
-        }
-        
-        // Setup withdrawal button handler (only if visible)
-        if (btnWithdraw && (currentUser.role === 'supervisor' || currentUser.role === 'admin')) {
-            btnWithdraw.onclick = function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('Withdraw button clicked');
-                window.toggleWithdrawalModal();
-                return false;
-            };
-        }
-        
-        // Setup withdrawal modal close button
-        const btnCloseWithdrawal = document.getElementById('btn-close-withdrawal');
-        if (btnCloseWithdrawal) {
-            btnCloseWithdrawal.onclick = function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                window.closeWithdrawalModal();
-                return false;
-            };
-        }
-        
-        // Setup withdrawal reason change handler
-        const withdrawalReason = document.getElementById('withdrawal-reason');
-        const withdrawalOtherReason = document.getElementById('withdrawal-other-reason-container');
-        const withdrawalSalaryDetails = document.getElementById('withdrawal-salary-details-container');
-        if (withdrawalReason) {
-            withdrawalReason.addEventListener('change', function() {
-                const reason = this.value;
-                
-                // Handle "Other" reason
-                if (withdrawalOtherReason) {
-                    if (reason === 'Other') {
-                        withdrawalOtherReason.style.display = 'block';
-                        document.getElementById('withdrawal-other-reason').required = true;
-                    } else {
-                        withdrawalOtherReason.style.display = 'none';
-                        document.getElementById('withdrawal-other-reason').required = false;
-                        document.getElementById('withdrawal-other-reason').value = '';
-                    }
-                }
-                
-                // Handle "Salary" reason
-                if (withdrawalSalaryDetails) {
-                    if (reason === 'Salary') {
-                        withdrawalSalaryDetails.style.display = 'block';
-                        document.getElementById('salary-employee-name').required = true;
-                        document.getElementById('salary-period').required = true;
-                    } else {
-                        withdrawalSalaryDetails.style.display = 'none';
-                        document.getElementById('salary-employee-name').required = false;
-                        document.getElementById('salary-period').required = false;
-                        // Clear salary fields
-                        document.getElementById('salary-employee-name').value = '';
-                        document.getElementById('salary-employee-id').value = '';
-                        document.getElementById('salary-position').value = '';
-                        document.getElementById('salary-period').value = '';
-                        document.getElementById('salary-notes').value = '';
-                    }
-                }
-            });
-        }
-        
-        // Setup withdrawal form submission
-        const btnProcessWithdrawal = document.getElementById('btn-process-withdrawal');
-        if (btnProcessWithdrawal) {
-            btnProcessWithdrawal.onclick = async function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                await processWithdrawal();
-                return false;
-            };
-        }
-        
-        document.getElementById('barcode-input').focus();
+        await enterPosAfterAuth(data);
     } catch (e) {
         errorEl.textContent = 'Login failed';
         console.error(e);
@@ -948,9 +1018,39 @@ function setupEvents() {
     }
     
     const loginButton = document.getElementById('login-button');
-    
+
     if (loginButton) {
         loginButton.addEventListener('click', login);
+    }
+
+    const registerButton = document.getElementById('register-button');
+    if (registerButton) {
+        registerButton.addEventListener('click', registerBusiness);
+    }
+
+    const linkShowRegister = document.getElementById('link-show-register');
+    const linkBackToLogin = document.getElementById('link-back-to-login');
+    const loginFormCard = document.getElementById('login-form-card');
+    const registerFormCard = document.getElementById('register-form-card');
+    const loginTitleEl = document.getElementById('login-screen-title');
+
+    if (linkShowRegister && loginFormCard && registerFormCard) {
+        linkShowRegister.addEventListener('click', function (e) {
+            e.preventDefault();
+            loginFormCard.style.display = 'none';
+            registerFormCard.style.display = '';
+            document.getElementById('login-error').textContent = '';
+            if (loginTitleEl) loginTitleEl.textContent = 'Register your business';
+        });
+    }
+    if (linkBackToLogin && loginFormCard && registerFormCard) {
+        linkBackToLogin.addEventListener('click', function (e) {
+            e.preventDefault();
+            registerFormCard.style.display = 'none';
+            loginFormCard.style.display = '';
+            document.getElementById('register-error').textContent = '';
+            if (loginTitleEl) loginTitleEl.textContent = 'POS Login';
+        });
     }
     
     // Note: Enter key handlers for username and password fields are attached
@@ -977,6 +1077,12 @@ function setupEvents() {
         renderCart();
         localStorage.removeItem('pos_token');
         localStorage.removeItem('pos_user');
+        const regCard = document.getElementById('register-form-card');
+        const logCard = document.getElementById('login-form-card');
+        const lt = document.getElementById('login-screen-title');
+        if (regCard) regCard.style.display = 'none';
+        if (logCard) logCard.style.display = '';
+        if (lt) lt.textContent = 'POS Login';
         showScreen('login-screen');
     });
     

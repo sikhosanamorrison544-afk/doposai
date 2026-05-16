@@ -12,7 +12,10 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fillViewport="true"
-        android:gravity="center">
+        android:gravity="center"
+        android:clipToPadding="false"
+        android:scrollbarStyle="outsideOverlay"
+        android:scrollbars="vertical">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -314,6 +317,7 @@
                     android:textStyle="bold"
                     android:maxLines="1"
                     android:ellipsize="end"
+                    android:maxWidth="@dimen/shop_name_max_width"
                     android:minWidth="60dp" />
 
                 <TextView
@@ -368,61 +372,61 @@
 
                     <Button
                         android:id="@+id/icon_more"
-                        android:layout_width="36dp"
-                        android:layout_height="36dp"
-                        android:minWidth="36dp"
-                        android:minHeight="36dp"
+                        android:layout_width="@dimen/top_bar_icon_size"
+                        android:layout_height="@dimen/top_bar_icon_size"
+                        android:minWidth="@dimen/top_bar_icon_size"
+                        android:minHeight="@dimen/top_bar_icon_size"
                         android:text="⋮"
-                        android:textSize="16sp"
+                        android:textSize="@dimen/top_bar_icon_text_size"
                         android:backgroundTint="@color/primary"
                         android:textColor="@color/text_on_primary"
                         android:layout_marginEnd="4dp" />
 
                     <Button
                         android:id="@+id/icon_payment"
-                        android:layout_width="36dp"
-                        android:layout_height="36dp"
-                        android:minWidth="36dp"
-                        android:minHeight="36dp"
+                        android:layout_width="@dimen/top_bar_icon_size"
+                        android:layout_height="@dimen/top_bar_icon_size"
+                        android:minWidth="@dimen/top_bar_icon_size"
+                        android:minHeight="@dimen/top_bar_icon_size"
                         android:text="💳"
-                        android:textSize="16sp"
+                        android:textSize="@dimen/top_bar_icon_text_size"
                         android:backgroundTint="@color/button_complete_sale"
                         android:textColor="@color/text_on_primary"
                         android:layout_marginEnd="4dp" />
 
                     <Button
                         android:id="@+id/icon_theme"
-                        android:layout_width="36dp"
-                        android:layout_height="36dp"
-                        android:minWidth="36dp"
-                        android:minHeight="36dp"
+                        android:layout_width="@dimen/top_bar_icon_size"
+                        android:layout_height="@dimen/top_bar_icon_size"
+                        android:minWidth="@dimen/top_bar_icon_size"
+                        android:minHeight="@dimen/top_bar_icon_size"
                         android:contentDescription="@string/theme"
                         android:text="🎨"
-                        android:textSize="16sp"
+                        android:textSize="@dimen/top_bar_icon_text_size"
                         android:backgroundTint="@color/primary_dark"
                         android:textColor="@color/text_on_primary"
                         android:layout_marginEnd="4dp" />
 
                     <Button
                         android:id="@+id/icon_settings"
-                        android:layout_width="36dp"
-                        android:layout_height="36dp"
-                        android:minWidth="36dp"
-                        android:minHeight="36dp"
+                        android:layout_width="@dimen/top_bar_icon_size"
+                        android:layout_height="@dimen/top_bar_icon_size"
+                        android:minWidth="@dimen/top_bar_icon_size"
+                        android:minHeight="@dimen/top_bar_icon_size"
                         android:text="⚙️"
-                        android:textSize="16sp"
+                        android:textSize="@dimen/top_bar_icon_text_size"
                         android:backgroundTint="@color/primary_dark"
                         android:textColor="@color/text_on_primary"
                         android:layout_marginEnd="4dp" />
 
                     <Button
                         android:id="@+id/icon_withdraw"
-                        android:layout_width="36dp"
-                        android:layout_height="36dp"
-                        android:minWidth="36dp"
-                        android:minHeight="36dp"
+                        android:layout_width="@dimen/top_bar_icon_size"
+                        android:layout_height="@dimen/top_bar_icon_size"
+                        android:minWidth="@dimen/top_bar_icon_size"
+                        android:minHeight="@dimen/top_bar_icon_size"
                         android:text="💵"
-                        android:textSize="16sp"
+                        android:textSize="@dimen/top_bar_icon_text_size"
                         android:backgroundTint="@color/danger"
                         android:textColor="@color/text_on_primary" />
                 </LinearLayout>
@@ -465,7 +469,9 @@
                 android:visibility="gone"
                 android:background="@drawable/card_login"
                 android:padding="4dp"
-                android:elevation="4dp" />
+                android:elevation="4dp"
+                android:overScrollMode="ifContentScrolls"
+                android:scrollbars="vertical" />
 
             <!-- Cart header row: responsive cell widths -->
             <LinearLayout
@@ -509,7 +515,9 @@
                             android:layout_height="match_parent"
                             android:minWidth="@dimen/cart_list_min_width"
                             android:background="@android:color/transparent"
-                            android:nestedScrollingEnabled="false" />
+                            android:nestedScrollingEnabled="false"
+                            android:overScrollMode="ifContentScrolls"
+                            android:scrollbars="vertical" />
                     </LinearLayout>
                 </HorizontalScrollView>
             </FrameLayout>

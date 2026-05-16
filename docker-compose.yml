@@ -28,6 +28,8 @@ services:
       CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:8000,https://doposai.com,https://www.doposai.com,https://api.doposai.com}
       WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-https://doposai.com}
       API_PUBLIC_URL: ${API_PUBLIC_URL:-https://api.doposai.com}
+      # Comma-separated admin usernames who may open /platform/tenants (listing all tenants)
+      PLATFORM_OWNER_USERNAMES: ${PLATFORM_OWNER_USERNAMES:-}
     depends_on:
       db:
         condition: service_healthy

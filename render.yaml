@@ -38,3 +38,7 @@ services:
           property: connectionString
       - key: JWT_SECRET_KEY
         generateValue: true
+      # Comma-separated admin usernames allowed to open /platform/tenants (all SaaS businesses).
+      # Example: PLATFORM_OWNER_USERNAMES=morrison,admin
+      - key: PLATFORM_OWNER_USERNAMES
+        sync: false

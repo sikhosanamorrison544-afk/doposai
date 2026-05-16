@@ -46,6 +46,8 @@ import com.pos.mobile.data.sync.SyncWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 import retrofit2.Response
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -61,6 +63,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        applyEdgeToEdgeInsets(findViewById(R.id.root_container))
         viewModel = androidx.lifecycle.ViewModelProvider(this)[PosViewModel::class.java]
 
         val prefs = getSharedPreferences("pos", MODE_PRIVATE)
@@ -218,6 +221,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         setupRegisterPanel(prefs, loginContainer, posContainer, loginCard, registerCard, loginTitle)
+
+        val cmLogin = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val loginHasNet = cmLogin.activeNetwork?.let { net ->
+            cmLogin.getNetworkCapabilities(net)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        } ?: false
+        registerConnectivitySyncWatcher(prefs, null)
+        if (loginHasNet) {
+            triggerSyncWhenOnline()
+            refreshSessionInBackground(prefs)
+        }
     }
 
     private fun setupRegisterPanel(
@@ -244,9 +257,14 @@ class MainActivity : AppCompatActivity() {
                 password = pass.text.toString(),
             )
             if (req.business_name.length < 2 || req.owner_name.length < 2 || req.phone.length < 6 ||
-                !req.email.contains('@') || req.password.length < 8
+                !req.email.contains('@')
             ) {
                 regErr.text = getString(R.string.register_error)
+                regErr.visibility = View.VISIBLE
+                return@setOnClickListener
+            }
+            if (!meetsSaaSRegisterPasswordRules(req.password)) {
+                regErr.text = getString(R.string.password_requirements)
                 regErr.visibility = View.VISIBLE
                 return@setOnClickListener
             }
@@ -278,7 +296,11 @@ class MainActivity : AppCompatActivity() {
                     }
                 } catch (e: Exception) {
                     runOnUiThread {
-                        regErr.text = e.message ?: getString(R.string.register_error)
+                        regErr.text = if (isOfflineException(e)) {
+                            getString(R.string.register_requires_network)
+                        } else {
+                            e.message ?: getString(R.string.register_error)
+                        }
                         regErr.visibility = View.VISIBLE
                     }
                 }
@@ -391,10 +413,31 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {
             null
         } ?: return null
+        try {
+            val root = JSONObject(raw)
+            when (val detail = root.opt("detail")) {
+                is String -> if (detail.isNotBlank()) return detail
+                is JSONArray -> {
+                    if (detail.length() > 0) {
+                        val msg = detail.optJSONObject(0)?.optString("msg")?.trim()
+                        if (!msg.isNullOrBlank()) {
+                            return msg.removePrefix("Value error, ").trim()
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
         val m = Regex(""""detail"\s*:\s*"([^"]+)"""").find(raw)
         if (m != null) return m.groupValues[1]
-        val m2 = Regex(""""detail"\s*:\s*\[([^\]]+)\]""").find(raw)
-        return m2?.groupValues?.get(1)?.take(200) ?: raw.take(200)
+        return raw.take(350)
+    }
+
+    /** Mirrors [RegisterBody.password_strength] in app/saas_auth_routes.py */
+    private fun meetsSaaSRegisterPasswordRules(password: String): Boolean {
+        if (password.length < 8 || password.length > 128) return false
+        val hasLetter = password.any { it in 'a'..'z' || it in 'A'..'Z' }
+        val hasDigit = password.any { it.isDigit() }
+        return hasLetter && hasDigit
     }
 
     private fun applySaasAuthDto(session: SessionStore, prefs: android.content.SharedPreferences, dto: AuthResponseDto) {
@@ -427,12 +470,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun isOfflineException(e: Exception): Boolean {
-        return e is UnknownHostException ||
-            e is ConnectException ||
-            e is SocketTimeoutException ||
-            (e.message?.contains("Unable to resolve host", ignoreCase = true) == true) ||
-            (e.message?.contains("Failed to connect", ignoreCase = true) == true)
+    private fun isOfflineException(e: Throwable): Boolean {
+        var t: Throwable? = e
+        while (t != null) {
+            if (t is UnknownHostException || t is ConnectException || t is SocketTimeoutException) return true
+            val msg = t.message
+            if (msg?.contains("Unable to resolve host", ignoreCase = true) == true) return true
+            if (msg?.contains("Failed to connect", ignoreCase = true) == true) return true
+            if (msg?.contains("Network is unreachable", ignoreCase = true) == true) return true
+            t = t.cause
+        }
+        return false
     }
 
     private fun refreshSessionInBackground(prefs: android.content.SharedPreferences) {
@@ -510,6 +558,40 @@ class MainActivity : AppCompatActivity() {
 
     private var networkCallback: NetworkCallback? = null
 
+    private fun unregisterConnectivitySyncWatcher() {
+        val cb = networkCallback ?: return
+        try {
+            (getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(cb)
+        } catch (_: Exception) {}
+        networkCallback = null
+    }
+
+    /**
+     * When internet becomes available: refresh session, enqueue sync. Used on login screen and POS.
+     */
+    private fun registerConnectivitySyncWatcher(
+        prefs: android.content.SharedPreferences,
+        onAvailabilityChange: ((Boolean) -> Unit)?,
+    ) {
+        unregisterConnectivitySyncWatcher()
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        networkCallback = object : NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                onAvailabilityChange?.invoke(true)
+                triggerSyncWhenOnline()
+                refreshSessionInBackground(prefs)
+            }
+            override fun onLost(network: Network) {
+                val stillHas = cm.activeNetwork?.let {
+                    cm.getNetworkCapabilities(it)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+                } ?: false
+                onAvailabilityChange?.invoke(stillHas)
+            }
+        }
+        val request = NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build()
+        cm.registerNetworkCallback(request, networkCallback!!)
+    }
+
     private fun setupPos(posContainer: View, prefs: android.content.SharedPreferences) {
         val shopName = posContainer.findViewById<android.widget.TextView>(R.id.shop_name)
         shopName.text = prefs.getString("store_name", getString(R.string.store_name)) ?: getString(R.string.store_name)
@@ -525,19 +607,7 @@ class MainActivity : AppCompatActivity() {
             cm.getNetworkCapabilities(net)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
         } ?: false
         updateOfflineIndicator(hasNetwork)
-        networkCallback = object : NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                updateOfflineIndicator(true)
-                triggerSyncWhenOnline()
-                refreshSessionInBackground(prefs)
-            }
-            override fun onLost(network: Network) {
-                val stillHas = cm.activeNetwork?.let { cm.getNetworkCapabilities(it)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true } ?: false
-                updateOfflineIndicator(!stillHas)
-            }
-        }
-        val request = NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build()
-        cm.registerNetworkCallback(request, networkCallback!!)
+        registerConnectivitySyncWatcher(prefs) { connected -> updateOfflineIndicator(connected) }
 
         // Sync only when online; enqueue one-time sync so data refreshes in background (UI never waits)
         triggerSyncWhenOnline()
@@ -563,6 +633,8 @@ class MainActivity : AppCompatActivity() {
         }
         searchResults.layoutManager = LinearLayoutManager(this)
         searchResults.adapter = searchAdapter
+        searchResults.overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+        searchResults.itemAnimator = null
 
         cartAdapter = CartAdapter(
             onQtyChange = { index, qty -> viewModel.updateQty(index, qty) },
@@ -571,6 +643,9 @@ class MainActivity : AppCompatActivity() {
         )
         cartList.layoutManager = LinearLayoutManager(this)
         cartList.adapter = cartAdapter
+        cartList.overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+        cartList.itemAnimator = null
+        cartList.setHasFixedSize(false)
 
         lifecycleScope.launch {
             viewModel.cart.collect { list ->
@@ -787,12 +862,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        networkCallback?.let {
-            try {
-                (getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(it)
-            } catch (_: Exception) {}
-        }
-        networkCallback = null
+        unregisterConnectivitySyncWatcher()
         super.onDestroy()
     }
 }

@@ -9,6 +9,10 @@
     <dimen name="top_bar_status_text_size">10sp</dimen>
     <dimen name="top_bar_btn_margin_end">4dp</dimen>
 
+    <dimen name="shop_name_max_width">112dp</dimen>
+    <dimen name="top_bar_icon_size">36dp</dimen>
+    <dimen name="top_bar_icon_text_size">14sp</dimen>
+
     <dimen name="content_padding">6dp</dimen>
     <dimen name="label_text_size">14sp</dimen>
     <dimen name="input_text_size">14sp</dimen>
@@ -32,7 +36,7 @@
     <dimen name="cart_row_text_size">12sp</dimen>
     <dimen name="cart_row_input_height">30dp</dimen>
 
-    <dimen name="cart_list_min_width">320dp</dimen>
+    <dimen name="cart_list_min_width">280dp</dimen>
 
     <dimen name="btn_complete_text_size">13sp</dimen>
     <dimen name="btn_complete_padding_v">10dp</dimen>
@@ -41,7 +45,7 @@
     <dimen name="login_title_size">22sp</dimen>
     <dimen name="login_label_size">14sp</dimen>
     <dimen name="login_padding">16dp</dimen>
-    <dimen name="login_card_max_width">320dp</dimen>
+    <dimen name="login_card_max_width">560dp</dimen>
 
     <dimen name="payment_label_size">14sp</dimen>
     <dimen name="payment_btn_text_size">15sp</dimen>

@@ -55,6 +55,7 @@
     <string name="register_submit">Create account</string>
     <string name="already_have_account">Already have an account? Sign in</string>
     <string name="register_error">Could not complete registration</string>
+    <string name="register_requires_network">Creating a business requires an internet connection. Check Wi-Fi or mobile data and try again.</string>
     <string name="forgot_password_title">Reset password</string>
     <string name="forgot_send">Send reset link</string>
     <string name="reset_with_token">Reset with code</string>

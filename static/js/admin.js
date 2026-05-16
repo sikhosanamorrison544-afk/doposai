@@ -2192,7 +2192,26 @@ window.addEventListener('load', async () => {
         return;
     }
     console.log('Admin check passed, continuing...');
-    
+
+    (async function showPlatformOwnerBannerIfEligible() {
+        const banner = document.getElementById('platform-owner-banner');
+        if (!banner) return;
+        try {
+            const token = localStorage.getItem('pos_token');
+            if (!token) return;
+            const res = await fetch('/api/platform/access', {
+                headers: { Authorization: 'Bearer ' + token },
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data && data.is_platform_owner) {
+                banner.style.display = 'flex';
+            }
+        } catch (e) {
+            console.warn('Platform owner banner check failed', e);
+        }
+    })();
+
     // Verify panels exist
     const settingsPanel = document.getElementById('store-settings-panel');
     const reportPanel = document.getElementById('summary-report-panel');
