@@ -15,9 +15,7 @@ android-app
 .cursor
 terminals
 *.apk
-*.mov
 *.glb
 server.log
 offline_changes.json
-background.mov
 butterflies.glb

@@ -2094,10 +2094,11 @@ body.theme-light {
     position: relative !important;
 }
 
-/* Show video background for light theme */
+/* Show video background for light theme (html + body: instant script may set either first) */
+html.theme-light #light-theme-video,
 body.theme-light #light-theme-video {
     display: block !important;
-    z-index: -1 !important;
+    z-index: 0 !important;
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
@@ -2108,13 +2109,14 @@ body.theme-light #light-theme-video {
 }
 
 /* Ensure app content is above video */
+html.theme-light #app,
 body.theme-light #app {
     position: relative !important;
     z-index: 1 !important;
 }
 
-/* Hide video for all other themes */
-body:not(.theme-light) #light-theme-video {
+/* Hide video when root is not light (avoid fighting html.theme-light before body is synced) */
+html:not(.theme-light) #light-theme-video {
     display: none !important;
 }
 

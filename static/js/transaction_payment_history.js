@@ -241,12 +241,15 @@ function downloadPaymentHistoryPDF() {
 
 // Theme management
 function applyTheme(themeName) {
-    // Remove all theme classes
-    document.body.classList.remove('theme-default', 'theme-light', 'theme-classic');
+    const themeClasses = ['theme-default', 'theme-light', 'theme-classic'];
+    document.body.classList.remove(...themeClasses);
+    document.documentElement.classList.remove(...themeClasses);
     
     // Add selected theme class
     if (themeName && themeName !== 'default') {
-        document.body.classList.add('theme-' + themeName);
+        const cls = 'theme-' + themeName;
+        document.body.classList.add(cls);
+        document.documentElement.classList.add(cls);
     }
     
     // Handle video background for light theme

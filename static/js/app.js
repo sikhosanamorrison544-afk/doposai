@@ -319,15 +319,19 @@ async function processWithdrawal() {
 function applyTheme(themeName) {
     const allowed = ['default', 'light', 'classic'];
     const theme = allowed.includes(themeName) ? themeName : 'default';
-    document.body.classList.remove('theme-default', 'theme-light', 'theme-classic');
+    const themeClasses = ['theme-default', 'theme-light', 'theme-classic'];
+    document.body.classList.remove(...themeClasses);
+    document.documentElement.classList.remove(...themeClasses);
     if (theme !== 'default') {
-        document.body.classList.add('theme-' + theme);
+        const cls = 'theme-' + theme;
+        document.body.classList.add(cls);
+        document.documentElement.classList.add(cls);
     }
     
     // Handle video background for light theme
     const video = document.getElementById('light-theme-video');
     if (video) {
-        if (themeName === 'light') {
+        if (theme === 'light') {
             video.style.display = 'block';
             video.play().catch(err => {
                 console.log('Video autoplay prevented:', err);

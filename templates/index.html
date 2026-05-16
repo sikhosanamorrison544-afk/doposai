@@ -23,10 +23,31 @@
                 }
                 
                 const themeClass = validTheme !== 'default' ? 'theme-' + validTheme : '';
-                if (themeClass) {
-                    document.documentElement.className = (document.documentElement.className.replace(/\btheme-\w+/g, '').trim() + ' ' + themeClass).trim();
+                function applyThemeClasses(el) {
+                    if (!el) return;
+                    el.className = el.className.replace(/\btheme-\w+/g, '').trim();
+                    if (themeClass) el.className = (el.className + ' ' + themeClass).trim();
+                }
+                applyThemeClasses(document.documentElement);
+                if (document.body) {
+                    applyThemeClasses(document.body);
+                } else if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', function() {
+                        if (document.body) applyThemeClasses(document.body);
+                    }, { once: true });
                 } else {
-                    document.documentElement.className = document.documentElement.className.replace(/\btheme-\w+/g, '').trim();
+                    setTimeout(function() {
+                        if (document.body) applyThemeClasses(document.body);
+                        else {
+                            var o = new MutationObserver(function() {
+                                if (document.body) {
+                                    applyThemeClasses(document.body);
+                                    o.disconnect();
+                                }
+                            });
+                            o.observe(document.documentElement, { childList: true, subtree: true });
+                        }
+                    }, 0);
                 }
                 
                 const bg = themeBackgrounds[validTheme] || themeBackgrounds['default'];
@@ -124,9 +145,9 @@
 <!-- 3D Background Canvas for Default Theme -->
 <canvas id="bg3d-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none; background: transparent;"></canvas>
 <!-- Video Background for Light Theme -->
-<video id="light-theme-video" autoplay loop muted playsinline style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; pointer-events: none; display: none;">
+<video id="light-theme-video" autoplay loop muted playsinline style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; pointer-events: none; display: none;">
+    <source src="/static/background.mp4" type="video/mp4">
     <source src="/static/background.mov" type="video/quicktime">
-    <source src="/static/background.mov" type="video/mp4">
 </video>
 <div id="app">
     <div id="login-screen" class="screen active">

@@ -63,9 +63,12 @@ class AccountingEngine:
     def generate_entry_number(self, date: datetime) -> str:
         """Generate unique journal entry number."""
         year = date.year
-        # Get last entry number for this year
+        year_start = datetime(year, 1, 1)
+        year_end = datetime(year, 12, 31, 23, 59, 59, 999999)
+        # Get last entry number for this year (portable: works on SQLite and PostgreSQL)
         last_entry = self.db.query(JournalEntry).filter(
-            func.strftime("%Y", JournalEntry.entry_date) == str(year)
+            JournalEntry.entry_date >= year_start,
+            JournalEntry.entry_date <= year_end,
         ).order_by(JournalEntry.id.desc()).first()
 
         if last_entry and last_entry.entry_number:

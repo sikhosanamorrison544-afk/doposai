@@ -2770,9 +2770,13 @@ function setupBackupEvents() {
 function applyTheme(themeName) {
     const allowed = ['default', 'light', 'classic'];
     const theme = allowed.includes(themeName) ? themeName : 'default';
-    document.body.classList.remove('theme-default', 'theme-light', 'theme-classic');
+    const themeClasses = ['theme-default', 'theme-light', 'theme-classic'];
+    document.body.classList.remove(...themeClasses);
+    document.documentElement.classList.remove(...themeClasses);
     if (theme !== 'default') {
-        document.body.classList.add('theme-' + theme);
+        const cls = 'theme-' + theme;
+        document.body.classList.add(cls);
+        document.documentElement.classList.add(cls);
     }
     
     const video = document.getElementById('light-theme-video');
