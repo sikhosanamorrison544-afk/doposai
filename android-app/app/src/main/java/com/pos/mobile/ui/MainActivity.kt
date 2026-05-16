@@ -784,6 +784,15 @@ class MainActivity : AppCompatActivity() {
         ).apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
         collectionSpinner.adapter = statusAdapter
 
+        val prefs = getSharedPreferences("pos", MODE_PRIVATE)
+        var receiptCart: List<CartLine>? = null
+        var receiptPayments: List<Pair<String, Double>> = emptyList()
+        var receiptCustomer: String? = null
+        var receiptStatus = "collected"
+        var receiptSubtotal = 0.0
+        var receiptDiscount = 0.0
+        var receiptTotal = 0.0
+
         viewModel.clearSaleMessage()
         lifecycleScope.launch {
             viewModel.saleCompleteMessage.collect { msg ->
@@ -792,6 +801,25 @@ class MainActivity : AppCompatActivity() {
                     messageTv.visibility = View.VISIBLE
                     viewModel.clearSaleMessage()
                     if (msg.startsWith("Sale saved")) {
+                        val cart = receiptCart
+                        if (cart != null) {
+                            val storeName = prefs.getString("store_name", getString(R.string.store_name))
+                                ?: getString(R.string.store_name)
+                            val cashier = prefs.getString("username", null)
+                            ReceiptPrinter.printSale(
+                                context = this@MainActivity,
+                                storeName = storeName,
+                                cartLines = cart,
+                                subtotal = receiptSubtotal,
+                                discountTotal = receiptDiscount,
+                                total = receiptTotal,
+                                payments = receiptPayments,
+                                customerName = receiptCustomer,
+                                collectionStatus = receiptStatus,
+                                cashierName = cashier,
+                            )
+                        }
+                        receiptCart = null
                         triggerSyncWhenOnline()
                         dialog.dismiss()
                     }
@@ -804,8 +832,20 @@ class MainActivity : AppCompatActivity() {
             val card = payCard.text.toString().toDoubleOrNull() ?: 0.0
             val credit = payCredit.text.toString().toDoubleOrNull() ?: 0.0
             val status = if (collectionSpinner.selectedItemPosition == 1) "to_collect" else "collected"
+            receiptCart = viewModel.cart.value.toList()
+            receiptSubtotal = viewModel.subtotal
+            receiptDiscount = viewModel.discountTotal
+            receiptTotal = viewModel.total
+            receiptCustomer = customerEt.text.toString().trim().takeIf { it.isNotBlank() }
+            receiptStatus = status
+            receiptPayments = buildList {
+                if (cash > 0) add("cash" to cash)
+                if (mobile > 0) add("mobile_money" to mobile)
+                if (card > 0) add("card" to card)
+                if (credit > 0) add("credit" to credit)
+            }
             viewModel.completeSale(
-                customerName = customerEt.text.toString().trim().takeIf { it.isNotBlank() },
+                customerName = receiptCustomer,
                 cash = cash,
                 mobile = mobile,
                 card = card,

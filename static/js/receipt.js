@@ -1,0 +1,225 @@
+/**
+ * Browser receipt printing (window.print). Server ESC/POS only works with a local USB printer.
+ */
+(function (global) {
+    'use strict';
+
+    let storeSettings = null;
+
+    function formatMoney(n) {
+        return Number(n || 0).toFixed(2);
+    }
+
+    function methodLabel(method) {
+        const map = {
+            cash: 'Cash',
+            mobile_money: 'Mobile Money',
+            card: 'Card',
+            credit: 'Credit',
+        };
+        return map[method] || String(method || '').replace(/_/g, ' ');
+    }
+
+    function escapeHtml(text) {
+        if (text == null) return '';
+        const el = document.createElement('div');
+        el.textContent = String(text);
+        return el.innerHTML;
+    }
+
+    function receiptStyles() {
+        return [
+            '@page { size: 80mm auto; margin: 4mm; }',
+            'body { font-family: monospace, "Courier New", Courier, sans-serif; font-size: 12px;',
+            'margin: 0; padding: 8px; color: #000; background: #fff; width: 72mm; max-width: 72mm; }',
+            '.store { text-align: center; font-weight: bold; font-size: 14px; text-transform: uppercase; }',
+            '.meta { margin: 8px 0; } .meta div { margin: 2px 0; }',
+            'hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }',
+            'table { width: 100%; border-collapse: collapse; } td { vertical-align: top; padding: 2px 0; }',
+            '.item-name { font-weight: bold; } .total-row { font-weight: bold; font-size: 13px; }',
+            '.footer { text-align: center; margin-top: 10px; font-size: 11px; }',
+            '@media print { body { width: 72mm; } }',
+        ].join('\n');
+    }
+
+    function wrapReceiptHtml(title, bodyHtml) {
+        return (
+            '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' +
+            escapeHtml(title) +
+            '</title><style>' +
+            receiptStyles() +
+            '</style></head><body>' +
+            bodyHtml +
+            '</body></html>'
+        );
+    }
+
+    function printHtml(html) {
+        const iframe = document.createElement('iframe');
+        iframe.setAttribute('aria-hidden', 'true');
+        iframe.style.cssText =
+            'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none';
+        document.body.appendChild(iframe);
+        const win = iframe.contentWindow;
+        const doc = win.document;
+        doc.open();
+        doc.write(html);
+        doc.close();
+        const cleanup = function () {
+            setTimeout(function () {
+                if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+            }, 1500);
+        };
+        setTimeout(function () {
+            try {
+                win.focus();
+                win.print();
+            } catch (e) {
+                console.error('Print failed:', e);
+                alert('Could not open print dialog. Check print permissions.');
+            }
+            cleanup();
+        }, 300);
+        return true;
+    }
+
+    function storeHeaderHtml(store) {
+        const s = store || storeSettings || {};
+        let h = '<div class="store">' + escapeHtml(s.store_name || 'POS') + '</div>';
+        if (s.store_location) {
+            h += '<div>' + escapeHtml(s.store_location) + '</div>';
+        }
+        if (s.store_phone) {
+            h += '<div>Tel: ' + escapeHtml(s.store_phone) + '</div>';
+        }
+        return h;
+    }
+
+    function formatDateTime(dt) {
+        if (!dt) return new Date().toLocaleString();
+        const d = dt instanceof Date ? dt : new Date(dt);
+        return isNaN(d.getTime()) ? new Date().toLocaleString() : d.toLocaleString();
+    }
+
+    function printSaleReceipt(opts) {
+        const items = opts.items || [];
+        const payments = opts.payments || [];
+        const subtotal = Number(opts.subtotal || 0);
+        const discountTotal = Number(opts.discountTotal || 0);
+        const total = Number(opts.total || 0);
+        let paymentTotal = 0;
+
+        let body = storeHeaderHtml(opts.store);
+        body += '<hr><div class="meta">';
+        body += '<div>Sale #: ' + escapeHtml(opts.saleId) + '</div>';
+        body += '<div>Date: ' + escapeHtml(formatDateTime(opts.createdAt)) + '</div>';
+        if (opts.cashierName) {
+            body += '<div>Cashier: ' + escapeHtml(opts.cashierName);
+            if (opts.cashierRole) body += ' (' + escapeHtml(opts.cashierRole) + ')';
+            body += '</div>';
+        }
+        if (opts.customerName) {
+            body += '<div>Customer: ' + escapeHtml(opts.customerName) + '</div>';
+        }
+        if (opts.collectionStatus === 'to_collect') {
+            body += '<div><strong>STATUS: COLLECTION PENDING</strong></div>';
+        } else if (opts.collectionStatus === 'collected') {
+            body += '<div><strong>STATUS: COLLECTED</strong></div>';
+        }
+        body += '</div><hr><div><strong>ITEMS:</strong></div><table>';
+
+        items.forEach(function (item) {
+            const qty = item.qty != null ? item.qty : item.quantity;
+            const unit = Number(item.unit_price != null ? item.unit_price : item.unitPrice || 0);
+            const line = Number(item.line_total != null ? item.line_total : item.lineTotal || unit * qty);
+            body += '<tr><td colspan="2" class="item-name">' + escapeHtml(item.name) + '</td></tr>';
+            body +=
+                '<tr><td>' +
+                escapeHtml(String(qty) + ' x ' + formatMoney(unit)) +
+                '</td><td style="text-align:right">' +
+                formatMoney(line) +
+                '</td></tr>';
+        });
+
+        body += '</table><hr><table>';
+        body +=
+            '<tr><td>Subtotal:</td><td style="text-align:right">' + formatMoney(subtotal) + '</td></tr>';
+        if (discountTotal > 0) {
+            body +=
+                '<tr><td>Discount:</td><td style="text-align:right">' +
+                formatMoney(discountTotal) +
+                '</td></tr>';
+        }
+        body +=
+            '<tr class="total-row"><td>TOTAL:</td><td style="text-align:right">' +
+            formatMoney(total) +
+            '</td></tr></table><hr><div><strong>PAYMENT:</strong></div><table>';
+
+        payments.forEach(function (p) {
+            const amt = Number(p.amount || 0);
+            paymentTotal += amt;
+            body +=
+                '<tr><td>' +
+                escapeHtml(methodLabel(p.method)) +
+                '</td><td style="text-align:right">' +
+                formatMoney(amt) +
+                '</td></tr>';
+        });
+
+        const change = paymentTotal - total;
+        if (change > 0.005) {
+            body +=
+                '<tr class="total-row"><td>CHANGE:</td><td style="text-align:right">' +
+                formatMoney(change) +
+                '</td></tr>';
+        }
+        body += '</table><hr><div class="footer">Thank you for shopping with us!</div>';
+
+
+        return printHtml(wrapReceiptHtml('Receipt #' + opts.saleId, body));
+    }
+
+    function printWithdrawalReceipt(opts) {
+        let body = storeHeaderHtml(opts.store);
+        body += '<hr><div class="meta">';
+        body += '<div>Withdrawal #: ' + escapeHtml(opts.withdrawalId) + '</div>';
+        body += '<div>Receipt #: ' + escapeHtml(opts.receiptNumber || '-') + '</div>';
+        body += '<div>Date: ' + escapeHtml(formatDateTime(opts.createdAt)) + '</div>';
+        body += '<div>Cashier: ' + escapeHtml(opts.cashierName || '-') + '</div>';
+        body += '</div><hr>';
+        body += '<table><tr class="total-row"><td>Amount:</td><td style="text-align:right">' +
+            formatMoney(opts.amount) + '</td></tr>';
+        body += '<tr><td>Reason:</td><td style="text-align:right">' + escapeHtml(opts.reason) + '</td></tr></table>';
+        if (opts.notes) {
+            body += '<div style="margin-top:8px">Notes: ' + escapeHtml(opts.notes) + '</div>';
+        }
+        body += '<hr><div class="footer">Withdrawal receipt</div>';
+        return printHtml(wrapReceiptHtml('Withdrawal ' + opts.receiptNumber, body));
+    }
+
+    async function loadStoreSettings(apiFn) {
+        try {
+            storeSettings = await apiFn('/api/store-settings');
+        } catch (e) {
+            const el = document.querySelector('.shop-name');
+            storeSettings = { store_name: (el && el.textContent.trim()) || 'POS' };
+        }
+        return storeSettings;
+    }
+
+    function getStoreSettings() {
+        return storeSettings;
+    }
+
+    function setStoreSettings(s) {
+        storeSettings = s;
+    }
+
+    global.posReceipt = {
+        loadStoreSettings: loadStoreSettings,
+        getStoreSettings: getStoreSettings,
+        setStoreSettings: setStoreSettings,
+        printSaleReceipt: printSaleReceipt,
+        printWithdrawalReceipt: printWithdrawalReceipt,
+    };
+})(typeof window !== 'undefined' ? window : global);

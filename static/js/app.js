@@ -280,6 +280,19 @@ async function processWithdrawal() {
         
         msgEl.textContent = `Withdrawal successful! Receipt #: ${response.receipt_number}`;
         msgEl.style.color = 'rgba(34, 197, 94, 1)';
+
+        if (window.posReceipt) {
+            posReceipt.printWithdrawalReceipt({
+                withdrawalId: response.id,
+                receiptNumber: response.receipt_number,
+                amount: amount,
+                reason: finalReason,
+                notes: notes || null,
+                cashierName: currentUser?.username || currentUser?.full_name,
+                createdAt: new Date(),
+                store: posReceipt.getStoreSettings(),
+            });
+        }
         
         // Clear form
         amountInput.value = '';
@@ -491,6 +504,9 @@ async function enterPosAfterAuth(data) {
     }
 
     await loadProducts();
+    if (window.posReceipt) {
+        posReceipt.loadStoreSettings(api).catch(() => {});
+    }
     showScreen('pos-screen');
 
     const btnTogglePayment = document.getElementById('btn-toggle-payment');
@@ -981,6 +997,25 @@ async function completeSale() {
     const collectionStatusEl = document.getElementById('collection-status');
     const collectionStatus = collectionStatusEl ? collectionStatusEl.value : 'collected';
 
+    const cartSnapshot = cart.map(line => {
+        const qty = Math.round(line.quantity) || 1;
+        const unit = Number(line.product.selling_price) || 0;
+        const disc = Number(line.discount) || 0;
+        return {
+            name: line.product.name,
+            quantity: qty,
+            unit_price: unit,
+            line_total: unit * qty - disc,
+        };
+    });
+    let subtotalSnap = 0;
+    let discountSnap = 0;
+    for (const line of cart) {
+        const qty = Math.round(line.quantity) || 1;
+        subtotalSnap += (Number(line.product.selling_price) || 0) * qty;
+        discountSnap += Number(line.discount) || 0;
+    }
+
     try {
         const sale = await api('/api/sales', {
             method: 'POST',
@@ -994,6 +1029,22 @@ async function completeSale() {
         });
         msgEl.textContent = `Sale #${sale.id} completed`;
         msgEl.style.color = ''; // Reset color on success
+        if (window.posReceipt) {
+            posReceipt.printSaleReceipt({
+                saleId: sale.id,
+                createdAt: sale.created_at,
+                items: cartSnapshot,
+                subtotal: sale.subtotal != null ? sale.subtotal : subtotalSnap,
+                discountTotal: sale.discount_total != null ? sale.discount_total : discountSnap,
+                total: sale.total,
+                payments: payments,
+                customerName: customerName || null,
+                collectionStatus: collectionStatus,
+                cashierName: currentUser?.username,
+                cashierRole: currentUser?.role,
+                store: posReceipt.getStoreSettings(),
+            });
+        }
         cart = [];
         renderCart();
         document.getElementById('pay-cash').value = '';
@@ -2293,6 +2344,9 @@ async function restoreSession() {
         
         // Load products and show POS screen
         await loadProducts();
+        if (window.posReceipt) {
+            posReceipt.loadStoreSettings(api).catch(() => {});
+        }
         showScreen('pos-screen');
         
         // Setup payment button handler
