@@ -186,6 +186,29 @@ h2, h3, h4, h5, h6 {
     padding: 0 !important;
 }
 
+/* Login: scroll on short viewports so links below the button stay reachable */
+#login-screen.screen.active {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    max-height: 100vh;
+    min-height: 0;
+    flex: 1 1 auto;
+    width: 100%;
+}
+
+#login-screen .login-screen-cta-top {
+    text-align: center;
+    margin: 0 12px 8px 12px;
+    font-size: 15px;
+}
+
+#login-screen .login-screen-cta-top a {
+    color: #2563eb !important;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
 #login-screen .login-screen-switch {
     text-align: center;
     margin-top: 16px;
@@ -196,6 +219,8 @@ h2, h3, h4, h5, h6 {
 #login-screen .login-screen-switch a {
     color: #2563eb !important;
     font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
 }
 
 #login-screen .reg-password-hint {

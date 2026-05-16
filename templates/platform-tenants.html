@@ -36,6 +36,10 @@
     </script>
     <link rel="stylesheet" href="/static/css/style.css">
     <style>
+        .platform-gate-wrap { display: none; max-width: 520px; margin: 48px auto; padding: 24px; background: rgba(255,255,255,0.96); border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.12); }
+        .platform-gate-wrap h1 { color: #1a1a1a; font-size: 1.35rem; margin: 0 0 12px 0; }
+        .platform-gate-wrap .sub { color: rgba(26,26,26,0.8); font-size: 14px; line-height: 1.5; margin: 0 0 16px 0; }
+        .platform-gate-wrap a.primary { display: inline-block; padding: 12px 20px; background: #1a1a1a; color: #fff !important; border-radius: 8px; font-weight: 600; text-decoration: none; }
         .platform-page { max-width: 1200px; margin: 0 auto; padding: 16px; }
         .platform-page h1 { color: #1a1a1a; font-size: 1.35rem; margin: 0 0 8px 0; }
         .platform-page .sub { color: rgba(26,26,26,0.75); font-size: 14px; margin-bottom: 16px; }
@@ -49,37 +53,49 @@
 </head>
 <body>
 <canvas id="bg3d-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none;"></canvas>
-<div id="app" class="screen active">
-    <header class="top-bar">
-        <span id="platform-user-info" style="color:#1a1a1a;"></span>
-        <div class="shop-name">{{ store_name }}</div>
-        <div class="top-bar-right">
-            <a href="/admin" class="small" style="text-decoration:none;display:inline-block;padding:8px 12px;background:rgba(0,0,0,0.08);border-radius:8px;color:#1a1a1a;font-weight:600;">Store admin</a>
-            <a href="/" class="small" style="text-decoration:none;display:inline-block;margin-left:8px;padding:8px 12px;background:rgba(0,0,0,0.08);border-radius:8px;color:#1a1a1a;font-weight:600;">POS</a>
-        </div>
-    </header>
-    <main class="platform-page">
-        <h1>All businesses on this system</h1>
-        <p class="sub">Each row is a registered tenant (a store using your POS). Sign-in emails and admin logins are shown for support.</p>
-        <div id="platform-error" class="platform-msg" style="display:none;"></div>
-        <div id="platform-loading" style="color:#1a1a1a;padding:12px;">Loading…</div>
-        <div id="platform-table-container" class="platform-table-wrap" style="display:none;">
-            <table class="platform-table">
-                <thead>
-                <tr>
-                    <th>Business</th>
-                    <th>Owner</th>
-                    <th>Contact</th>
-                    <th>Status</th>
-                    <th>Trial ends</th>
-                    <th>Users</th>
-                    <th>Admin logins</th>
-                </tr>
-                </thead>
-                <tbody id="platform-tenants-body"></tbody>
-            </table>
-        </div>
-    </main>
+
+<div id="platform-gate" class="platform-gate-wrap" style="display:none;">
+    <h1>Sign in required</h1>
+    <p class="platform-gate-msg sub"></p>
+    <p class="sub" style="font-size:13px;color:rgba(26,26,26,0.65);margin-bottom:20px;">
+        Logins are saved per website address. If you use <strong>doposai.com</strong> and <strong>api.doposai.com</strong> as two sites, sign in on the same one you use for the POS.
+    </p>
+    <a class="primary" id="platform-gate-login" href="/">Go to sign in</a>
+</div>
+
+<div id="platform-app" style="display:none;">
+    <div id="app" class="screen active">
+        <header class="top-bar">
+            <span id="platform-user-info" style="color:#1a1a1a;"></span>
+            <div class="shop-name">{{ store_name }}</div>
+            <div class="top-bar-right">
+                <a href="/admin" class="small" style="text-decoration:none;display:inline-block;padding:8px 12px;background:rgba(0,0,0,0.08);border-radius:8px;color:#1a1a1a;font-weight:600;">Store admin</a>
+                <a href="/" class="small" style="text-decoration:none;display:inline-block;margin-left:8px;padding:8px 12px;background:rgba(0,0,0,0.08);border-radius:8px;color:#1a1a1a;font-weight:600;">POS</a>
+            </div>
+        </header>
+        <main class="platform-page">
+            <h1>All businesses on this system</h1>
+            <p class="sub">Each row is a registered tenant (a store using your POS). Sign-in emails and admin logins are shown for support.</p>
+            <div id="platform-error" class="platform-msg" style="display:none;"></div>
+            <div id="platform-loading" style="color:#1a1a1a;padding:12px;">Loading…</div>
+            <div id="platform-table-container" class="platform-table-wrap" style="display:none;">
+                <table class="platform-table">
+                    <thead>
+                    <tr>
+                        <th>Business</th>
+                        <th>Owner</th>
+                        <th>Contact</th>
+                        <th>Status</th>
+                        <th>Trial ends</th>
+                        <th>Users</th>
+                        <th>Admin logins</th>
+                    </tr>
+                    </thead>
+                    <tbody id="platform-tenants-body"></tbody>
+                </table>
+            </div>
+        </main>
+    </div>
 </div>
 <script src="/static/js/platform-tenants.js"></script>
 </body>

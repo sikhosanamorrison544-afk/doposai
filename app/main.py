@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import BackgroundTasks, Body, Depends, FastAPI, File, HTTPException, Query, Request, UploadFile, status
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -309,6 +309,12 @@ async def platform_tenants_page(request: Request, db: Session = Depends(get_db))
         "platform-tenants.html",
         {"request": request, "store_name": store_name},
     )
+
+
+@app.get("/platform/tanents", response_class=RedirectResponse)
+async def platform_tenants_typo():
+    """Common typo → correct path."""
+    return RedirectResponse(url="/platform/tenants", status_code=307)
 
 
 @app.get("/store-settings", response_class=HTMLResponse)

@@ -443,6 +443,23 @@ async function enterPosAfterAuth(data) {
     currentUser = { username: data.username, role: data.role };
     localStorage.setItem('pos_token', token);
     localStorage.setItem('pos_user', JSON.stringify(currentUser));
+
+    const next = new URLSearchParams(window.location.search).get('next');
+    if (
+        next &&
+        next.startsWith('/') &&
+        !next.startsWith('//') &&
+        !next.includes(':')
+    ) {
+        try {
+            const abs = new URL(next, window.location.origin);
+            if (abs.origin === window.location.origin) {
+                window.location.replace(next);
+                return;
+            }
+        } catch (_) {}
+    }
+
     document.getElementById('user-info').textContent = `${currentUser.username} (${currentUser.role})`;
     const adminBtn = document.getElementById('btn-admin');
     if (currentUser.role === 'admin') {
@@ -1029,20 +1046,24 @@ function setupEvents() {
     }
 
     const linkShowRegister = document.getElementById('link-show-register');
+    const linkShowRegisterTop = document.getElementById('link-show-register-top');
     const linkBackToLogin = document.getElementById('link-back-to-login');
     const loginFormCard = document.getElementById('login-form-card');
     const registerFormCard = document.getElementById('register-form-card');
     const loginTitleEl = document.getElementById('login-screen-title');
 
-    if (linkShowRegister && loginFormCard && registerFormCard) {
-        linkShowRegister.addEventListener('click', function (e) {
-            e.preventDefault();
-            loginFormCard.style.display = 'none';
-            registerFormCard.style.display = '';
-            document.getElementById('login-error').textContent = '';
-            if (loginTitleEl) loginTitleEl.textContent = 'Register your business';
-        });
+    function openRegisterForm(e) {
+        if (e) e.preventDefault();
+        if (!loginFormCard || !registerFormCard) return;
+        loginFormCard.style.display = 'none';
+        registerFormCard.style.display = '';
+        const errLogin = document.getElementById('login-error');
+        if (errLogin) errLogin.textContent = '';
+        if (loginTitleEl) loginTitleEl.textContent = 'Register your business';
     }
+    [linkShowRegister, linkShowRegisterTop].forEach((el) => {
+        if (el) el.addEventListener('click', openRegisterForm);
+    });
     if (linkBackToLogin && loginFormCard && registerFormCard) {
         linkBackToLogin.addEventListener('click', function (e) {
             e.preventDefault();
