@@ -71,7 +71,18 @@ from .models import (
 
 from . import tenant_scope
 
-Base.metadata.create_all(bind=engine)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    logging.warning(
+        "Could not run create_all on import: %s. Service will start; DB will retry on first use.",
+        e,
+    )
 
 # Initialize Chart of Accounts on startup (if not already initialized)
 try:
@@ -79,15 +90,19 @@ try:
         initialize_chart_of_accounts(db)
         logging.info("Accounting system initialized successfully")
 except Exception as e:
-    logging.warning(f"Could not initialize Chart of Accounts: {e}. Accounting features will be disabled until COA is initialized.")
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+    logging.warning(
+        "Could not initialize Chart of Accounts: %s. Accounting features will be disabled until COA is initialized.",
+        e,
+    )
 
 app = FastAPI(title="Raspberry Pi Offline POS", docs_url=None, redoc_url=None)
+
+
+@app.get("/health")
+def health():
+    """Liveness probe without DB access. Use as Render health check path so deploys don't fail if DB is slow to connect."""
+    return {"status": "ok"}
+
 
 _cors_origins, _cors_credentials = get_cors_origins_and_credentials()
 app.add_middleware(
