@@ -801,24 +801,6 @@ class MainActivity : AppCompatActivity() {
                     messageTv.visibility = View.VISIBLE
                     viewModel.clearSaleMessage()
                     if (msg.startsWith("Sale saved")) {
-                        val cart = receiptCart
-                        if (cart != null) {
-                            val storeName = prefs.getString("store_name", getString(R.string.store_name))
-                                ?: getString(R.string.store_name)
-                            val cashier = prefs.getString("username", null)
-                            ReceiptPrinter.printSale(
-                                context = this@MainActivity,
-                                storeName = storeName,
-                                cartLines = cart,
-                                subtotal = receiptSubtotal,
-                                discountTotal = receiptDiscount,
-                                total = receiptTotal,
-                                payments = receiptPayments,
-                                customerName = receiptCustomer,
-                                collectionStatus = receiptStatus,
-                                cashierName = cashier,
-                            )
-                        }
                         receiptCart = null
                         triggerSyncWhenOnline()
                         dialog.dismiss()
@@ -843,6 +825,27 @@ class MainActivity : AppCompatActivity() {
                 if (mobile > 0) add("mobile_money" to mobile)
                 if (card > 0) add("card" to card)
                 if (credit > 0) add("credit" to credit)
+            }
+            val cart = receiptCart
+            if (cart != null && cart.isNotEmpty()) {
+                val paid = receiptPayments.sumOf { it.second }
+                if (paid > 0 && kotlin.math.abs(paid - receiptTotal) <= 0.01) {
+                    val storeName = prefs.getString("store_name", getString(R.string.store_name))
+                        ?: getString(R.string.store_name)
+                    val cashier = prefs.getString("username", null)
+                    ReceiptPrinter.printSale(
+                        context = this@MainActivity,
+                        storeName = storeName,
+                        cartLines = cart,
+                        subtotal = receiptSubtotal,
+                        discountTotal = receiptDiscount,
+                        total = receiptTotal,
+                        payments = receiptPayments,
+                        customerName = receiptCustomer,
+                        collectionStatus = receiptStatus,
+                        cashierName = cashier,
+                    )
+                }
             }
             viewModel.completeSale(
                 customerName = receiptCustomer,

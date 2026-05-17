@@ -1,5 +1,6 @@
 /**
- * Browser receipt printing (window.print). Server ESC/POS only works with a local USB printer.
+ * Browser receipt printing. Server ESC/POS only works with a local USB printer.
+ * Call preparePrintWindow() before await (keeps user-gesture); finish with printSaleReceipt().
  */
 (function (global) {
     'use strict';
@@ -54,32 +55,100 @@
         );
     }
 
-    function printHtml(html) {
-        const iframe = document.createElement('iframe');
-        iframe.setAttribute('aria-hidden', 'true');
-        iframe.style.cssText =
-            'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none';
-        document.body.appendChild(iframe);
-        const win = iframe.contentWindow;
-        const doc = win.document;
-        doc.open();
-        doc.write(html);
-        doc.close();
-        const cleanup = function () {
-            setTimeout(function () {
-                if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-            }, 1500);
-        };
-        setTimeout(function () {
-            try {
-                win.focus();
-                win.print();
-            } catch (e) {
-                console.error('Print failed:', e);
-                alert('Could not open print dialog. Check print permissions.');
+    /** Open during click handler, before any await (required for print dialog). */
+    function preparePrintWindow() {
+        try {
+            const w = window.open('', 'pos_receipt_print', 'width=420,height=700,scrollbars=yes');
+            if (w) {
+                w.document.open();
+                w.document.write('<html><body style="font-family:sans-serif;padding:16px">Preparing receipt…</body></html>');
+                w.document.close();
             }
-            cleanup();
-        }, 300);
+            return w;
+        } catch (e) {
+            console.warn('preparePrintWindow failed:', e);
+            return null;
+        }
+    }
+
+    function showReceiptModal(fullHtml, title) {
+        const existing = document.getElementById('receipt-print-modal');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'receipt-print-modal';
+        overlay.style.cssText =
+            'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box';
+
+        const panel = document.createElement('div');
+        panel.style.cssText =
+            'background:#fff;color:#000;max-width:420px;width:100%;max-height:90vh;display:flex;flex-direction:column;border-radius:8px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.3)';
+
+        const header = document.createElement('div');
+        header.style.cssText = 'padding:12px 16px;border-bottom:1px solid #ddd;font-weight:bold';
+        header.textContent = title || 'Receipt';
+
+        const frame = document.createElement('iframe');
+        frame.style.cssText = 'flex:1;min-height:320px;border:0;width:100%';
+        frame.srcdoc = fullHtml;
+
+        const actions = document.createElement('div');
+        actions.style.cssText = 'padding:12px;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid #ddd';
+
+        const btnPrint = document.createElement('button');
+        btnPrint.type = 'button';
+        btnPrint.className = 'primary';
+        btnPrint.textContent = 'Print';
+        btnPrint.onclick = function () {
+            try {
+                const fwin = frame.contentWindow;
+                if (fwin) {
+                    fwin.focus();
+                    fwin.print();
+                }
+            } catch (e) {
+                alert('Print failed: ' + e.message);
+            }
+        };
+
+        const btnClose = document.createElement('button');
+        btnClose.type = 'button';
+        btnClose.textContent = 'Close';
+        btnClose.onclick = function () {
+            overlay.remove();
+        };
+
+        actions.appendChild(btnPrint);
+        actions.appendChild(btnClose);
+        panel.appendChild(header);
+        panel.appendChild(frame);
+        panel.appendChild(actions);
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+
+    }
+
+    function printHtml(fullHtml, title, printWindow) {
+        if (printWindow && !printWindow.closed) {
+            try {
+                printWindow.document.open();
+                printWindow.document.write(fullHtml);
+                printWindow.document.close();
+                printWindow.focus();
+                setTimeout(function () {
+                    try {
+                        printWindow.print();
+                    } catch (e) {
+                        console.error('print() in popup failed:', e);
+                        showReceiptModal(fullHtml, title);
+                    }
+                }, 400);
+                return true;
+            } catch (e) {
+                console.warn('Popup print failed, using modal:', e);
+            }
+        }
+        showReceiptModal(fullHtml, title);
         return true;
     }
 
@@ -101,7 +170,7 @@
         return isNaN(d.getTime()) ? new Date().toLocaleString() : d.toLocaleString();
     }
 
-    function printSaleReceipt(opts) {
+    function buildSaleReceiptBody(opts) {
         const items = opts.items || [];
         const payments = opts.payments || [];
         const subtotal = Number(opts.subtotal || 0);
@@ -174,12 +243,16 @@
                 '</td></tr>';
         }
         body += '</table><hr><div class="footer">Thank you for shopping with us!</div>';
-
-
-        return printHtml(wrapReceiptHtml('Receipt #' + opts.saleId, body));
+        return body;
     }
 
-    function printWithdrawalReceipt(opts) {
+    function printSaleReceipt(opts, printWindow) {
+        const title = 'Receipt #' + opts.saleId;
+        const body = buildSaleReceiptBody(opts);
+        return printHtml(wrapReceiptHtml(title, body), title, printWindow);
+    }
+
+    function printWithdrawalReceipt(opts, printWindow) {
         let body = storeHeaderHtml(opts.store);
         body += '<hr><div class="meta">';
         body += '<div>Withdrawal #: ' + escapeHtml(opts.withdrawalId) + '</div>';
@@ -194,9 +267,10 @@
             body += '<div style="margin-top:8px">Notes: ' + escapeHtml(opts.notes) + '</div>';
         }
         body += '<hr><div class="footer">Withdrawal receipt</div>';
-        return printHtml(wrapReceiptHtml('Withdrawal ' + opts.receiptNumber, body));
+        body = body;
+        const title = 'Withdrawal ' + (opts.receiptNumber || '');
+        return printHtml(wrapReceiptHtml(title, body), title, printWindow);
     }
-
     async function loadStoreSettings(apiFn) {
         try {
             storeSettings = await apiFn('/api/store-settings');
@@ -219,6 +293,7 @@
         loadStoreSettings: loadStoreSettings,
         getStoreSettings: getStoreSettings,
         setStoreSettings: setStoreSettings,
+        preparePrintWindow: preparePrintWindow,
         printSaleReceipt: printSaleReceipt,
         printWithdrawalReceipt: printWithdrawalReceipt,
     };

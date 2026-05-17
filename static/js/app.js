@@ -266,6 +266,10 @@ async function processWithdrawal() {
     btnProcess.disabled = true;
     msgEl.textContent = 'Processing withdrawal...';
     msgEl.style.color = 'rgba(255, 255, 255, 0.9)';
+
+    const withdrawalPrintWin = window.posReceipt && typeof posReceipt.preparePrintWindow === 'function'
+        ? posReceipt.preparePrintWindow()
+        : null;
     
     try {
         const response = await api('/api/withdrawals', {
@@ -291,7 +295,9 @@ async function processWithdrawal() {
                 cashierName: currentUser?.username || currentUser?.full_name,
                 createdAt: new Date(),
                 store: posReceipt.getStoreSettings(),
-            });
+            }, withdrawalPrintWin);
+        } else if (withdrawalPrintWin && !withdrawalPrintWin.closed) {
+            withdrawalPrintWin.close();
         }
         
         // Clear form
@@ -923,6 +929,11 @@ async function completeSale() {
         msgEl.textContent = 'Cart is empty';
         return;
     }
+
+    // Open print target synchronously (before any await) so the browser allows print after sale API returns
+    const printWin = window.posReceipt && typeof posReceipt.preparePrintWindow === 'function'
+        ? posReceipt.preparePrintWindow()
+        : null;
     
     // Validate stock availability before completing sale
     // Reload products to get latest stock quantities
@@ -952,6 +963,7 @@ async function completeSale() {
     
     // If there are stock issues, prevent sale completion and receipt printing
     if (stockIssues.length > 0) {
+        if (printWin && !printWin.closed) printWin.close();
         msgEl.textContent = `⚠️ Transaction blocked: ${stockIssues.join('; ')}. Receipt will NOT be printed. Please adjust quantities.`;
         msgEl.style.color = '#ef4444';
         msgEl.style.fontWeight = 'bold';
@@ -1043,7 +1055,9 @@ async function completeSale() {
                 cashierName: currentUser?.username,
                 cashierRole: currentUser?.role,
                 store: posReceipt.getStoreSettings(),
-            });
+            }, printWin);
+        } else if (printWin && !printWin.closed) {
+            printWin.close();
         }
         cart = [];
         renderCart();
@@ -1055,6 +1069,9 @@ async function completeSale() {
         await loadProducts();
     } catch (e) {
         console.error('Sale error:', e);
+        if (printWin && !printWin.closed) {
+            printWin.close();
+        }
         const errorMsg = e.message || 'Sale failed';
         // Check if error is about stock
         if (errorMsg.includes('stock') || errorMsg.includes('Stock') || errorMsg.includes('out of stock') || errorMsg.includes('Insufficient')) {

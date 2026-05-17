@@ -1,8 +1,11 @@
 package com.pos.mobile.ui
 
+import android.app.Activity
 import android.content.Context
 import android.print.PrintAttributes
 import android.print.PrintManager
+import android.util.Base64
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import java.text.SimpleDateFormat
@@ -119,20 +122,32 @@ object ReceiptPrinter {
         s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
     private fun printHtml(context: Context, html: String, jobName: String) {
-        val webView = WebView(context)
-        webView.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView?, url: String?) {
-                val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
-                val adapter = view?.createPrintDocumentAdapter(jobName)
-                if (adapter != null) {
-                    printManager.print(
-                        jobName,
-                        adapter,
-                        PrintAttributes.Builder().build()
-                    )
+        val activity = context as? Activity ?: return
+        activity.runOnUiThread {
+            val webView = WebView(activity)
+            webView.settings.apply {
+                javaScriptEnabled = false
+                cacheMode = WebSettings.LOAD_NO_CACHE
+            }
+            webView.webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    val printManager = activity.getSystemService(Context.PRINT_SERVICE) as? PrintManager
+                    val adapter = view?.createPrintDocumentAdapter(jobName)
+                    if (printManager != null && adapter != null) {
+                        printManager.print(
+                            jobName,
+                            adapter,
+                            PrintAttributes.Builder().build()
+                        )
+                    }
                 }
             }
+            val encoded = Base64.encodeToString(html.toByteArray(Charsets.UTF_8), Base64.NO_PADDING)
+            webView.loadData(
+                encoded,
+                "text/html; charset=utf-8; base64",
+                null
+            )
         }
-        webView.loadDataWithBaseURL(null, html, "text/HTML", "UTF-8", null)
     }
 }
