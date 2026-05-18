@@ -101,9 +101,6 @@
             card.className = 'admin-product-card';
             if (Number(p.stock_qty) <= 5) card.classList.add('low-stock');
 
-            const expiry = p.expiry_date
-                ? new Date(p.expiry_date).toLocaleDateString()
-                : '—';
             const searchText = [p.name, p.barcode, p.id].filter(Boolean).join(' ');
             card.setAttribute('data-search', searchText);
 
@@ -113,8 +110,6 @@
                 '<div><strong>Stock</strong> <span class="stock"></span></div>' +
                 '<div><strong>Price</strong> $<span class="price"></span></div>' +
                 '<div><strong>Cost</strong> $<span class="cost"></span></div>' +
-                '<div><strong>Barcode</strong> <span class="barcode"></span></div>' +
-                '<div style="grid-column:1/-1"><strong>Expiry</strong> <span class="expiry"></span></div>' +
                 '</div>' +
                 '<div class="row-actions"><button type="button" class="edit-btn">Edit</button></div>';
 
@@ -122,8 +117,6 @@
             card.querySelector('.stock').textContent = p.stock_qty;
             card.querySelector('.price').textContent = parseFloat(p.selling_price).toFixed(2);
             card.querySelector('.cost').textContent = parseFloat(p.cost_price).toFixed(2);
-            card.querySelector('.barcode').textContent = p.barcode || '—';
-            card.querySelector('.expiry').textContent = expiry;
 
             const editBtn = card.querySelector('.edit-btn');
             editBtn.setAttribute('data-product-id', String(p.id));

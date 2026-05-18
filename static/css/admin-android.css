@@ -180,6 +180,14 @@ body.page-admin.pos-android-app #products-table {
     display: none !important;
 }
 
+/* If table is shown, hide barcode (3) and expiry (7) columns on Android */
+body.page-admin.pos-android-app #products-table th:nth-child(3),
+body.page-admin.pos-android-app #products-table td:nth-child(3),
+body.page-admin.pos-android-app #products-table th:nth-child(7),
+body.page-admin.pos-android-app #products-table td:nth-child(7) {
+    display: none !important;
+}
+
 #products-mobile-list {
     display: none;
     padding: 0 12px 16px;
