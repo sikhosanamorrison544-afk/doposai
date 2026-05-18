@@ -282,6 +282,22 @@
     </div>
 </div>
 
+<!-- Trial reminder (shown after login when subscription is on free trial) -->
+<div id="trial-subscribe-modal" class="floating-panel" style="display:none;z-index:10001;">
+    <div class="floating-panel-header">
+        <h2>Free trial</h2>
+        <button id="btn-close-trial-modal" class="close-btn" type="button">×</button>
+    </div>
+    <div style="padding:16px;">
+        <p id="trial-reminder-body" style="margin:0;line-height:1.45;"></p>
+        <p id="trial-reminder-detail" style="margin:10px 0 0;color:rgba(51,65,85,0.95);font-size:14px;"></p>
+        <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" id="btn-trial-go-billing" class="primary" style="display:none;">Subscription &amp; billing</button>
+            <button type="button" id="btn-trial-later" class="small">Continue to POS</button>
+        </div>
+    </div>
+</div>
+
 <!-- Withdrawal Modal (hidden by default) -->
 <div id="withdrawal-modal" class="floating-panel" style="display:none;">
     <div class="floating-panel-header">
@@ -473,7 +489,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
 <script src="/static/js/price-input-formatter.js?v=7"></script>
-<script src="/static/js/receipt.js?v=2"></script>
+<script src="/static/js/receipt-escpos.js?v=1"></script>
+<script src="/static/js/receipt-native.js?v=1"></script>
+<script src="/static/js/receipt.js?v=3"></script>
 <script src="/static/js/app.js?v=7"></script>
 <script src="/static/js/background3d.js?v=5"></script>
 </body>

@@ -18,5 +18,6 @@ data class SyncMetadataEntity(
         const val KEY_CATEGORIES = "categories"
         const val KEY_CUSTOMERS = "customers"
         const val KEY_SALES_PUSH = "sales_push"
+        const val KEY_MASTER_CACHE = "master_cache"
     }
 }

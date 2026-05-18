@@ -10,8 +10,14 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.pos.mobile.BuildConfig
 import com.pos.mobile.R
+import com.pos.mobile.printer.BluetoothPermissionDelegate
+import com.pos.mobile.printer.PrinterPermissionHelper
+import com.pos.mobile.printer.PrinterSetupDialog
+import com.pos.mobile.printer.bluetoothPermissionDelegate
+import com.pos.mobile.printer.WebViewPrintSupport
 import org.json.JSONObject
 
 /**
@@ -34,6 +40,7 @@ class WebViewActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        BluetoothPermissionDelegate.install(this)
         setContentView(R.layout.activity_webview)
         applyEdgeToEdgeInsets(findViewById(R.id.webview_root))
 
@@ -58,13 +65,18 @@ class WebViewActivity : AppCompatActivity() {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
-            cacheMode = WebSettings.LOAD_NO_CACHE
+            cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+            databaseEnabled = true
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             useWideViewPort = true
             loadWithOverviewMode = true
         }
-        webView.webViewClient = object : WebViewClient() {
+        WebViewPrintSupport.attach(this, webView)
+        val authClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, loadedUrl: String?) {
+                if (view != null) {
+                    WebViewPrintSupport.injectHelper(view)
+                }
                 val pending = injectThenReloadUrl
                 if (pending != null && view != null && loadedUrl == pending) {
                     injectThenReloadUrl = null
@@ -72,6 +84,7 @@ class WebViewActivity : AppCompatActivity() {
                 }
             }
         }
+        webView.webViewClient = OfflineWebViewClient(this, baseUrl, authClient)
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
 
         if (!token.isNullOrBlank() && path != "/" && path.isNotBlank()) {
@@ -114,12 +127,20 @@ class WebViewActivity : AppCompatActivity() {
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.pos_pages_menu, menu)
+        menuInflater.inflate(R.menu.webview_menu, menu)
         return true
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         if (item.itemId == android.R.id.home) {
             finish()
+            return true
+        }
+        if (item.itemId == R.id.action_printer) {
+            val prefs = getSharedPreferences("pos", MODE_PRIVATE)
+            val storeName = prefs.getString("store_name", getString(R.string.store_name))
+                ?: getString(R.string.store_name)
+            PrinterSetupDialog.show(this, lifecycleScope, storeName)
             return true
         }
         when (item.itemId) {
@@ -179,6 +200,26 @@ class WebViewActivity : AppCompatActivity() {
         """.trimIndent()
         webView.evaluateJavascript(script) {
             webView.loadUrl(targetUrl)
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PrinterPermissionHelper.REQUEST_CODE) {
+            val prefs = getSharedPreferences("pos", MODE_PRIVATE)
+            val storeName = prefs.getString("store_name", getString(R.string.store_name))
+                ?: getString(R.string.store_name)
+            val granted = PrinterPermissionHelper.legacyResultsGranted(permissions, grantResults)
+            PrinterSetupDialog.handleBluetoothPermissionResult(
+                activity = this,
+                granted = granted,
+                scope = lifecycleScope,
+                storeName = storeName,
+            )
         }
     }
 }

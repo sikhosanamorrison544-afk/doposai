@@ -69,6 +69,28 @@
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/total" android:textSize="@dimen/payment_btn_text_size" android:textStyle="bold" android:textColor="@color/text_primary" />
                 <TextView android:id="@+id/payment_total" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="@dimen/payment_btn_text_size" android:textStyle="bold" android:text="0.00" android:textColor="@color/text_primary" />
             </LinearLayout>
+            <LinearLayout
+                android:id="@+id/payment_paid_row"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="8dp"
+                android:visibility="gone">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/payment_paid" android:textColor="@color/text_primary" android:textSize="@dimen/payment_label_size" />
+                <TextView android:id="@+id/payment_paid" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0.00" android:textColor="@color/text_primary" android:textSize="@dimen/payment_label_size" />
+            </LinearLayout>
+            <LinearLayout
+                android:id="@+id/payment_change_row"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="4dp"
+                android:visibility="gone">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/payment_change" android:textSize="@dimen/payment_btn_text_size" android:textStyle="bold" android:textColor="@color/primary" />
+                <TextView android:id="@+id/payment_change" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="@dimen/payment_btn_text_size" android:textStyle="bold" android:text="0.00" android:textColor="@color/primary" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- Payments section - same as web .payment-panel .payments -->
@@ -139,6 +161,21 @@
             android:background="@drawable/edit_text_web"
             android:layout_marginBottom="10dp" />
 
+        <TextView
+            android:id="@+id/payment_message"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/danger"
+            android:textSize="14sp"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/payment_cash_hint"
+            android:textColor="@color/text_primary"
+            android:textSize="12sp"
+            android:layout_marginBottom="8dp" />
         <Button
             android:id="@+id/btn_complete_sale"
             android:layout_width="match_parent"
@@ -150,13 +187,5 @@
             android:textStyle="bold"
             android:paddingTop="14dp"
             android:paddingBottom="14dp" />
-        <TextView
-            android:id="@+id/payment_message"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="@color/danger"
-            android:textSize="14sp"
-            android:layout_marginTop="8dp"
-            android:visibility="gone" />
     </LinearLayout>
 </ScrollView>

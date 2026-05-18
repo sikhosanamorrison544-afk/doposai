@@ -85,10 +85,20 @@ def upgrade_subscription(
     user: User = Depends(get_current_admin_user),
 ):
     tenant = _tenant_for_user(db, user)
-    email = user.email or tenant.email or f"{user.username}@tenant.local"
+    email = (user.email or tenant.email or "").strip()
+    if body.ecocash_phone and not email:
+        raise HTTPException(
+            status_code=400,
+            detail="Set a valid email on your admin account before paying with EcoCash.",
+        )
     try:
         payload = billing_service.upgrade_subscription(
-            db, tenant, body.plan, body.billing_cycle, email, body.ecocash_phone
+            db,
+            tenant,
+            body.plan,
+            body.billing_cycle,
+            email,
+            body.ecocash_phone,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -122,7 +132,12 @@ def initiate_payment(
     user: User = Depends(get_current_admin_user),
 ):
     tenant = _tenant_for_user(db, user)
-    email = user.email or tenant.email or f"{user.username}@tenant.local"
+    email = (user.email or tenant.email or "").strip()
+    if body.ecocash_phone and not email:
+        raise HTTPException(
+            status_code=400,
+            detail="Set a valid email on your admin account before paying with EcoCash.",
+        )
     try:
         _, payload = billing_service.start_pending_payment(
             db,

@@ -15,4 +15,8 @@
     <color name="cart_header_bg">#FFFFFF</color>
     <!-- Muted blue/purple for Complete Sale button -->
     <color name="button_complete_sale">#5B6B9E</color>
+    <color name="success">#10b981</color>
+    <color name="warning">#f59e0b</color>
+    <color name="native_screen_bg">#EEF2FF</color>
+    <color name="text_secondary">#64748b</color>
 </resources>

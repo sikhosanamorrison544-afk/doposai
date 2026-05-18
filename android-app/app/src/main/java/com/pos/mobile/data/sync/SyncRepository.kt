@@ -1,13 +1,20 @@
 package com.pos.mobile.data.sync
 
+import android.util.Log
 import com.pos.mobile.data.local.dao.*
 import com.pos.mobile.data.local.entity.*
 import com.pos.mobile.data.remote.ApiService
 import com.pos.mobile.data.remote.SaleCreateDto
 import com.pos.mobile.data.remote.SaleItemInputDto
 import com.pos.mobile.data.remote.PaymentInputDto
+import com.pos.mobile.sync.MasterSyncEndpoints
+import com.pos.mobile.sync.MasterSyncResult
+import com.pos.mobile.sync.OfflineCacheKeys
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 
 /**
  * Single source of truth: UI always reads from local DB.
@@ -24,55 +31,77 @@ class SyncRepository(
     private val saleItemDao: SaleItemDao,
     private val paymentDao: PaymentDao,
     private val syncQueueDao: SyncQueueDao,
-    private val syncMetadataDao: SyncMetadataDao
+    private val syncMetadataDao: SyncMetadataDao,
+    private val apiCacheDao: ApiCacheDao,
+    private val offlineMutationDao: OfflineMutationDao,
+    private val baseUrl: String,
 ) {
+    companion object {
+        private const val TAG = "SyncRepository"
+    }
 
     suspend fun pullProductsAndCustomers(token: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            val now = System.currentTimeMillis()
             val productsRes = api.getProducts("Bearer $token")
-            if (productsRes.isSuccessful) {
-                productsRes.body()?.let { list ->
-                    val entities = list.map { p ->
-                        ProductEntity(
-                            id = p.id,
-                            name = p.name,
-                            barcode = p.barcode,
-                            categoryId = p.category_id,
-                            stockQty = p.stock_qty,
-                            sellingPrice = p.selling_price,
-                            costPrice = p.cost_price,
-                            isActive = p.is_active,
-                            serverSyncedAt = System.currentTimeMillis()
-                        )
-                    }
-                    productDao.insertAll(entities)
-                }
+            if (!productsRes.isSuccessful) {
+                val err = productsRes.errorBody()?.string() ?: "HTTP ${productsRes.code()}"
                 syncMetadataDao.insert(
                     SyncMetadataEntity(
                         key = SyncMetadataEntity.KEY_PRODUCTS,
-                        lastSyncedAt = System.currentTimeMillis(),
-                        lastSyncSuccess = true
+                        lastSyncedAt = now,
+                        lastSyncSuccess = false
                     )
                 )
+                return@withContext Result.failure(Exception(err))
             }
+            val list = productsRes.body() ?: emptyList()
+            val entities = list.map { p ->
+                ProductEntity(
+                    id = p.id,
+                    name = p.name,
+                    barcode = p.barcode,
+                    categoryId = p.category_id,
+                    stockQty = p.stock_qty,
+                    reservedQty = p.reserved_qty,
+                    sellingPrice = p.selling_price,
+                    costPrice = p.cost_price,
+                    isActive = p.is_active,
+                    serverSyncedAt = now,
+                )
+            }
+            productDao.deleteAll()
+            if (entities.isNotEmpty()) {
+                productDao.insertAll(entities)
+            }
+            syncMetadataDao.insert(
+                SyncMetadataEntity(
+                    key = SyncMetadataEntity.KEY_PRODUCTS,
+                    lastSyncedAt = now,
+                    lastSyncSuccess = true
+                )
+            )
+
             val customersRes = api.getCustomers("Bearer $token")
             if (customersRes.isSuccessful) {
-                customersRes.body()?.let { list ->
-                    val entities = list.map { c ->
+                val customers = customersRes.body() ?: emptyList()
+                customerDao.deleteAll()
+                if (customers.isNotEmpty()) {
+                    val customerEntities = customers.map { c ->
                         CustomerEntity(
                             id = c.id,
                             name = c.name,
                             phone = c.phone,
                             email = c.email,
-                            serverSyncedAt = System.currentTimeMillis()
+                            serverSyncedAt = now
                         )
                     }
-                    customerDao.insertAll(entities)
+                    customerDao.insertAll(customerEntities)
                 }
                 syncMetadataDao.insert(
                     SyncMetadataEntity(
                         key = SyncMetadataEntity.KEY_CUSTOMERS,
-                        lastSyncedAt = System.currentTimeMillis(),
+                        lastSyncedAt = now,
                         lastSyncSuccess = true
                     )
                 )
@@ -131,5 +160,139 @@ class SyncRepository(
 
     suspend fun getLastSyncedAt(key: String): Long? = withContext(Dispatchers.IO) {
         syncMetadataDao.get(key)?.lastSyncedAt
+    }
+
+    /**
+     * Full pull from Render master DB: Room product/customer tables + JSON cache for WebView pages.
+     */
+    suspend fun syncMasterDatabase(token: String): Result<MasterSyncResult> = withContext(Dispatchers.IO) {
+        try {
+            pullProductsAndCustomers(token).getOrElse { return@withContext Result.failure(it) }
+            pushOfflineMutations(token)
+
+            val bearer = "Bearer $token"
+            val base = baseUrl.trimEnd('/')
+            val now = System.currentTimeMillis()
+            val cacheEntries = mutableListOf<ApiCacheEntity>()
+            var apiOk = 0
+            var apiFail = 0
+
+            for (fullPath in MasterSyncEndpoints.apiPathsForSync()) {
+                val pathOnly = fullPath.substringBefore('?')
+                val query = fullPath.substringAfter('?', "").takeIf { it.isNotEmpty() }
+                val cacheKey = OfflineCacheKeys.forGet(pathOnly, query)
+                val url = base + fullPath
+                val res = api.getUrl(url, bearer)
+                if (res.isSuccessful) {
+                    val body = res.body()?.string() ?: "[]"
+                    val contentType = res.headers()["Content-Type"] ?: "application/json"
+                    cacheEntries.add(
+                        ApiCacheEntity(cacheKey, body, contentType, res.code(), now)
+                    )
+                    apiOk++
+                } else {
+                    apiFail++
+                    Log.w(TAG, "Cache miss for $fullPath: HTTP ${res.code()}")
+                }
+            }
+
+            var laybyPayments = 0
+            val txKey = OfflineCacheKeys.forGet("/api/layby/transactions", null)
+            cacheEntries.find { it.cacheKey == txKey }?.let { txCache ->
+                try {
+                    val arr = JSONArray(txCache.responseBody)
+                    for (i in 0 until arr.length()) {
+                        val id = arr.getJSONObject(i).optInt("id", -1)
+                        if (id < 0) continue
+                        val payPath = "/api/layby/payments/$id"
+                        val payRes = api.getUrl(base + payPath, bearer)
+                        if (payRes.isSuccessful) {
+                            cacheEntries.add(
+                                ApiCacheEntity(
+                                    OfflineCacheKeys.forGet(payPath, null),
+                                    payRes.body()?.string() ?: "[]",
+                                    payRes.headers()["Content-Type"] ?: "application/json",
+                                    payRes.code(),
+                                    now,
+                                )
+                            )
+                            laybyPayments++
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Layby payment cache prefetch failed", e)
+                }
+            }
+
+            var pagesOk = 0
+            for (page in MasterSyncEndpoints.webPages) {
+                val res = api.getUrl(base + page, bearer)
+                if (res.isSuccessful) {
+                    cacheEntries.add(
+                        ApiCacheEntity(
+                            OfflineCacheKeys.forGet(page, null),
+                            res.body()?.string() ?: "",
+                            res.headers()["Content-Type"] ?: "text/html",
+                            res.code(),
+                            now,
+                        )
+                    )
+                    pagesOk++
+                }
+            }
+
+            if (cacheEntries.isNotEmpty()) {
+                apiCacheDao.deleteAll()
+                apiCacheDao.putAll(cacheEntries)
+            }
+
+            syncMetadataDao.insert(
+                SyncMetadataEntity(
+                    key = SyncMetadataEntity.KEY_MASTER_CACHE,
+                    lastSyncedAt = now,
+                    lastSyncSuccess = apiFail == 0,
+                )
+            )
+
+            Result.success(
+                MasterSyncResult(
+                    apiEndpointsCached = apiOk,
+                    apiEndpointsFailed = apiFail,
+                    webPagesCached = pagesOk,
+                    laybyPaymentCaches = laybyPayments,
+                )
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "syncMasterDatabase failed", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun pushOfflineMutations(token: String): Int = withContext(Dispatchers.IO) {
+        val bearer = "Bearer $token"
+        val base = baseUrl.trimEnd('/')
+        var pushed = 0
+        val pending = offlineMutationDao.getByStatus(OfflineMutationEntity.STATUS_PENDING)
+        for (m in pending) {
+            val url = base + m.path
+            val mediaType = (m.contentType ?: "application/json").substringBefore(';').toMediaType()
+            val body = (m.requestBody ?: "{}").toRequestBody(mediaType)
+            val res = when (m.method) {
+                "POST" -> api.postUrl(url, bearer, body)
+                "PUT" -> api.putUrl(url, bearer, body)
+                else -> continue
+            }
+            if (res.isSuccessful) {
+                offlineMutationDao.updateStatus(m.id, OfflineMutationEntity.STATUS_SYNCED, null)
+                pushed++
+            } else {
+                offlineMutationDao.updateStatus(
+                    m.id,
+                    OfflineMutationEntity.STATUS_FAILED,
+                    res.errorBody()?.string() ?: "HTTP ${res.code()}",
+                )
+            }
+        }
+        pushed
     }
 }

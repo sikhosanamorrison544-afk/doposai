@@ -48,8 +48,6 @@ services:
         sync: false
       - key: PAYNOW_RETURN_URL
         value: https://api.doposai.com/billing?payment=return
-      - key: PAYNOW_RESULT_URL
-        value: https://api.doposai.com/api/payments/webhook
       - key: TRIAL_DAYS
         value: "14"
       - key: OFFLINE_GRACE_HOURS

@@ -3,28 +3,36 @@ package com.pos.mobile.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.pos.mobile.BuildConfig
 import com.pos.mobile.data.local.AppDatabase
 import com.pos.mobile.data.local.entity.PaymentEntity
 import com.pos.mobile.data.local.entity.SaleEntity
 import com.pos.mobile.data.local.entity.SaleItemEntity
 import com.pos.mobile.data.local.entity.SyncQueueEntity
 import com.pos.mobile.data.local.entity.ProductEntity
+import com.pos.mobile.data.remote.ApiService
+import com.pos.mobile.data.remote.CustomerCreateDto
+import com.pos.mobile.data.sync.SyncWorker
+import com.pos.mobile.sync.NetworkUtils
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-/**
- * Cart line for in-memory POS cart (matches web app behaviour).
- */
 data class CartLine(
     val product: ProductEntity,
-    var quantity: Int,
-    var discount: Double
+    val quantity: Int,
+    val discount: Double,
 ) {
-    val lineTotal: Double get() = (product.sellingPrice * quantity) - discount
+    val lineTotal: Double get() = CartMath.lineTotal(this)
 }
 
 class PosViewModel(application: Application) : AndroidViewModel(application) {
@@ -37,27 +45,69 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     private val syncQueueDao = db.syncQueueDao()
 
     val products: StateFlow<List<ProductEntity>> = productDao.getAllActive()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _cart = MutableStateFlow<List<CartLine>>(emptyList())
     val cart: StateFlow<List<CartLine>> = _cart.asStateFlow()
 
-    private val _saleCompleteMessage = MutableStateFlow<String?>(null)
-    val saleCompleteMessage: StateFlow<String?> = _saleCompleteMessage.asStateFlow()
+    private val _posMessage = MutableStateFlow<String?>(null)
+    val posMessage: StateFlow<String?> = _posMessage.asStateFlow()
 
-    val subtotal: Double get() = _cart.value.sumOf { it.product.sellingPrice * it.quantity }
-    val discountTotal: Double get() = _cart.value.sumOf { it.discount }
-    val total: Double get() = subtotal - discountTotal
+    val cartTotals: StateFlow<CartTotals> = _cart.map { lines ->
+        CartTotals(
+            subtotal = CartMath.subtotal(lines),
+            discountTotal = CartMath.discountTotal(lines),
+            total = CartMath.grandTotal(lines),
+        )
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, CartTotals(0.0, 0.0, 0.0))
+
+    private val _saleEvents = MutableSharedFlow<SaleUiEvent>(extraBufferCapacity = 4)
+    val saleEvents: SharedFlow<SaleUiEvent> = _saleEvents.asSharedFlow()
+
+    private val _isCompletingSale = MutableStateFlow(false)
+    val isCompletingSale: StateFlow<Boolean> = _isCompletingSale.asStateFlow()
+
+    val subtotal: Double get() = CartMath.subtotal(_cart.value)
+    val discountTotal: Double get() = CartMath.discountTotal(_cart.value)
+    val total: Double get() = CartMath.grandTotal(_cart.value)
+
+    fun clearPosMessage() {
+        _posMessage.value = null
+    }
 
     fun addToCart(product: ProductEntity, qty: Int = 1) {
+        val addQty = CartMath.normalizedQty(qty)
         val list = _cart.value.toMutableList()
         val existing = list.indexOfFirst { it.product.id == product.id }
-        val addQty = maxOf(1, qty)
+        val newTotalQty = if (existing >= 0) {
+            list[existing].quantity + addQty
+        } else {
+            addQty
+        }
+        WebPosRules.addToCartWarning(product, newTotalQty)?.let { warn ->
+            _posMessage.value = warn
+        }
         if (existing >= 0) {
-            list[existing].quantity += addQty
+            list[existing] = list[existing].copy(quantity = newTotalQty)
         } else {
             list.add(CartLine(product = product, quantity = addQty, discount = 0.0))
         }
+        _cart.value = list
+    }
+
+    fun onQtyUpdated(index: Int, qty: Int) {
+        val list = _cart.value.toMutableList()
+        if (index !in list.indices) return
+        val line = list[index]
+        val normalized = CartMath.normalizedQty(qty)
+        WebPosRules.qtyEditWarning(line.product, normalized)?.let { warn ->
+            _posMessage.value = warn
+        } ?: run {
+            if (_posMessage.value?.startsWith("Warning:") == true) {
+                _posMessage.value = null
+            }
+        }
+        list[index] = line.copy(quantity = normalized)
         _cart.value = list
     }
 
@@ -69,100 +119,183 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateQty(index: Int, qty: Int) {
-        val list = _cart.value.toMutableList()
-        if (index in list.indices) {
-            list[index].quantity = maxOf(1, qty)
-            _cart.value = list
-        }
-    }
+    fun updateQty(index: Int, qty: Int) = onQtyUpdated(index, qty)
 
     fun updateDiscount(index: Int, disc: Double) {
         val list = _cart.value.toMutableList()
         if (index in list.indices) {
-            list[index].discount = maxOf(0.0, disc)
+            list[index] = list[index].copy(discount = CartMath.normalizedDiscount(disc))
             _cart.value = list
         }
     }
 
-    fun clearSaleMessage() {
-        _saleCompleteMessage.value = null
-    }
-
     fun completeSale(
+        authToken: String?,
+        cashierId: Int,
         customerName: String?,
         cash: Double,
         mobile: Double,
         card: Double,
         credit: Double,
         collectionStatus: String,
-        notes: String? = null
+        notes: String? = null,
+        receipt: ReceiptPrinter.SaleReceiptRequest? = null,
     ) {
+        if (_isCompletingSale.value) return
+
         val cartList = _cart.value
         if (cartList.isEmpty()) {
-            _saleCompleteMessage.value = "Cart is empty"
+            emitFailed("Cart is empty")
             return
         }
-        val totalPay = cash + mobile + card + credit
-        if (totalPay <= 0) {
-            _saleCompleteMessage.value = "Enter at least one payment"
+
+        val saleTotal = CartMath.grandTotal(cartList)
+        var cashAmt = cash
+        var mobileAmt = mobile
+        var cardAmt = card
+        var creditAmt = credit
+        var totalPay = cashAmt + mobileAmt + cardAmt + creditAmt
+
+        if (totalPay <= 0.005 && saleTotal > 0) {
+            cashAmt = saleTotal
+            totalPay = saleTotal
+        }
+
+        WebPosRules.validatePayments(totalPay, saleTotal)?.let {
+            emitFailed(it)
             return
         }
-        if (kotlin.math.abs(totalPay - total) > 0.01) {
-            _saleCompleteMessage.value = "Payments must equal total"
-            return
-        }
+
+        val online = NetworkUtils.isOnline(getApplication())
+
+        _isCompletingSale.value = true
         viewModelScope.launch {
             try {
-                val now = System.currentTimeMillis()
-                val subtotalVal = subtotal
-                val discountVal = discountTotal
-                val totalVal = total
-                val sale = SaleEntity(
-                    cashierId = 1,
-                    customerId = null,
-                    subtotal = subtotalVal,
-                    discountTotal = discountVal,
-                    total = totalVal,
-                    notes = notes ?: customerName?.takeIf { it.isNotBlank() },
-                    collectionStatus = collectionStatus,
-                    createdAt = now
-                )
-                val saleLocalId = saleDao.insert(sale)
-                val items = cartList.map { line ->
-                    SaleItemEntity(
-                        saleLocalId = saleLocalId,
-                        productId = line.product.id,
-                        quantity = line.quantity,
-                        unitPrice = line.product.sellingPrice,
-                        discount = line.discount,
-                        lineTotal = line.lineTotal
+                withContext(Dispatchers.IO) {
+                    if (online && !authToken.isNullOrBlank()) {
+                        refreshProductsFromServer(authToken)
+                    }
+                    val productsById = productDao.getAllActiveList().associateBy { it.id }
+                    if (online) {
+                        WebPosRules.checkoutStockIssues(cartList, productsById)?.let { stockErr ->
+                            throw IllegalStateException(
+                                "Transaction blocked: $stockErr. Receipt will NOT be printed.",
+                            )
+                        }
+                    }
+                    val customerId = resolveCustomerId(authToken, customerName?.trim())
+                    val now = System.currentTimeMillis()
+                    val sale = SaleEntity(
+                        cashierId = cashierId,
+                        customerId = customerId,
+                        subtotal = CartMath.subtotal(cartList),
+                        discountTotal = CartMath.discountTotal(cartList),
+                        total = saleTotal,
+                        notes = notes ?: customerName?.takeIf { it.isNotBlank() && customerId == null },
+                        collectionStatus = collectionStatus,
+                        createdAt = now,
                     )
+                    val saleLocalId = saleDao.insert(sale)
+                    val items = cartList.map { line ->
+                        SaleItemEntity(
+                            saleLocalId = saleLocalId,
+                            productId = line.product.id,
+                            quantity = line.quantity,
+                            unitPrice = line.product.sellingPrice,
+                            discount = line.discount,
+                            lineTotal = line.lineTotal,
+                        )
+                    }
+                    saleItemDao.insertAll(items)
+                    val payments = mutableListOf<PaymentEntity>()
+                    if (cashAmt > 0) payments.add(PaymentEntity(saleLocalId = saleLocalId, method = "cash", amount = cashAmt))
+                    if (mobileAmt > 0) payments.add(PaymentEntity(saleLocalId = saleLocalId, method = "mobile_money", amount = mobileAmt))
+                    if (cardAmt > 0) payments.add(PaymentEntity(saleLocalId = saleLocalId, method = "card", amount = cardAmt))
+                    if (creditAmt > 0) payments.add(PaymentEntity(saleLocalId = saleLocalId, method = "credit", amount = creditAmt))
+                    paymentDao.insertAll(payments)
+                    syncQueueDao.insert(
+                        SyncQueueEntity(
+                            saleLocalId = saleLocalId,
+                            createdAt = now,
+                            status = SyncQueueEntity.STATUS_PENDING,
+                        ),
+                    )
+                    for (line in cartList) {
+                        productDao.deductStock(line.product.id, line.quantity.toDouble())
+                    }
                 }
-                saleItemDao.insertAll(items)
-                val payments = mutableListOf<PaymentEntity>()
-                if (cash > 0) payments.add(PaymentEntity(saleLocalId = saleLocalId, method = "cash", amount = cash))
-                if (mobile > 0) payments.add(PaymentEntity(saleLocalId = saleLocalId, method = "mobile_money", amount = mobile))
-                if (card > 0) payments.add(PaymentEntity(saleLocalId = saleLocalId, method = "card", amount = card))
-                if (credit > 0) payments.add(PaymentEntity(saleLocalId = saleLocalId, method = "credit", amount = credit))
-                paymentDao.insertAll(payments)
-                syncQueueDao.insert(SyncQueueEntity(saleLocalId = saleLocalId, createdAt = now, status = SyncQueueEntity.STATUS_PENDING))
                 _cart.value = emptyList()
-                _saleCompleteMessage.value = "Sale saved. Will sync when online."
+                _posMessage.value = null
+                _saleEvents.emit(
+                    SaleUiEvent.Success(
+                        message = getApplication<Application>().getString(
+                            com.pos.mobile.R.string.sale_saved_offline,
+                        ),
+                        receipt = receipt,
+                    ),
+                )
             } catch (e: Exception) {
-                _saleCompleteMessage.value = "Error: ${e.message}"
+                val msg = e.message ?: "unknown"
+                _posMessage.value = msg
+                emitFailed(msg)
+            } finally {
+                _isCompletingSale.value = false
             }
         }
     }
 
-    fun findProductByBarcode(barcode: String): ProductEntity? {
-        val code = barcode.trim().uppercase()
-        return products.value.find { it.barcode?.uppercase() == code }
+    private suspend fun refreshProductsFromServer(token: String) {
+        val prefs = getApplication<Application>().getSharedPreferences("pos", android.content.Context.MODE_PRIVATE)
+        val baseUrl = prefs.getString("base_url", BuildConfig.DEFAULT_API_BASE_URL)
+            ?: BuildConfig.DEFAULT_API_BASE_URL
+        val api = SyncWorker.createApi(baseUrl)
+        val repo = SyncWorker.createRepository(getApplication(), baseUrl, api, db)
+        repo.pullProductsAndCustomers(token)
     }
 
-    fun searchProducts(query: String): List<ProductEntity> {
+    private suspend fun resolveCustomerId(token: String?, name: String?): Int? {
+        if (name.isNullOrBlank()) return null
+        if (token.isNullOrBlank() || !NetworkUtils.isOnline(getApplication())) return null
+        return try {
+            val api = createApi()
+            val res = api.createCustomer("Bearer $token", CustomerCreateDto(name = name))
+            if (res.isSuccessful) res.body()?.id else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun createApi(): ApiService {
+        val prefs = getApplication<Application>().getSharedPreferences("pos", android.content.Context.MODE_PRIVATE)
+        val baseUrl = prefs.getString("base_url", BuildConfig.DEFAULT_API_BASE_URL)
+            ?: BuildConfig.DEFAULT_API_BASE_URL
+        return SyncWorker.createApi(baseUrl)
+    }
+
+    private fun emitFailed(message: String) {
+        viewModelScope.launch {
+            _saleEvents.emit(SaleUiEvent.Failed(message))
+        }
+    }
+
+    suspend fun findProductByBarcode(barcode: String): ProductEntity? = withContext(Dispatchers.IO) {
+        val code = barcode.trim()
+        if (code.isEmpty()) return@withContext null
+        productDao.findByBarcode(code) ?: productDao.findByBarcodeAny(code)
+    }
+
+    suspend fun searchProducts(query: String): List<ProductEntity> = withContext(Dispatchers.IO) {
         val q = query.trim().lowercase()
-        if (q.isEmpty()) return emptyList()
-        return products.value.filter { it.name.lowercase().contains(q) }
+        if (q.isEmpty()) return@withContext emptyList()
+        val pattern = "%$q%"
+        val fromDb = productDao.searchActive(pattern)
+        if (fromDb.isNotEmpty()) return@withContext fromDb
+        val any = productDao.searchAny(pattern)
+        if (any.isNotEmpty()) return@withContext any
+        products.value.filter {
+            it.isActive &&
+                (it.name.lowercase().contains(q) ||
+                    (it.barcode?.lowercase()?.contains(q) == true))
+        }.take(30)
     }
 }

@@ -9,7 +9,10 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Bundle
+import android.text.Editable
 import android.text.InputType
+import android.text.TextWatcher
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -18,7 +21,6 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
-import android.widget.PopupMenu
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
@@ -42,7 +44,14 @@ import com.pos.mobile.data.remote.LogoutRequest
 import com.pos.mobile.data.remote.RefreshRequest
 import com.pos.mobile.data.remote.RegisterRequest
 import com.pos.mobile.data.remote.ResetPasswordRequest
+import com.pos.mobile.data.local.entity.SyncQueueEntity
+import com.pos.mobile.data.sync.SyncRepository
 import com.pos.mobile.data.sync.SyncWorker
+import com.pos.mobile.sync.NetworkUtils
+import com.pos.mobile.printer.BluetoothPermissionDelegate
+import com.pos.mobile.printer.PrinterPermissionHelper
+import com.pos.mobile.printer.PrinterSetupDialog
+import com.pos.mobile.printer.bluetoothPermissionDelegate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -58,10 +67,21 @@ class MainActivity : AppCompatActivity() {
     private lateinit var viewModel: PosViewModel
     private lateinit var cartAdapter: CartAdapter
     private lateinit var searchAdapter: SearchProductAdapter
+    private var posSearchSetupDone = false
+    private var saleEventsObserving = false
+    private var activePaymentDialog: BottomSheetDialog? = null
+    private var manualSyncInProgress = false
     private var api: ApiService? = null
+    private var posContainerRef: View? = null
+    private var notificationBadgeJob: kotlinx.coroutines.Job? = null
+
+    companion object {
+        private const val REQ_NOTIFICATIONS = 2001
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        BluetoothPermissionDelegate.install(this)
         setContentView(R.layout.activity_main)
         applyEdgeToEdgeInsets(findViewById(R.id.root_container))
         viewModel = androidx.lifecycle.ViewModelProvider(this)[PosViewModel::class.java]
@@ -77,7 +97,7 @@ class MainActivity : AppCompatActivity() {
             val cachedProducts = withContext(Dispatchers.IO) {
                 AppDatabase.getInstance(this@MainActivity).productDao().countActive() > 0
             }
-            val offlineOk = session.canUseOffline() && tokenPresent && cachedProducts
+            val offlineOk = session.canUseOfflineForPos() && tokenPresent && cachedProducts
             val baseUrl = prefs.getString("base_url", BuildConfig.DEFAULT_API_BASE_URL) ?: BuildConfig.DEFAULT_API_BASE_URL
             if (offlineOk) {
                 api = SyncWorker.createApi(baseUrl)
@@ -182,13 +202,20 @@ class MainActivity : AppCompatActivity() {
                         )
                         prefs.edit().putString("last_login_identifier", user).apply()
                     }
-                    loadProductsIntoDb(session.getAccessToken()!!)
-                    runOnUiThread {
+                    val token = session.getAccessToken()!!
+                    val synced = syncEssentialData(token)
+                    val (productCount, cacheCount) = withContext(Dispatchers.IO) {
+                        val db = AppDatabase.getInstance(this@MainActivity)
+                        db.productDao().countActive() to db.apiCacheDao().count()
+                    }
+                    withContext(Dispatchers.Main) {
+                        showSyncResultToast(synced, productCount, cacheCount)
                         loginContainer.isVisible = false
                         posContainer.isVisible = true
                         refreshSessionInBackground(prefs)
                         setupPos(posContainer, prefs)
                     }
+                    promptTrialSubscriptionAfterAuth()
                 } catch (e: Exception) {
                     val isOffline = isOfflineException(e)
                     if (isOffline && canOpenOfflineMode(prefs)) {
@@ -284,8 +311,13 @@ class MainActivity : AppCompatActivity() {
                     }
                     val dto = res.body()!!
                     applySaasAuthDto(session, prefs, dto)
-                    loadProductsIntoDb(dto.access_token)
-                    runOnUiThread {
+                    val synced = syncEssentialData(dto.access_token)
+                    val (productCount, cacheCount) = withContext(Dispatchers.IO) {
+                        val db = AppDatabase.getInstance(this@MainActivity)
+                        db.productDao().countActive() to db.apiCacheDao().count()
+                    }
+                    withContext(Dispatchers.Main) {
+                        showSyncResultToast(synced, productCount, cacheCount)
                         registerCard.isVisible = false
                         loginCard.isVisible = true
                         loginTitle.setText(R.string.pos_login)
@@ -294,6 +326,7 @@ class MainActivity : AppCompatActivity() {
                         refreshSessionInBackground(prefs)
                         setupPos(posContainer, prefs)
                     }
+                    promptTrialSubscriptionAfterAuth()
                 } catch (e: Exception) {
                     runOnUiThread {
                         regErr.text = if (isOfflineException(e)) {
@@ -492,7 +525,7 @@ class MainActivity : AppCompatActivity() {
                 return@launch
             }
             val session = SessionStore(this@MainActivity)
-            val token = session.getAccessToken() ?: return@launch
+            var token = session.getAccessToken() ?: return@launch
             try {
                 val verify = svc.authVerify("Bearer $token")
                 if (verify.isSuccessful && verify.body()?.valid == true) {
@@ -500,6 +533,7 @@ class MainActivity : AppCompatActivity() {
                     val sub = b.subscription_status ?: "active"
                     val verifiedMs = parseIsoToMs(b.last_verified_at) ?: System.currentTimeMillis()
                     session.updateSubscriptionMeta(sub, verifiedMs)
+                    syncEssentialData(token)
                     return@launch
                 }
                 val refreshTok = session.getRefreshToken()
@@ -509,9 +543,12 @@ class MainActivity : AppCompatActivity() {
                         val a = r.body()!!
                         session.updateTokens(a.access_token, a.refresh_token)
                         applySaasAuthDto(session, prefs, a)
+                        token = a.access_token
                     }
                 }
-            } catch (_: Exception) {
+                syncEssentialData(token)
+            } catch (e: Exception) {
+                Log.w("MainActivity", "Session refresh failed", e)
             }
         }
     }
@@ -520,39 +557,53 @@ class MainActivity : AppCompatActivity() {
         val session = SessionStore(this@MainActivity)
         val token = prefs.getString("token", null)
         if (token.isNullOrBlank()) return false
-        if (!session.canUseOffline()) return false
+        if (!session.canUseOfflineForPos()) return false
         return hasCachedOfflineData()
     }
 
     private suspend fun hasCachedOfflineData(): Boolean {
-        return AppDatabase.getInstance(this@MainActivity).productDao().countActive() > 0
+        val db = AppDatabase.getInstance(this@MainActivity)
+        return db.productDao().countActive() > 0 || db.apiCacheDao().count() > 0
     }
 
-    private suspend fun loadProductsIntoDb(token: String) {
-        val apiService = api ?: return
-        withContext(Dispatchers.IO) {
-            try {
-                val res = apiService.getProducts("Bearer $token")
-                if (res.isSuccessful) {
-                    val list = res.body() ?: emptyList()
-                    val db = AppDatabase.getInstance(this@MainActivity)
-                    val entities = list.map { dto ->
-                        com.pos.mobile.data.local.entity.ProductEntity(
-                            id = dto.id,
-                            name = dto.name,
-                            barcode = dto.barcode,
-                            categoryId = dto.category_id,
-                            stockQty = dto.stock_qty,
-                            sellingPrice = dto.selling_price,
-                            costPrice = dto.cost_price,
-                            isActive = dto.is_active,
-                            serverSyncedAt = System.currentTimeMillis()
-                        )
-                    }
-                    db.productDao().deleteAll()
-                    db.productDao().insertAll(entities)
-                }
-            } catch (_: Exception) {}
+    private fun createSyncRepository(): SyncRepository {
+        val db = AppDatabase.getInstance(this)
+        val prefs = getSharedPreferences("pos", MODE_PRIVATE)
+        val baseUrl = prefs.getString("base_url", BuildConfig.DEFAULT_API_BASE_URL) ?: BuildConfig.DEFAULT_API_BASE_URL
+        val api = SyncWorker.createApi(baseUrl)
+        return SyncWorker.createRepository(this, baseUrl, api, db)
+    }
+
+    /** Pull master DB snapshot (products, reports, debts, pages) for offline use. */
+    private suspend fun syncEssentialData(token: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val ok = createSyncRepository().syncMasterDatabase(token).isSuccess
+            if (ok) {
+                SessionStore(this@MainActivity).recordOfflineAnchor()
+            }
+            ok
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Master data sync failed", e)
+            false
+        }
+    }
+
+    private fun showSyncResultToast(synced: Boolean, productCount: Int, cacheCount: Int = 0) {
+        when {
+            synced && productCount > 0 -> Toast.makeText(
+                this,
+                if (cacheCount > 0) {
+                    getString(R.string.synced_master, productCount, cacheCount)
+                } else {
+                    getString(R.string.synced_products, productCount)
+                },
+                Toast.LENGTH_SHORT
+            ).show()
+            productCount == 0 && !synced -> Toast.makeText(
+                this,
+                getString(R.string.sync_failed_no_products),
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
@@ -594,7 +645,22 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupPos(posContainer: View, prefs: android.content.SharedPreferences) {
         val shopName = posContainer.findViewById<android.widget.TextView>(R.id.shop_name)
-        shopName.text = prefs.getString("store_name", getString(R.string.store_name)) ?: getString(R.string.store_name)
+        val username = prefs.getString("username", "") ?: ""
+        val role = prefs.getString("role", "cashier") ?: "cashier"
+        val storeLabel = prefs.getString("store_name", getString(R.string.store_name)) ?: getString(R.string.store_name)
+        shopName.text = if (username.isNotBlank()) "$storeLabel — $username ($role)" else storeLabel
+
+        val posMessageTv = posContainer.findViewById<TextView>(R.id.pos_message)
+        lifecycleScope.launch {
+            viewModel.posMessage.collect { msg ->
+                if (msg.isNullOrBlank()) {
+                    posMessageTv.visibility = View.GONE
+                } else {
+                    posMessageTv.text = msg
+                    posMessageTv.visibility = View.VISIBLE
+                }
+            }
+        }
 
         // Offline indicator: show "Offline" when no network; UI is always available from local data
         val statusIndicator = posContainer.findViewById<android.widget.TextView>(R.id.status_offline_indicator)
@@ -616,14 +682,19 @@ class MainActivity : AppCompatActivity() {
         val searchResults = posContainer.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.search_results)
         val cartList = posContainer.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.cart_list)
         val btnPayment = posContainer.findViewById<android.widget.Button>(R.id.btn_payment)
-        val btnMorePages = posContainer.findViewById<android.widget.Button>(R.id.btn_more_pages)
+        val btnAdmin = posContainer.findViewById<android.widget.Button>(R.id.btn_admin)
         val btnLayby = posContainer.findViewById<android.widget.Button>(R.id.btn_layby)
         val btnLogout = posContainer.findViewById<android.widget.Button>(R.id.btn_logout)
-        val iconMore = posContainer.findViewById<android.widget.Button>(R.id.icon_more)
+        val iconSync = posContainer.findViewById<android.widget.Button>(R.id.icon_sync)
         val iconPayment = posContainer.findViewById<android.widget.Button>(R.id.icon_payment)
         val iconTheme = posContainer.findViewById<android.widget.Button>(R.id.icon_theme)
+        val iconPrinter = posContainer.findViewById<android.widget.Button>(R.id.icon_printer)
         val iconSettings = posContainer.findViewById<android.widget.Button>(R.id.icon_settings)
         val iconWithdraw = posContainer.findViewById<android.widget.Button>(R.id.icon_withdraw)
+        val iconNotifications = posContainer.findViewById<android.widget.Button>(R.id.icon_notifications)
+        val iconStats = posContainer.findViewById<android.widget.Button>(R.id.icon_stats)
+        val iconBilling = posContainer.findViewById<android.widget.Button>(R.id.icon_billing)
+        posContainerRef = posContainer
 
         searchAdapter = SearchProductAdapter { product ->
             viewModel.addToCart(product, 1)
@@ -647,32 +718,110 @@ class MainActivity : AppCompatActivity() {
         cartList.itemAnimator = null
         cartList.setHasFixedSize(false)
 
+        val cartSubtotalTv = posContainer.findViewById<TextView>(R.id.cart_subtotal)
+        val cartDiscountTv = posContainer.findViewById<TextView>(R.id.cart_discount)
+        val cartGrandTotalTv = posContainer.findViewById<TextView>(R.id.cart_grand_total)
+        val cartFormat = java.text.NumberFormat.getCurrencyInstance(java.util.Locale.US)
+
         lifecycleScope.launch {
             viewModel.cart.collect { list ->
                 cartAdapter.submitList(list.toList())
             }
+        }
+        lifecycleScope.launch {
+            viewModel.cartTotals.collect { totals ->
+                cartSubtotalTv.text = cartFormat.format(totals.subtotal)
+                cartDiscountTv.text = cartFormat.format(totals.discountTotal)
+                cartGrandTotalTv.text = cartFormat.format(totals.total)
+            }
+        }
+
+        if (!saleEventsObserving) {
+            saleEventsObserving = true
+            lifecycleScope.launch {
+                viewModel.saleEvents.collect { event ->
+                    when (event) {
+                        is SaleUiEvent.Success -> {
+                            activePaymentDialog?.dismiss()
+                            activePaymentDialog = null
+                            Toast.makeText(this@MainActivity, event.message, Toast.LENGTH_LONG).show()
+                            triggerSyncWhenOnline()
+                            val toPrint = event.receipt
+                            if (toPrint != null) {
+                                window.decorView.postDelayed({
+                                    if (!isFinishing && !isDestroyed) {
+                                        ReceiptPrinter.printSale(
+                                            context = this@MainActivity,
+                                            request = toPrint,
+                                            scope = lifecycleScope,
+                                        )
+                                    }
+                                }, 400)
+                            }
+                        }
+                        is SaleUiEvent.Failed -> {
+                            Toast.makeText(this@MainActivity, event.message, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+        }
+
+        fun applySearchResults(matches: List<ProductEntity>) {
+            if (matches.size == 1) {
+                viewModel.addToCart(matches[0], 1)
+                barcodeInput.text.clear()
+                searchResults.isVisible = false
+                searchAdapter.submitList(emptyList())
+            } else if (matches.isNotEmpty()) {
+                searchAdapter.submitList(matches.take(20)) {
+                    searchResults.isVisible = true
+                    searchResults.requestLayout()
+                }
+            } else {
+                searchResults.isVisible = false
+                searchAdapter.submitList(emptyList())
+            }
+        }
+
+        if (!posSearchSetupDone) {
+            posSearchSetupDone = true
+            barcodeInput.addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: Editable?) {
+                    val value = s?.toString()?.trim() ?: ""
+                    if (value.isEmpty()) {
+                        searchResults.isVisible = false
+                        searchAdapter.submitList(emptyList())
+                        return
+                    }
+                    lifecycleScope.launch {
+                        val matches = viewModel.searchProducts(value)
+                        applySearchResults(matches)
+                    }
+                }
+            })
         }
 
         barcodeInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE || actionId == EditorInfo.IME_ACTION_GO) {
                 val value = barcodeInput.text.toString().trim()
                 if (value.isNotEmpty()) {
-                    val product = viewModel.findProductByBarcode(value)
-                    if (product != null) {
-                        viewModel.addToCart(product, 1)
-                        barcodeInput.text.clear()
-                        searchResults.isVisible = false
-                    } else {
-                        val matches = viewModel.searchProducts(value)
-                        if (matches.size == 1) {
-                            viewModel.addToCart(matches[0], 1)
+                    lifecycleScope.launch {
+                        val product = viewModel.findProductByBarcode(value)
+                        if (product != null) {
+                            viewModel.addToCart(product, 1)
                             barcodeInput.text.clear()
                             searchResults.isVisible = false
-                        } else if (matches.isNotEmpty()) {
-                            searchAdapter.submitList(matches.take(20))
-                            searchResults.isVisible = true
+                            searchAdapter.submitList(emptyList())
                         } else {
-                            Toast.makeText(this, "No product found", Toast.LENGTH_SHORT).show()
+                            val matches = viewModel.searchProducts(value)
+                            if (matches.isEmpty()) {
+                                Toast.makeText(this@MainActivity, "No product found", Toast.LENGTH_SHORT).show()
+                            } else {
+                                applySearchResults(matches)
+                            }
                         }
                     }
                 }
@@ -680,38 +829,26 @@ class MainActivity : AppCompatActivity() {
             } else false
         }
 
-        btnPayment.setOnClickListener { showPaymentSheet() }
-
-        fun openMorePages(anchor: View) {
-            val popup = PopupMenu(this, anchor)
-            popup.menuInflater.inflate(R.menu.pos_pages_menu, popup.menu)
-            popup.setOnMenuItemClickListener { item ->
-                if (item.itemId == R.id.page_store) {
-                    // Already on Store; just dismiss popup
-                    return@setOnMenuItemClickListener true
-                }
-                val (path, title) = when (item.itemId) {
-                    R.id.page_admin -> "/admin" to "Admin"
-                    R.id.page_layby -> "/layby" to "Layby"
-                    R.id.page_pending_collection -> "/pending-collection" to "Pending Collection"
-                    R.id.page_store_settings -> "/store-settings" to "Store Settings"
-                    R.id.page_analytics -> "/analytics" to "Analytics"
-                    R.id.page_accounting -> "/accounting" to "Accounting"
-                    R.id.page_withdrawals -> "/withdrawals/history" to "Withdrawals History"
-                    R.id.page_outstanding_debts -> "/debts/outstanding" to "Outstanding Debts"
-                    else -> return@setOnMenuItemClickListener false
-                }
-                startActivity(Intent(this, WebViewActivity::class.java).apply {
-                    putExtra(WebViewActivity.EXTRA_PATH, path)
-                    putExtra(WebViewActivity.EXTRA_TITLE, title)
-                })
-                true
+        fun openCheckout() {
+            currentFocus?.clearFocus()
+            cartAdapter.commitVisibleEdits(cartList)
+            if (viewModel.cart.value.isEmpty()) {
+                Toast.makeText(this, R.string.cart_empty, Toast.LENGTH_SHORT).show()
+                return
             }
-            popup.show()
+            showPaymentSheet()
         }
-        btnMorePages.setOnClickListener { v -> openMorePages(v) }
-        iconMore.setOnClickListener { v -> openMorePages(v) }
-        iconPayment.setOnClickListener { showPaymentSheet() }
+        btnPayment.setOnClickListener { openCheckout() }
+
+        btnAdmin.isVisible = WebPosRules.roleCanAccessAdmin(role)
+        btnAdmin.setOnClickListener {
+            startActivity(Intent(this, WebViewActivity::class.java).apply {
+                putExtra(WebViewActivity.EXTRA_PATH, "/admin")
+                putExtra(WebViewActivity.EXTRA_TITLE, getString(R.string.admin))
+            })
+        }
+        iconSync.setOnClickListener { runManualSync(prefs, iconSync) }
+        iconPayment.setOnClickListener { openCheckout() }
         iconTheme.setOnClickListener { showThemeDialog(prefs) }
         iconSettings.setOnClickListener {
             startActivity(Intent(this, WebViewActivity::class.java).apply {
@@ -719,17 +856,41 @@ class MainActivity : AppCompatActivity() {
                 putExtra(WebViewActivity.EXTRA_TITLE, "Store Settings")
             })
         }
-        iconWithdraw.setOnClickListener {
-            startActivity(Intent(this, WebViewActivity::class.java).apply {
-                putExtra(WebViewActivity.EXTRA_PATH, "/withdrawals/history")
-                putExtra(WebViewActivity.EXTRA_TITLE, "Withdrawals History")
-            })
+        iconPrinter.setOnClickListener {
+            try {
+                val storeName = prefs.getString("store_name", getString(R.string.store_name))
+                    ?: getString(R.string.store_name)
+                PrinterSetupDialog.show(this, lifecycleScope, storeName)
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Printer setup failed", e)
+                Toast.makeText(
+                    this,
+                    getString(R.string.printer_failed, e.message ?: "error"),
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
         }
+        iconWithdraw.isVisible = WebPosRules.roleCanAccessWithdrawal(role)
+        iconWithdraw.setOnClickListener {
+            startActivity(Intent(this, WithdrawalActivity::class.java))
+        }
+        iconNotifications.setOnClickListener {
+            startActivityForResult(
+                Intent(this, NotificationsActivity::class.java),
+                REQ_NOTIFICATIONS,
+            )
+        }
+        iconStats.setOnClickListener {
+            startActivity(Intent(this, StatsActivity::class.java))
+        }
+        iconBilling.isVisible = WebPosRules.roleCanAccessAdmin(role)
+        iconBilling.setOnClickListener {
+            startActivity(Intent(this, SubscriptionActivity::class.java))
+        }
+        refreshNotificationBadge(iconNotifications)
+        refreshSubscriptionWarning(posContainer)
         btnLayby.setOnClickListener {
-            startActivity(Intent(this, WebViewActivity::class.java).apply {
-                putExtra(WebViewActivity.EXTRA_PATH, "/layby")
-                putExtra(WebViewActivity.EXTRA_TITLE, "Layby")
-            })
+            startActivity(Intent(this, LaybyActivity::class.java))
         }
         btnLogout.setOnClickListener {
             lifecycleScope.launch(Dispatchers.IO) {
@@ -756,6 +917,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showPaymentSheet() {
+        val posCartList = findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.cart_list)
+        if (::cartAdapter.isInitialized && posCartList != null) {
+            cartAdapter.commitVisibleEdits(posCartList)
+        }
         val sheetView = LayoutInflater.from(this).inflate(R.layout.bottom_sheet_payment, null)
         val dialog = BottomSheetDialog(this)
         dialog.setContentView(sheetView)
@@ -763,6 +928,10 @@ class MainActivity : AppCompatActivity() {
         val subtotalTv = sheetView.findViewById<android.widget.TextView>(R.id.payment_subtotal)
         val discountTv = sheetView.findViewById<android.widget.TextView>(R.id.payment_discount)
         val totalTv = sheetView.findViewById<android.widget.TextView>(R.id.payment_total)
+        val paidRow = sheetView.findViewById<View>(R.id.payment_paid_row)
+        val paidTv = sheetView.findViewById<android.widget.TextView>(R.id.payment_paid)
+        val changeRow = sheetView.findViewById<View>(R.id.payment_change_row)
+        val changeTv = sheetView.findViewById<android.widget.TextView>(R.id.payment_change)
         val customerEt = sheetView.findViewById<android.widget.EditText>(R.id.payment_customer)
         val payCash = sheetView.findViewById<android.widget.EditText>(R.id.pay_cash)
         val payMobile = sheetView.findViewById<android.widget.EditText>(R.id.pay_mobile)
@@ -773,9 +942,62 @@ class MainActivity : AppCompatActivity() {
         val messageTv = sheetView.findViewById<android.widget.TextView>(R.id.payment_message)
 
         val format = java.text.NumberFormat.getCurrencyInstance(java.util.Locale.US)
-        subtotalTv.text = format.format(viewModel.subtotal)
-        discountTv.text = format.format(viewModel.discountTotal)
-        totalTv.text = format.format(viewModel.total)
+        var saleTotal = viewModel.cartTotals.value.total
+
+        fun paymentAmount(et: android.widget.EditText): Double =
+            et.text.toString().toDoubleOrNull() ?: 0.0
+
+        fun refreshPaymentTotals() {
+            val paid = paymentAmount(payCash) + paymentAmount(payMobile) +
+                paymentAmount(payCard) + paymentAmount(payCredit)
+            if (paid > 0.005) {
+                paidRow.isVisible = true
+                paidTv.text = format.format(paid)
+            } else {
+                paidRow.isVisible = false
+            }
+            val change = paid - saleTotal
+            if (change > 0.005) {
+                changeRow.isVisible = true
+                changeTv.text = format.format(change)
+            } else {
+                changeRow.isVisible = false
+            }
+        }
+
+        fun applyCartTotalsToSheet(totals: CartTotals) {
+            saleTotal = totals.total
+            subtotalTv.text = format.format(totals.subtotal)
+            discountTv.text = format.format(totals.discountTotal)
+            totalTv.text = format.format(totals.total)
+            refreshPaymentTotals()
+        }
+        applyCartTotalsToSheet(viewModel.cartTotals.value)
+        if (saleTotal > 0.005 && payCash.text.isNullOrBlank()) {
+            payCash.setText(String.format(java.util.Locale.US, "%.2f", saleTotal))
+            refreshPaymentTotals()
+        }
+
+        val totalsJob = lifecycleScope.launch {
+            viewModel.cartTotals.collect { totals ->
+                if (dialog.isShowing) {
+                    applyCartTotalsToSheet(totals)
+                }
+            }
+        }
+        activePaymentDialog = dialog
+
+        val paymentWatcher = object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                refreshPaymentTotals()
+            }
+        }
+        payCash.addTextChangedListener(paymentWatcher)
+        payMobile.addTextChangedListener(paymentWatcher)
+        payCard.addTextChangedListener(paymentWatcher)
+        payCredit.addTextChangedListener(paymentWatcher)
 
         val statusAdapter = ArrayAdapter.createFromResource(
             this,
@@ -785,76 +1007,93 @@ class MainActivity : AppCompatActivity() {
         collectionSpinner.adapter = statusAdapter
 
         val prefs = getSharedPreferences("pos", MODE_PRIVATE)
-        var receiptCart: List<CartLine>? = null
-        var receiptPayments: List<Pair<String, Double>> = emptyList()
-        var receiptCustomer: String? = null
-        var receiptStatus = "collected"
-        var receiptSubtotal = 0.0
-        var receiptDiscount = 0.0
-        var receiptTotal = 0.0
 
-        viewModel.clearSaleMessage()
-        lifecycleScope.launch {
-            viewModel.saleCompleteMessage.collect { msg ->
-                if (msg != null) {
-                    messageTv.text = msg
-                    messageTv.visibility = View.VISIBLE
-                    viewModel.clearSaleMessage()
-                    if (msg.startsWith("Sale saved")) {
-                        receiptCart = null
-                        triggerSyncWhenOnline()
-                        dialog.dismiss()
-                    }
+        val busyJob = lifecycleScope.launch {
+            viewModel.isCompletingSale.collect { busy ->
+                btnComplete.isEnabled = !busy
+                btnComplete.text = if (busy) {
+                    getString(R.string.sale_processing)
+                } else {
+                    getString(R.string.complete_sale)
                 }
             }
         }
+        val sheetErrorJob = lifecycleScope.launch {
+            viewModel.saleEvents.collect { event ->
+                if (dialog.isShowing && event is SaleUiEvent.Failed) {
+                    messageTv.text = event.message
+                    messageTv.visibility = View.VISIBLE
+                }
+            }
+        }
+        dialog.setOnDismissListener {
+            totalsJob.cancel()
+            busyJob.cancel()
+            sheetErrorJob.cancel()
+            if (activePaymentDialog === dialog) activePaymentDialog = null
+        }
+
         btnComplete.setOnClickListener {
-            val cash = payCash.text.toString().toDoubleOrNull() ?: 0.0
-            val mobile = payMobile.text.toString().toDoubleOrNull() ?: 0.0
-            val card = payCard.text.toString().toDoubleOrNull() ?: 0.0
-            val credit = payCredit.text.toString().toDoubleOrNull() ?: 0.0
+            messageTv.visibility = View.GONE
+            currentFocus?.clearFocus()
+            var cash = payCash.text.toString().toDoubleOrNull() ?: 0.0
+            var mobile = payMobile.text.toString().toDoubleOrNull() ?: 0.0
+            var card = payCard.text.toString().toDoubleOrNull() ?: 0.0
+            var credit = payCredit.text.toString().toDoubleOrNull() ?: 0.0
             val status = if (collectionSpinner.selectedItemPosition == 1) "to_collect" else "collected"
-            receiptCart = viewModel.cart.value.toList()
-            receiptSubtotal = viewModel.subtotal
-            receiptDiscount = viewModel.discountTotal
-            receiptTotal = viewModel.total
-            receiptCustomer = customerEt.text.toString().trim().takeIf { it.isNotBlank() }
-            receiptStatus = status
-            receiptPayments = buildList {
+            val cart = viewModel.cart.value.toList()
+            if (cart.isEmpty()) {
+                val msg = getString(R.string.cart_empty)
+                messageTv.text = msg
+                messageTv.visibility = View.VISIBLE
+                Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val receiptTotal = viewModel.cartTotals.value.total
+            var paid = cash + mobile + card + credit
+            if (paid <= 0.005 && receiptTotal > 0) {
+                cash = receiptTotal
+                paid = receiptTotal
+            }
+            val receiptCustomer = customerEt.text.toString().trim().takeIf { it.isNotBlank() }
+            val receiptPayments = buildList {
                 if (cash > 0) add("cash" to cash)
                 if (mobile > 0) add("mobile_money" to mobile)
                 if (card > 0) add("card" to card)
                 if (credit > 0) add("credit" to credit)
             }
-            val cart = receiptCart
-            if (cart != null && cart.isNotEmpty()) {
-                val paid = receiptPayments.sumOf { it.second }
-                if (paid > 0 && kotlin.math.abs(paid - receiptTotal) <= 0.01) {
-                    val storeName = prefs.getString("store_name", getString(R.string.store_name))
-                        ?: getString(R.string.store_name)
-                    val cashier = prefs.getString("username", null)
-                    ReceiptPrinter.printSale(
-                        context = this@MainActivity,
-                        storeName = storeName,
-                        cartLines = cart,
-                        subtotal = receiptSubtotal,
-                        discountTotal = receiptDiscount,
-                        total = receiptTotal,
-                        payments = receiptPayments,
-                        customerName = receiptCustomer,
-                        collectionStatus = receiptStatus,
-                        cashierName = cashier,
-                    )
-                }
+            val storeName = prefs.getString("store_name", getString(R.string.store_name))
+                ?: getString(R.string.store_name)
+            val cashier = prefs.getString("username", null)
+            val receipt = if (paid + 0.01 >= receiptTotal) {
+                ReceiptPrinter.SaleReceiptRequest(
+                    storeName = storeName,
+                    cartLines = cart,
+                    subtotal = viewModel.subtotal,
+                    discountTotal = viewModel.discountTotal,
+                    total = receiptTotal,
+                    payments = receiptPayments,
+                    customerName = receiptCustomer,
+                    collectionStatus = status,
+                    cashierName = cashier,
+                )
+            } else {
+                null
             }
+            val session = SessionStore(this)
+            val token = session.getAccessToken() ?: prefs.getString("token", null)
+            val cashierId = session.getUserId().takeIf { it > 0 } ?: 1
             viewModel.completeSale(
+                authToken = token,
+                cashierId = cashierId,
                 customerName = receiptCustomer,
                 cash = cash,
                 mobile = mobile,
                 card = card,
                 credit = credit,
                 collectionStatus = status,
-                notes = null
+                notes = null,
+                receipt = receipt,
             )
         }
         dialog.show()
@@ -892,6 +1131,76 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private data class ManualSyncOutcome(
+        val masterOk: Boolean,
+        val productCount: Int,
+        val salesPushed: Int,
+        val salesPending: Int,
+    )
+
+    /** User-triggered sync: refresh catalog and upload queued sales. */
+    private fun runManualSync(prefs: android.content.SharedPreferences, syncButton: android.widget.Button) {
+        if (manualSyncInProgress) return
+        if (!NetworkUtils.isOnline(this)) {
+            Toast.makeText(this, R.string.sync_requires_network, Toast.LENGTH_LONG).show()
+            return
+        }
+        val session = SessionStore(this)
+        val token = session.getAccessToken() ?: prefs.getString("token", null)
+        if (token.isNullOrBlank()) {
+            Toast.makeText(this, R.string.sync_requires_login, Toast.LENGTH_SHORT).show()
+            return
+        }
+        manualSyncInProgress = true
+        syncButton.isEnabled = false
+        Toast.makeText(this, R.string.sync_in_progress, Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            val outcome = withContext(Dispatchers.IO) {
+                performManualSync(token)
+            }
+            manualSyncInProgress = false
+            syncButton.isEnabled = true
+            val msg = when {
+                !outcome.masterOk && outcome.salesPushed == 0 && outcome.salesPending > 0 ->
+                    getString(R.string.sync_master_failed) +
+                        " " + getString(R.string.sync_partial, 0, outcome.salesPending)
+                !outcome.masterOk ->
+                    getString(R.string.sync_master_failed)
+                else ->
+                    getString(
+                        R.string.sync_complete,
+                        outcome.productCount,
+                        outcome.salesPushed,
+                        outcome.salesPending,
+                    )
+            }
+            Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
+            triggerSyncWhenOnline()
+        }
+    }
+
+    private suspend fun performManualSync(token: String): ManualSyncOutcome {
+        val repo = createSyncRepository()
+        val db = AppDatabase.getInstance(this)
+        val masterOk = repo.syncMasterDatabase(token).isSuccess
+        if (masterOk) {
+            SessionStore(this).recordOfflineAnchor()
+        }
+        val pending = db.syncQueueDao().getByStatus(SyncQueueEntity.STATUS_PENDING)
+        var pushed = 0
+        for (item in pending) {
+            repo.pushSale(token, item).onSuccess { pushed++ }
+        }
+        val stillPending = db.syncQueueDao().getByStatus(SyncQueueEntity.STATUS_PENDING).size
+        val productCount = db.productDao().countActive()
+        return ManualSyncOutcome(
+            masterOk = masterOk,
+            productCount = productCount,
+            salesPushed = pushed,
+            salesPending = stillPending,
+        )
+    }
+
     /** Enqueue a one-time sync when online. UI never waits; sync runs in background. */
     private fun triggerSyncWhenOnline() {
         val constraints = Constraints.Builder()
@@ -904,7 +1213,146 @@ class MainActivity : AppCompatActivity() {
         WorkManager.getInstance(this).enqueue(work)
     }
 
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PrinterPermissionHelper.REQUEST_CODE) {
+            val prefs = getSharedPreferences("pos", MODE_PRIVATE)
+            val storeName = prefs.getString("store_name", getString(R.string.store_name))
+                ?: getString(R.string.store_name)
+            val granted = PrinterPermissionHelper.legacyResultsGranted(permissions, grantResults)
+            PrinterSetupDialog.handleBluetoothPermissionResult(
+                activity = this,
+                granted = granted,
+                scope = lifecycleScope,
+                storeName = storeName,
+            )
+        }
+    }
+
+    /**
+     * After SaaS login or register, if the tenant is on a free trial, open the subscription screen once.
+     * Skips when offline or status cannot be loaded (e.g. legacy auth without tenant).
+     */
+    private suspend fun promptTrialSubscriptionAfterAuth() {
+        if (!NetworkUtils.isOnline(this)) return
+        val bearer = PosAuth.bearer(this) ?: return
+        val s = try {
+            val resp = withContext(Dispatchers.IO) {
+                PosAuth.api(this@MainActivity).getSubscriptionStatus(bearer)
+            }
+            if (!resp.isSuccessful) return
+            resp.body() ?: return
+        } catch (_: Exception) {
+            return
+        }
+        SessionStore(this).updateSubscriptionCache(
+            status = s.effective_status,
+            subscriptionEndIso = s.subscription_end ?: s.trial_end,
+            plan = s.plan,
+            verifiedMs = System.currentTimeMillis(),
+            accessAllowed = s.access_allowed,
+        )
+        if (s.effective_status != "trial") return
+        withContext(Dispatchers.Main) {
+            startActivity(Intent(this@MainActivity, SubscriptionActivity::class.java))
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (findViewById<View>(R.id.pos_container)?.isVisible == true) {
+            findViewById<android.widget.Button>(R.id.icon_notifications)?.let { refreshNotificationBadge(it) }
+            findViewById<View>(R.id.pos_container)?.let { refreshSubscriptionWarning(it) }
+            refreshSubscriptionFromServer()
+        }
+    }
+
+    private fun refreshSubscriptionWarning(posContainer: View) {
+        val prefs = getSharedPreferences("pos", MODE_PRIVATE)
+        val role = prefs.getString("role", "cashier") ?: "cashier"
+        val session = SessionStore(this)
+        val sub = session.subscriptionStatus()
+        val warnTv = posContainer.findViewById<TextView>(R.id.subscription_banner)
+        if (warnTv == null) return
+        val show = sub == "trial_expired" || sub == "expired" || sub == "pending_payment"
+        warnTv.isVisible = show
+        if (show) {
+            warnTv.text = getString(R.string.subscription_expired_warning)
+            warnTv.setOnClickListener {
+                if (WebPosRules.roleCanAccessAdmin(role)) {
+                    startActivity(Intent(this, SubscriptionActivity::class.java))
+                } else {
+                    Toast.makeText(
+                        this,
+                        getString(R.string.subscription_admin_only),
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+        }
+    }
+
+    private fun refreshSubscriptionFromServer() {
+        if (!NetworkUtils.isOnline(this)) return
+        val bearer = PosAuth.bearer(this) ?: return
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val resp = PosAuth.api(this@MainActivity).getSubscriptionStatus(bearer)
+                if (resp.isSuccessful) {
+                    val s = resp.body() ?: return@launch
+                    SessionStore(this@MainActivity).updateSubscriptionCache(
+                        status = s.effective_status,
+                        subscriptionEndIso = s.subscription_end ?: s.trial_end,
+                        plan = s.plan,
+                        verifiedMs = System.currentTimeMillis(),
+                        accessAllowed = s.access_allowed,
+                    )
+                    withContext(Dispatchers.Main) {
+                        posContainerRef?.let { refreshSubscriptionWarning(it) }
+                    }
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_NOTIFICATIONS) {
+            findViewById<android.widget.Button>(R.id.icon_notifications)?.let { refreshNotificationBadge(it) }
+        }
+    }
+
+    private fun refreshNotificationBadge(button: android.widget.Button) {
+        notificationBadgeJob?.cancel()
+        if (!NetworkUtils.isOnline(this)) {
+            button.text = "🔔"
+            return
+        }
+        val bearer = PosAuth.bearer(this) ?: run {
+            button.text = "🔔"
+            return
+        }
+        notificationBadgeJob = lifecycleScope.launch {
+            try {
+                val resp = withContext(Dispatchers.IO) {
+                    PosAuth.api(this@MainActivity).getUnreadNotificationCount(bearer)
+                }
+                val count = if (resp.isSuccessful) resp.body()?.count ?: 0 else 0
+                button.text = if (count > 0) "🔔$count" else "🔔"
+            } catch (_: Exception) {
+                button.text = "🔔"
+            }
+        }
+    }
+
     override fun onDestroy() {
+        notificationBadgeJob?.cancel()
         unregisterConnectivitySyncWatcher()
         super.onDestroy()
     }

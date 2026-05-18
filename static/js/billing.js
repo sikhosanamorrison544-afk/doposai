@@ -32,7 +32,11 @@
             data = { detail: text };
         }
         if (!res.ok) {
-            const err = new Error((data && data.detail) || res.statusText || 'Request failed');
+            let detail = res.statusText || 'Request failed';
+            if (data && data.detail) {
+                detail = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+            }
+            const err = new Error(detail);
             err.status = res.status;
             throw err;
         }
@@ -54,10 +58,25 @@
         const dates = document.getElementById('sub-dates');
         const banner = document.getElementById('trial-banner');
         const eff = sub.effective_status || sub.status;
-        if (line) {
-            line.textContent =
+        const planDetail = document.getElementById('sub-plan-detail');
+        if (planDetail) {
+            const c = sub.billing_cycle ? sub.billing_cycle : 'not set yet';
+            planDetail.textContent =
+                'Current plan: ' +
                 (sub.plan ? sub.plan.charAt(0).toUpperCase() + sub.plan.slice(1) : 'Starter') +
-                (sub.billing_cycle ? ' · ' + sub.billing_cycle : '');
+                ' · ' +
+                c;
+        }
+        const daysEl = document.getElementById('sub-days-remaining');
+        if (daysEl) {
+            if (typeof sub.days_remaining === 'number') {
+                daysEl.textContent = sub.days_remaining + ' days remaining';
+            } else {
+                daysEl.textContent = 'No renewal date yet — subscribe to activate.';
+            }
+        }
+        if (line) {
+            line.textContent = 'Status: ' + eff.replace(/_/g, ' ') + (sub.access_allowed === false ? ' (access blocked)' : '');
         }
         if (pill) {
             pill.textContent = eff.replace('_', ' ');
@@ -146,14 +165,18 @@
     }
 
     async function initiatePayment(useEco) {
-        showMsg('Starting payment…', 'info');
         const phone = document.getElementById('ecocash-phone').value.trim();
+        if (useEco && !phone) {
+            showMsg('Enter your EcoCash number (e.g. 0771234567).', 'error');
+            return;
+        }
+        showMsg('Starting payment…', 'info');
         const body = {
             plan: state.selectedPlan,
             billing_cycle: state.cycle,
-            channel: useEco && phone ? 'ecocash' : 'web',
+            channel: useEco ? 'ecocash' : 'web',
         };
-        if (useEco && phone) body.ecocash_phone = phone;
+        if (useEco) body.ecocash_phone = phone;
         const data = await api('/api/payments/initiate', {
             method: 'POST',
             body: JSON.stringify(body),

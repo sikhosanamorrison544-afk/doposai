@@ -77,16 +77,21 @@ class PaynowClient:
             payment = paynow.create_payment(reference, email)
             payment.add(description[:100], float(f"{amount:.2f}"))
             response = paynow.send(payment)
+            raw_data = getattr(response, "data", None) or {}
+            err = getattr(response, "error", None)
+            if isinstance(raw_data, dict):
+                err = err or raw_data.get("error")
             if getattr(response, "success", False):
                 return PaynowInitResult(
                     success=True,
                     redirect_url=getattr(response, "redirect_url", None),
-                    poll_url=getattr(response, "poll_url", None),
+                    poll_url=getattr(response, "poll_url", None)
+                    or (raw_data.get("pollurl") if isinstance(raw_data, dict) else None),
                     raw={"reference": reference},
                 )
             return PaynowInitResult(
                 success=False,
-                error=str(getattr(response, "error", None) or "Paynow rejected request"),
+                error=str(err or "Paynow rejected request"),
             )
         except Exception as e:
             logger.exception("Paynow web initiate failed")
@@ -107,16 +112,38 @@ class PaynowClient:
             payment = paynow.create_payment(reference, email)
             payment.add(description[:100], float(f"{amount:.2f}"))
             response = paynow.send_mobile(payment, phone, "ecocash")
+            raw_data = getattr(response, "data", None) or {}
+            if isinstance(raw_data, dict):
+                poll_url = getattr(response, "poll_url", None) or raw_data.get("pollurl")
+                instructions = (
+                    getattr(response, "instructions", None)
+                    or getattr(response, "instruction", None)
+                    or raw_data.get("instructions")
+                )
+                err = getattr(response, "error", None) or raw_data.get("error")
+            else:
+                poll_url = getattr(response, "poll_url", None)
+                instructions = getattr(response, "instructions", None) or getattr(
+                    response, "instruction", None
+                )
+                err = getattr(response, "error", None)
             if getattr(response, "success", False):
+                if not poll_url:
+                    return PaynowInitResult(
+                        success=False,
+                        error="Paynow did not return a poll URL for this EcoCash payment",
+                        raw=raw_data if isinstance(raw_data, dict) else None,
+                    )
                 return PaynowInitResult(
                     success=True,
-                    poll_url=getattr(response, "poll_url", None),
-                    instructions=getattr(response, "instructions", None),
+                    poll_url=poll_url,
+                    instructions=instructions,
                     raw={"reference": reference, "phone": phone},
                 )
             return PaynowInitResult(
                 success=False,
-                error=str(getattr(response, "error", None) or "EcoCash request failed"),
+                error=str(err or "EcoCash request failed"),
+                raw=raw_data if isinstance(raw_data, dict) else None,
             )
         except Exception as e:
             logger.exception("Paynow EcoCash initiate failed")
@@ -144,12 +171,18 @@ class PaynowClient:
 def _normalize_phone(phone: str) -> str:
     p = "".join(c for c in (phone or "") if c.isdigit())
     if p.startswith("263"):
-        return p
-    if p.startswith("0"):
-        return "263" + p[1:]
-    if len(p) == 9:
-        return "263" + p
-    return p
+        normalized = p
+    elif p.startswith("0"):
+        normalized = "263" + p[1:]
+    elif len(p) == 9:
+        normalized = "263" + p
+    else:
+        normalized = p
+    if len(normalized) < 11 or not normalized.startswith("263"):
+        raise ValueError(
+            "Invalid EcoCash number. Use 0771234567 or 263771234567 format."
+        )
+    return normalized
 
 
 def _safe_float(v: Any) -> Optional[float]:

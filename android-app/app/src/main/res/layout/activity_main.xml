@@ -331,11 +331,11 @@
                     android:layout_marginEnd="@dimen/top_bar_btn_margin_end" />
 
                 <Button
-                    android:id="@+id/btn_more_pages"
+                    android:id="@+id/btn_admin"
                     android:layout_width="wrap_content"
                     android:layout_height="@dimen/top_bar_btn_height"
                     android:minHeight="@dimen/top_bar_btn_height"
-                    android:text="More"
+                    android:text="@string/admin"
                     android:textSize="@dimen/top_bar_btn_text_size"
                     android:backgroundTint="@color/primary"
                     android:textColor="@color/text_on_primary"
@@ -363,7 +363,7 @@
                     android:textColor="@color/text_on_primary"
                     android:layout_marginEnd="@dimen/top_bar_btn_margin_end" />
 
-                <!-- Floating-style icons: More, Notifications, Settings, Payment, Withdraw -->
+                <!-- Toolbar icons (More menu removed — Admin is a dedicated button) -->
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -371,14 +371,30 @@
                     android:gravity="center_vertical">
 
                     <Button
-                        android:id="@+id/icon_more"
+                        android:id="@+id/icon_sync"
                         android:layout_width="@dimen/top_bar_icon_size"
                         android:layout_height="@dimen/top_bar_icon_size"
                         android:minWidth="@dimen/top_bar_icon_size"
                         android:minHeight="@dimen/top_bar_icon_size"
-                        android:text="⋮"
+                        android:text="🔄"
+                        android:contentDescription="@string/sync_now"
                         android:textSize="@dimen/top_bar_icon_text_size"
                         android:backgroundTint="@color/primary"
+                        android:textColor="@color/text_on_primary"
+                        android:layout_marginEnd="4dp" />
+
+                    <!-- Subscription: early in toolbar row so small phones see it without scrolling -->
+                    <Button
+                        android:id="@+id/icon_billing"
+                        android:layout_width="@dimen/top_bar_icon_size"
+                        android:layout_height="@dimen/top_bar_icon_size"
+                        android:minWidth="@dimen/top_bar_icon_size"
+                        android:minHeight="@dimen/top_bar_icon_size"
+                        android:text="SUB"
+                        android:textAllCaps="false"
+                        android:textSize="11sp"
+                        android:contentDescription="@string/subscription_title"
+                        android:backgroundTint="@color/layby_blue"
                         android:textColor="@color/text_on_primary"
                         android:layout_marginEnd="4dp" />
 
@@ -402,6 +418,45 @@
                         android:minHeight="@dimen/top_bar_icon_size"
                         android:contentDescription="@string/theme"
                         android:text="🎨"
+                        android:textSize="@dimen/top_bar_icon_text_size"
+                        android:backgroundTint="@color/primary_dark"
+                        android:textColor="@color/text_on_primary"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/icon_printer"
+                        android:layout_width="@dimen/top_bar_icon_size"
+                        android:layout_height="@dimen/top_bar_icon_size"
+                        android:minWidth="@dimen/top_bar_icon_size"
+                        android:minHeight="@dimen/top_bar_icon_size"
+                        android:text="🖨"
+                        android:contentDescription="@string/printer_setup_title"
+                        android:textSize="@dimen/top_bar_icon_text_size"
+                        android:backgroundTint="@color/primary_dark"
+                        android:textColor="@color/text_on_primary"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/icon_notifications"
+                        android:layout_width="@dimen/top_bar_icon_size"
+                        android:layout_height="@dimen/top_bar_icon_size"
+                        android:minWidth="@dimen/top_bar_icon_size"
+                        android:minHeight="@dimen/top_bar_icon_size"
+                        android:text="🔔"
+                        android:contentDescription="@string/notifications_icon"
+                        android:textSize="@dimen/top_bar_icon_text_size"
+                        android:backgroundTint="@color/primary_dark"
+                        android:textColor="@color/text_on_primary"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/icon_stats"
+                        android:layout_width="@dimen/top_bar_icon_size"
+                        android:layout_height="@dimen/top_bar_icon_size"
+                        android:minWidth="@dimen/top_bar_icon_size"
+                        android:minHeight="@dimen/top_bar_icon_size"
+                        android:text="📊"
+                        android:contentDescription="@string/stats_icon"
                         android:textSize="@dimen/top_bar_icon_text_size"
                         android:backgroundTint="@color/primary_dark"
                         android:textColor="@color/text_on_primary"
@@ -433,6 +488,16 @@
             </LinearLayout>
         </HorizontalScrollView>
 
+        <TextView
+            android:id="@+id/subscription_banner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#FEF3C7"
+            android:padding="10dp"
+            android:textColor="#92400E"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
         <!-- Main: responsive padding and text sizes -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -459,12 +524,19 @@
                 android:textSize="@dimen/input_text_size"
                 android:imeOptions="actionDone" />
 
+            <TextView
+                android:id="@+id/pos_message"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/danger"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/search_results"
                 android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="0"
-                android:minHeight="0dp"
+                android:layout_height="wrap_content"
                 android:maxHeight="@dimen/search_results_max_height"
                 android:visibility="gone"
                 android:background="@drawable/card_login"
@@ -521,6 +593,86 @@
                     </LinearLayout>
                 </HorizontalScrollView>
             </FrameLayout>
+
+            <!-- Totals — same as web .totals (subtotal, discount, grand total) -->
+            <LinearLayout
+                android:id="@+id/cart_totals_block"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/totals_block"
+                android:padding="10dp"
+                android:layout_marginTop="@dimen/content_margin_top"
+                android:elevation="4dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="4dp">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/subtotal"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/payment_label_size" />
+                    <TextView
+                        android:id="@+id/cart_subtotal"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="$0.00"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/payment_label_size" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="4dp">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/discount"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/payment_label_size" />
+                    <TextView
+                        android:id="@+id/cart_discount"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="$0.00"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/payment_label_size" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingTop="6dp">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/total"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/payment_btn_text_size" />
+                    <TextView
+                        android:id="@+id/cart_grand_total"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="$0.00"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/payment_btn_text_size" />
+                </LinearLayout>
+            </LinearLayout>
 
             <Button
                 android:id="@+id/btn_payment"

@@ -33,21 +33,10 @@ class SyncWorker(
 
         val db = AppDatabase.getInstance(applicationContext)
         val api = createApi(baseUrl)
-        val repo = SyncRepository(
-            api = api,
-            productDao = db.productDao(),
-            categoryDao = db.categoryDao(),
-            customerDao = db.customerDao(),
-            saleDao = db.saleDao(),
-            saleItemDao = db.saleItemDao(),
-            paymentDao = db.paymentDao(),
-            syncQueueDao = db.syncQueueDao(),
-            syncMetadataDao = db.syncMetadataDao()
-        )
+        val repo = createRepository(applicationContext, baseUrl, api, db)
 
         return try {
-            // Optional: pull latest products/customers when online
-            repo.pullProductsAndCustomers(token)
+            repo.syncMasterDatabase(token)
 
             val pending = db.syncQueueDao().getByStatus(SyncQueueEntity.STATUS_PENDING)
             var pushed = 0
@@ -68,6 +57,26 @@ class SyncWorker(
         const val KEY_BASE_URL = "base_url"
         const val KEY_TOKEN = "token"
         const val KEY_PUSHED = "pushed"
+
+        fun createRepository(
+            context: android.content.Context,
+            baseUrl: String,
+            api: ApiService,
+            db: com.pos.mobile.data.local.AppDatabase,
+        ): SyncRepository = SyncRepository(
+            api = api,
+            productDao = db.productDao(),
+            categoryDao = db.categoryDao(),
+            customerDao = db.customerDao(),
+            saleDao = db.saleDao(),
+            saleItemDao = db.saleItemDao(),
+            paymentDao = db.paymentDao(),
+            syncQueueDao = db.syncQueueDao(),
+            syncMetadataDao = db.syncMetadataDao(),
+            apiCacheDao = db.apiCacheDao(),
+            offlineMutationDao = db.offlineMutationDao(),
+            baseUrl = baseUrl,
+        )
 
         fun createApi(baseUrl: String): ApiService {
             val client = OkHttpClient.Builder()

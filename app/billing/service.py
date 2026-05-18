@@ -87,9 +87,28 @@ def effective_status(
     return sub.status or "trial", True, sub.trial_end
 
 
+def _days_remaining(end_at: Optional[datetime]) -> Optional[int]:
+    if not end_at:
+        return None
+    delta = end_at - datetime.utcnow()
+    return max(0, int(delta.total_seconds() // 86400))
+
+
 def subscription_status_payload(db: Session, tenant: Tenant) -> Dict[str, Any]:
     sub = get_or_create_subscription(db, tenant)
     status, allowed, ends = effective_status(sub, tenant)
+    trial_end = sub.trial_end
+    sub_end = sub.subscription_end
+    days_trial = _days_remaining(trial_end) if trial_end else None
+    days_sub = _days_remaining(sub_end) if sub_end else None
+    if sub.status == "active" and sub_end:
+        days_remaining = days_sub
+    elif trial_end and status in ("trial", "trial_expired", "pending_payment", "expired"):
+        days_remaining = days_trial
+    elif sub_end:
+        days_remaining = days_sub
+    else:
+        days_remaining = None
     return {
         "tenant_id": tenant.id,
         "tenant_uid": tenant.tenant_uid,
@@ -102,6 +121,9 @@ def subscription_status_payload(db: Session, tenant: Tenant) -> Dict[str, Any]:
         "trial_end": sub.trial_end.isoformat() + "Z" if sub.trial_end else None,
         "subscription_start": sub.subscription_start.isoformat() + "Z" if sub.subscription_start else None,
         "subscription_end": sub.subscription_end.isoformat() + "Z" if sub.subscription_end else None,
+        "days_remaining": days_remaining,
+        "days_remaining_trial": days_trial,
+        "days_remaining_subscription": days_sub,
         "last_verified_at": (
             tenant.last_subscription_verified_at.isoformat() + "Z"
             if tenant.last_subscription_verified_at
@@ -198,13 +220,25 @@ def start_pending_payment(
     sub.billing_cycle = cycle
     db.flush()
 
+    pay_email = (user_email or "").strip()
+    if not pay_email or "@" not in pay_email:
+        raise ValueError(
+            "A valid account email is required for Paynow. Update your profile email and try again."
+        )
+
     description = f"DoposAI {price.label}"
     if ecocash_phone:
-        result = paynow.initiate_ecocash(
-            reference, user_email, price.amount_usd, description, ecocash_phone
-        )
+        try:
+            result = paynow.initiate_ecocash(
+                reference, pay_email, price.amount_usd, description, ecocash_phone
+            )
+        except ValueError as e:
+            payment.status = "failed"
+            _log(db, tenant.id, "payment_init_failed", str(e))
+            db.flush()
+            raise RuntimeError(str(e)) from e
     else:
-        result = paynow.initiate_web(reference, user_email, price.amount_usd, description)
+        result = paynow.initiate_web(reference, pay_email, price.amount_usd, description)
 
     if not result.success:
         payment.status = "failed"
@@ -379,9 +413,22 @@ def process_paynow_webhook(
     return {"status": "pending"}
 
 
-def upgrade_subscription(db: Session, tenant: Tenant, plan: str, cycle: str, user_email: str, phone: Optional[str]) -> Dict[str, Any]:
+def upgrade_subscription(
+    db: Session,
+    tenant: Tenant,
+    plan: str,
+    cycle: str,
+    user_email: str,
+    phone: Optional[str],
+) -> Dict[str, Any]:
     _, payload = start_pending_payment(
-        db, tenant, user_email, plan, cycle, ecocash_phone=phone, channel="upgrade"
+        db,
+        tenant,
+        user_email,
+        plan,
+        cycle,
+        ecocash_phone=phone,
+        channel="upgrade",
     )
     db.commit()
     return payload

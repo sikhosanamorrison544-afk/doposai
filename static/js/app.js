@@ -460,6 +460,59 @@ function meetsSaaSRegisterPasswordRules(password) {
     return hasLetter && hasDigit;
 }
 
+function formatTrialEndLabel(iso) {
+    if (!iso) return '';
+    try {
+        return new Date(iso).toLocaleString();
+    } catch (e) {
+        return iso;
+    }
+}
+
+function hideTrialSubscribeModal() {
+    const modal = document.getElementById('trial-subscribe-modal');
+    if (modal) modal.style.setProperty('display', 'none', 'important');
+    const backdrop = document.getElementById('pos-backdrop');
+    if (backdrop) backdrop.style.setProperty('display', 'none', 'important');
+}
+
+/** After login / register: remind trial tenants to subscribe (POS stays usable). */
+async function maybeShowTrialSubscribeModal() {
+    if (!token) return;
+    let sub;
+    try {
+        sub = await api('/api/subscriptions/status');
+    } catch (_) {
+        return;
+    }
+    if (!sub || sub.effective_status !== 'trial') return;
+    const modal = document.getElementById('trial-subscribe-modal');
+    const backdrop = document.getElementById('pos-backdrop');
+    if (!modal || !backdrop) return;
+    const bodyEl = document.getElementById('trial-reminder-body');
+    const detailEl = document.getElementById('trial-reminder-detail');
+    const isAdmin = currentUser && currentUser.role === 'admin';
+    if (bodyEl) {
+        bodyEl.textContent = isAdmin
+            ? 'Your business is on a free trial. Subscribe before it ends to keep uninterrupted access.'
+            : 'Your business is on a free trial. Ask your business admin to subscribe before the trial ends.';
+    }
+    if (detailEl) {
+        let line = '';
+        if (typeof sub.days_remaining === 'number') {
+            line = sub.days_remaining + ' days left in your trial.';
+        } else if (sub.trial_end) {
+            line = 'Trial ends: ' + formatTrialEndLabel(sub.trial_end) + '.';
+        }
+        detailEl.textContent = line;
+        detailEl.style.display = line ? 'block' : 'none';
+    }
+    const btnBilling = document.getElementById('btn-trial-go-billing');
+    if (btnBilling) btnBilling.style.display = isAdmin ? 'inline-block' : 'none';
+    backdrop.style.setProperty('display', 'block', 'important');
+    modal.style.setProperty('display', 'block', 'important');
+}
+
 /** After OAuth token or SaaS /auth/register — same JWT shape for API calls */
 async function enterPosAfterAuth(data) {
     token = data.access_token;
@@ -514,6 +567,7 @@ async function enterPosAfterAuth(data) {
         posReceipt.loadStoreSettings(api).catch(() => {});
     }
     showScreen('pos-screen');
+    void maybeShowTrialSubscribeModal();
 
     const btnTogglePayment = document.getElementById('btn-toggle-payment');
     if (btnTogglePayment) {
@@ -2423,6 +2477,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (btnMarkAllRead) {
         btnMarkAllRead.addEventListener('click', async () => {
             await markAllNotificationsRead();
+        });
+    }
+
+    const btnCloseTrial = document.getElementById('btn-close-trial-modal');
+    const btnTrialLater = document.getElementById('btn-trial-later');
+    const btnTrialBilling = document.getElementById('btn-trial-go-billing');
+    if (btnCloseTrial) btnCloseTrial.addEventListener('click', hideTrialSubscribeModal);
+    if (btnTrialLater) btnTrialLater.addEventListener('click', hideTrialSubscribeModal);
+    if (btnTrialBilling) {
+        btnTrialBilling.addEventListener('click', function () {
+            window.location.href = '/billing';
         });
     }
     

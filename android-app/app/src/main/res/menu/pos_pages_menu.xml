@@ -9,4 +9,6 @@
     <item android:id="@+id/page_accounting" android:title="Accounting" />
     <item android:id="@+id/page_withdrawals" android:title="Withdrawals History" />
     <item android:id="@+id/page_outstanding_debts" android:title="Outstanding Debts" />
+    <item android:id="@+id/page_quotations" android:title="Quotations" />
+    <item android:id="@+id/page_customer_history" android:title="Customer History" />
 </menu>

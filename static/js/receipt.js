@@ -249,7 +249,17 @@
     function printSaleReceipt(opts, printWindow) {
         const title = 'Receipt #' + opts.saleId;
         const body = buildSaleReceiptBody(opts);
-        return printHtml(wrapReceiptHtml(title, body), title, printWindow);
+        const html = wrapReceiptHtml(title, body);
+        if (global.posWebPrint && typeof global.posWebPrint.routePrint === 'function') {
+            if (
+                global.posWebPrint.routePrint('sale', opts, printWindow, function () {
+                    printHtml(html, title, printWindow);
+                })
+            ) {
+                return true;
+            }
+        }
+        return printHtml(html, title, printWindow);
     }
 
     function printWithdrawalReceipt(opts, printWindow) {
@@ -267,9 +277,18 @@
             body += '<div style="margin-top:8px">Notes: ' + escapeHtml(opts.notes) + '</div>';
         }
         body += '<hr><div class="footer">Withdrawal receipt</div>';
-        body = body;
         const title = 'Withdrawal ' + (opts.receiptNumber || '');
-        return printHtml(wrapReceiptHtml(title, body), title, printWindow);
+        const html = wrapReceiptHtml(title, body);
+        if (global.posWebPrint && typeof global.posWebPrint.routePrint === 'function') {
+            if (
+                global.posWebPrint.routePrint('withdrawal', opts, printWindow, function () {
+                    printHtml(html, title, printWindow);
+                })
+            ) {
+                return true;
+            }
+        }
+        return printHtml(html, title, printWindow);
     }
     async function loadStoreSettings(apiFn) {
         try {

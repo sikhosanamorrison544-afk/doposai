@@ -4,15 +4,41 @@ import android.app.Activity
 import android.content.Context
 import android.print.PrintAttributes
 import android.print.PrintManager
-import android.util.Base64
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import android.util.Log
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.pos.mobile.R
+import com.pos.mobile.printer.EscPosReceiptBuilder
+import com.pos.mobile.printer.PrinterPreferences
+import com.pos.mobile.printer.PrinterSetupDialog
+import com.pos.mobile.printer.PrinterTransport
+import com.pos.mobile.printer.ThermalPrintService
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 object ReceiptPrinter {
+
+    private const val TAG = "ReceiptPrinter"
+
+    data class SaleReceiptRequest(
+        val storeName: String,
+        val cartLines: List<CartLine>,
+        val subtotal: Double,
+        val discountTotal: Double,
+        val total: Double,
+        val payments: List<Pair<String, Double>>,
+        val customerName: String?,
+        val collectionStatus: String,
+        val cashierName: String?,
+        val saleId: Int? = null,
+    )
 
     fun printSale(
         context: Context,
@@ -25,89 +51,162 @@ object ReceiptPrinter {
         customerName: String?,
         collectionStatus: String,
         cashierName: String?,
+        saleId: Int? = null,
+        scope: CoroutineScope? = null,
     ) {
-        val html = buildSaleHtml(
-            storeName = storeName,
-            cartLines = cartLines,
-            subtotal = subtotal,
-            discountTotal = discountTotal,
-            total = total,
-            payments = payments,
-            customerName = customerName,
-            collectionStatus = collectionStatus,
-            cashierName = cashierName,
+        printSale(
+            context,
+            SaleReceiptRequest(
+                storeName, cartLines, subtotal, discountTotal, total,
+                payments, customerName, collectionStatus, cashierName, saleId,
+            ),
+            scope,
         )
-        printHtml(context, html, "Sale receipt")
     }
 
-    private fun buildSaleHtml(
-        storeName: String,
-        cartLines: List<CartLine>,
-        subtotal: Double,
-        discountTotal: Double,
-        total: Double,
-        payments: List<Pair<String, Double>>,
-        customerName: String?,
-        collectionStatus: String,
-        cashierName: String?,
-    ): String {
+    fun printSale(
+        context: Context,
+        request: SaleReceiptRequest,
+        scope: CoroutineScope? = null,
+    ) {
+        val activity = context as? Activity
+        if (activity == null || activity.isFinishing) return
+
+        if (PrinterPreferences.isConfigured(context)) {
+            val appActivity = activity as? AppCompatActivity
+            val printScope = scope ?: appActivity?.lifecycleScope
+            if (printScope != null && appActivity != null) {
+                val handler = CoroutineExceptionHandler { _, e ->
+                    Log.e(TAG, "Print coroutine failed", e)
+                    showError(activity, e.message ?: "Print failed")
+                }
+                val startPrint: () -> Unit = {
+                    printScope.launch(handler) {
+                        printSaleThermal(activity, request)
+                    }
+                }
+                if (PrinterPreferences.getTransport(context) == PrinterTransport.BLUETOOTH) {
+                    PrinterSetupDialog.runWithBluetoothPermission(appActivity, startPrint)
+                } else {
+                    startPrint.invoke()
+                }
+                return
+            }
+        }
+        printSaleSystem(activity, request)
+    }
+
+    private suspend fun printSaleThermal(activity: Activity, request: SaleReceiptRequest) {
+        try {
+            val width = PrinterPreferences.getPaperWidth(activity)
+            val data = EscPosReceiptBuilder(width).buildSaleReceipt(
+                storeName = request.storeName,
+                cartLines = request.cartLines,
+                subtotal = request.subtotal,
+                discountTotal = request.discountTotal,
+                total = request.total,
+                payments = request.payments,
+                customerName = request.customerName,
+                collectionStatus = request.collectionStatus,
+                cashierName = request.cashierName,
+                saleId = request.saleId,
+            )
+            val result = ThermalPrintService.print(activity, data)
+            withContext(Dispatchers.Main) {
+                if (result.isSuccess) return@withContext
+                val msg = result.exceptionOrNull()?.message ?: "Print failed"
+                Log.w(TAG, "Thermal print failed: $msg")
+                showError(activity, msg)
+                // Do not fall back to system print — WebView often crashes on POS hardware
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "printSaleThermal error", e)
+            withContext(Dispatchers.Main) {
+                showError(activity, e.message ?: "Print failed")
+            }
+        }
+    }
+
+    private fun printSaleSystem(activity: Activity, request: SaleReceiptRequest) {
+        if (activity.isFinishing || activity.isDestroyed) return
+        activity.runOnUiThread {
+            if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+            try {
+                val lines = buildReceiptTextLines(request)
+                val printManager = activity.getSystemService(Context.PRINT_SERVICE) as? PrintManager
+                    ?: return@runOnUiThread
+                val adapter = ReceiptPrintDocumentAdapter(
+                    activity.applicationContext,
+                    "Sale receipt",
+                    lines,
+                )
+                printManager.print(
+                    "Sale receipt",
+                    adapter,
+                    PrintAttributes.Builder().build(),
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "System print failed", e)
+                showError(activity, e.message ?: "Print failed")
+            }
+        }
+    }
+
+    private fun showError(activity: Activity, message: String) {
+        if (activity.isFinishing || activity.isDestroyed) return
+        activity.runOnUiThread {
+            Toast.makeText(
+                activity,
+                activity.getString(R.string.printer_failed, message),
+                Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
+
+    private fun buildReceiptTextLines(request: SaleReceiptRequest): List<String> {
         val df = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
-        val sb = StringBuilder()
-        sb.append("<html><head><meta charset='utf-8'><style>")
-        sb.append("body{font-family:monospace;font-size:12px;margin:8px;max-width:280px}")
-        sb.append(".store{text-align:center;font-weight:bold;font-size:14px}")
-        sb.append("hr{border:none;border-top:1px dashed #000;margin:6px 0}")
-        sb.append("table{width:100%} td{padding:2px 0}")
-        sb.append(".total{font-weight:bold}</style></head><body>")
-        sb.append("<div class='store'>").append(escape(storeName.uppercase())).append("</div>")
-        sb.append("<hr><div>Date: ").append(df.format(Date())).append("</div>")
-        if (!cashierName.isNullOrBlank()) {
-            sb.append("<div>Cashier: ").append(escape(cashierName)).append("</div>")
-        }
-        if (!customerName.isNullOrBlank()) {
-            sb.append("<div>Customer: ").append(escape(customerName)).append("</div>")
-        }
-        if (collectionStatus == "to_collect") {
-            sb.append("<div><b>STATUS: COLLECTION PENDING</b></div>")
+        val lines = mutableListOf<String>()
+        lines.add(request.storeName.uppercase())
+        lines.add("=" .repeat(32))
+        if (request.saleId != null) lines.add("Sale #: ${request.saleId}")
+        lines.add("Date: ${df.format(Date())}")
+        if (!request.cashierName.isNullOrBlank()) lines.add("Cashier: ${request.cashierName}")
+        if (!request.customerName.isNullOrBlank()) lines.add("Customer: ${request.customerName}")
+        if (request.collectionStatus == "to_collect") {
+            lines.add("STATUS: COLLECTION PENDING")
         } else {
-            sb.append("<div><b>STATUS: COLLECTED</b></div>")
+            lines.add("STATUS: COLLECTED")
         }
-        sb.append("<hr><b>ITEMS:</b><table>")
-        for (line in cartLines) {
+        lines.add("-".repeat(32))
+        lines.add("ITEMS:")
+        for (line in request.cartLines) {
             val qty = line.quantity.coerceAtLeast(1)
-            sb.append("<tr><td colspan='2'><b>").append(escape(line.product.name)).append("</b></td></tr>")
-            sb.append("<tr><td>").append(qty).append(" x ")
-                .append(String.format(Locale.US, "%.2f", line.product.sellingPrice))
-                .append("</td><td align='right'>")
-                .append(String.format(Locale.US, "%.2f", line.lineTotal))
-                .append("</td></tr>")
+            lines.add(line.product.name.take(32))
+            lines.add(
+                "  $qty x ${"%.2f".format(Locale.US, line.product.sellingPrice)} = " +
+                    "${"%.2f".format(Locale.US, line.lineTotal)}",
+            )
         }
-        sb.append("</table><hr><table>")
-        sb.append("<tr><td>Subtotal:</td><td align='right'>")
-            .append(String.format(Locale.US, "%.2f", subtotal)).append("</td></tr>")
-        if (discountTotal > 0) {
-            sb.append("<tr><td>Discount:</td><td align='right'>")
-                .append(String.format(Locale.US, "%.2f", discountTotal)).append("</td></tr>")
+        lines.add("-".repeat(32))
+        lines.add("Subtotal:     ${"%.2f".format(Locale.US, request.subtotal).padStart(10)}")
+        if (request.discountTotal > 0.005) {
+            lines.add("Discount:     ${"%.2f".format(Locale.US, request.discountTotal).padStart(10)}")
         }
-        sb.append("<tr class='total'><td>TOTAL:</td><td align='right'>")
-            .append(String.format(Locale.US, "%.2f", total)).append("</td></tr>")
-        sb.append("</table><hr><b>PAYMENT:</b><table>")
+        lines.add("TOTAL:        ${"%.2f".format(Locale.US, request.total).padStart(10)}")
+        lines.add("PAYMENT:")
         var paid = 0.0
-        for ((method, amount) in payments) {
+        for ((method, amount) in request.payments) {
             paid += amount
-            sb.append("<tr><td>").append(escape(formatMethod(method)))
-                .append("</td><td align='right'>")
-                .append(String.format(Locale.US, "%.2f", amount))
-                .append("</td></tr>")
+            val label = formatMethod(method).take(15).padEnd(15)
+            lines.add("$label ${"%.2f".format(Locale.US, amount).padStart(10)}")
         }
-        val change = paid - total
+        val change = paid - request.total
         if (change > 0.005) {
-            sb.append("<tr class='total'><td>CHANGE:</td><td align='right'>")
-                .append(String.format(Locale.US, "%.2f", change))
-                .append("</td></tr>")
+            lines.add("CHANGE:       ${"%.2f".format(Locale.US, change).padStart(10)}")
         }
-        sb.append("</table><hr><div style='text-align:center'>Thank you!</div></body></html>")
-        return sb.toString()
+        lines.add("=" .repeat(32))
+        lines.add("Thank you for shopping with us!")
+        return lines
     }
 
     private fun formatMethod(method: String): String = when (method) {
@@ -116,38 +215,5 @@ object ReceiptPrinter {
         "card" -> "Card"
         "credit" -> "Credit"
         else -> method.replace('_', ' ').replaceFirstChar { it.uppercase() }
-    }
-
-    private fun escape(s: String): String =
-        s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-    private fun printHtml(context: Context, html: String, jobName: String) {
-        val activity = context as? Activity ?: return
-        activity.runOnUiThread {
-            val webView = WebView(activity)
-            webView.settings.apply {
-                javaScriptEnabled = false
-                cacheMode = WebSettings.LOAD_NO_CACHE
-            }
-            webView.webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView?, url: String?) {
-                    val printManager = activity.getSystemService(Context.PRINT_SERVICE) as? PrintManager
-                    val adapter = view?.createPrintDocumentAdapter(jobName)
-                    if (printManager != null && adapter != null) {
-                        printManager.print(
-                            jobName,
-                            adapter,
-                            PrintAttributes.Builder().build()
-                        )
-                    }
-                }
-            }
-            val encoded = Base64.encodeToString(html.toByteArray(Charsets.UTF_8), Base64.NO_PADDING)
-            webView.loadData(
-                encoded,
-                "text/html; charset=utf-8; base64",
-                null
-            )
-        }
     }
 }

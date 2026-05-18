@@ -4,4 +4,8 @@
         <item>Collected (Items taken immediately)</item>
         <item>To Collect (Reserve for later pickup)</item>
     </string-array>
+    <string-array name="printer_paper_widths">
+        <item>58mm (32 characters)</item>
+        <item>80mm (48 characters)</item>
+    </string-array>
 </resources>

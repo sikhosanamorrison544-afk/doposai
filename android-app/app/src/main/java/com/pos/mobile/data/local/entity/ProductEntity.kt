@@ -10,8 +10,9 @@ data class ProductEntity(
     val barcode: String?,
     val categoryId: Int?,
     val stockQty: Double,
+    val reservedQty: Double = 0.0,
     val sellingPrice: Double,
     val costPrice: Double,
     val isActive: Boolean,
-    val serverSyncedAt: Long? = null
+    val serverSyncedAt: Long? = null,
 )
