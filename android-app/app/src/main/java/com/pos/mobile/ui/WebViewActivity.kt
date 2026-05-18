@@ -104,6 +104,10 @@ class WebViewActivity : AppCompatActivity() {
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             useWideViewPort = true
             loadWithOverviewMode = true
+            val baseUa = userAgentString ?: ""
+            if (!baseUa.contains("DoPosPOS-Android")) {
+                userAgentString = "$baseUa DoPosPOS-Android/1"
+            }
         }
         WebViewPrintSupport.attach(this, webView)
         val authClient = object : WebViewClient() {
@@ -160,10 +164,9 @@ class WebViewActivity : AppCompatActivity() {
     private fun injectAndroidWebUiHints(webView: WebView) {
         val script = """
             (function() {
-                document.documentElement.classList.add('pos-android-app');
-                if (document.body) document.body.classList.add('pos-android-app');
-                try { localStorage.setItem('pos_android_app', '1'); } catch (e) {}
-                if (typeof window.markPosAndroidApp === 'function') window.markPosAndroidApp();
+                window.__POS_ANDROID_WEBVIEW__ = true;
+                if (typeof window.markPosAndroidWebView === 'function') window.markPosAndroidWebView();
+                else if (typeof window.markPosAndroidApp === 'function') window.markPosAndroidApp();
                 if (typeof window.initAdminAndroidUi === 'function') window.initAdminAndroidUi();
                 if (typeof window.initPosAndroidPageUi === 'function') window.initPosAndroidPageUi();
             })();

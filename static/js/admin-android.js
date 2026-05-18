@@ -5,10 +5,10 @@
     'use strict';
 
     function isPosAndroidApp() {
-        try {
-            if (localStorage.getItem('pos_android_app') === '1') return true;
-        } catch (e) { /* ignore */ }
-        return document.body && document.body.classList.contains('pos-android-app');
+        if (typeof window.isPosAndroidWebView === 'function') {
+            return window.isPosAndroidWebView();
+        }
+        return false;
     }
 
     function clickEl(id) {
@@ -144,9 +144,6 @@
     function initAdminAndroidUi() {
         if (!document.body.classList.contains('page-admin')) return;
         if (!isPosAndroidApp()) return;
-
-        document.documentElement.classList.add('pos-android-app');
-        document.body.classList.add('pos-android-app');
 
         syncMobileHeader();
         wireMobileToolbar();
