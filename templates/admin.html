@@ -42,6 +42,7 @@
     <!-- Preload 3D model for faster loading -->
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/admin-android.css?v=1">
 </head>
 <body class="page-admin">
 <!-- 3D Background Canvas for Default Theme -->
@@ -51,6 +52,30 @@
     <source src="/static/background.mp4" type="video/mp4">
     <source src="/static/background.mov" type="video/quicktime">
 </video>
+<!-- Android app: compact header, quick actions, product cards (see admin-android.css) -->
+<div id="admin-mobile-shell" class="admin-mobile-only" aria-hidden="true">
+    <header class="admin-mobile-header">
+        <div id="admin-mobile-shop" class="admin-mobile-shop">{{ store_name }}</div>
+        <div id="admin-mobile-user" class="admin-mobile-user"></div>
+    </header>
+    <nav class="admin-mobile-actions" aria-label="Admin shortcuts">
+        <button type="button" class="admin-mobile-action" id="admin-action-settings"><span class="icon">⚙️</span>Settings</button>
+        <button type="button" class="admin-mobile-action" id="admin-action-report"><span class="icon">📊</span>Report</button>
+        <button type="button" class="admin-mobile-action" id="admin-action-withdrawals"><span class="icon">💵</span>Cash out</button>
+        <button type="button" class="admin-mobile-action" id="admin-action-analytics"><span class="icon">📈</span>Analytics</button>
+        <button type="button" class="admin-mobile-action" id="admin-action-accounting"><span class="icon">💼</span>Accounts</button>
+        <button type="button" class="admin-mobile-action" id="admin-action-shifts"><span class="icon">🕐</span>Shifts</button>
+        <button type="button" class="admin-mobile-action" id="admin-action-pending"><span class="icon">📦</span>Pending</button>
+        <button type="button" class="admin-mobile-action" id="admin-action-billing"><span class="icon">💳</span>Billing</button>
+    </nav>
+    <div class="admin-mobile-toolbar">
+        <button type="button" id="btn-show-product-form-mobile" class="btn-add">➕ Add product</button>
+        <button type="button" id="btn-import-inventory-mobile" class="btn-import">📥 Import CSV</button>
+    </div>
+    <div class="admin-mobile-search-wrap">
+        <input type="search" id="admin-product-search" class="admin-mobile-search" placeholder="Search products…" autocomplete="off" enterkeyhint="search">
+    </div>
+</div>
 <div id="app" class="screen active">
     <!-- Fullscreen Toggle Button - outside top-bar so it stays visible -->
     <button id="btn-toggle-fullscreen" class="floating-icon fullscreen-toggle" title="Toggle Fullscreen" onclick="toggleFullscreen(); return false;" style="z-index:10000;background:rgba(59,130,246,0.9);color:#1a1a1a;font-size:clamp(14px,2vw,20px);width:clamp(32px,4vw,48px);height:clamp(32px,4vw,48px);min-width:32px;min-height:32px;max-width:48px;max-height:48px;border-radius:50%;border:1px solid rgba(0,0,0,0.1);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:all 0.3s ease;flex-shrink:0;">⛶</button>
@@ -163,6 +188,7 @@
                 </div>
                 <div id="prod-message" class="info" style="margin-top:4px;"></div>
             </div>
+            <div id="products-mobile-list" class="admin-mobile-only" role="list" aria-label="Products"></div>
             <div id="products-table" style="margin-top:8px;overflow-y:auto;overflow-x:auto;flex:1;min-height:0;display:block;">
                 <table>
                     <thead>
@@ -360,7 +386,7 @@
     <div class="card" style="max-width:none;margin:8px 0;">
         <p style="margin-top:0;color:rgba(255,255,255,0.9);">Upload a CSV, PDF, or Word file to import inventory.</p>
         <div style="margin-top:16px;">
-            <input type="file" id="inventory-file-input" accept=".csv,.pdf,.doc,.docx" style="display:none;" onchange="
+            <input type="file" id="inventory-file-input" accept=".csv,.CSV,text/csv,text/comma-separated-values,text/plain,application/vnd.ms-excel,application/csv,.pdf,.doc,.docx" style="display:none;" onchange="
                 var fileNameEl = document.getElementById('selected-file-name');
                 var uploadBtnEl = document.getElementById('btn-upload-inventory');
                 if (this.files && this.files.length > 0) {
@@ -521,6 +547,7 @@
         })();
     </script>
     <script src="/static/js/admin.js"></script>
+    <script src="/static/js/admin-android.js?v=1"></script>
     <script>
         // Disable 3D background on admin page for better performance
         // The admin page doesn't need the 3D background animation

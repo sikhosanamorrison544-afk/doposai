@@ -167,6 +167,10 @@ async function loadAdminProducts() {
             }
         }, true);
         
+        if (typeof window.renderAdminProductsMobile === 'function') {
+            window.renderAdminProductsMobile(adminProducts);
+        }
+
         console.log('=== PRODUCTS LOADED ===');
         console.log('Total rows:', adminProducts.length);
         console.log('Edit buttons:', body.querySelectorAll('button').length);
@@ -2397,7 +2401,6 @@ window.addEventListener('load', async () => {
             e.preventDefault();
             e.stopPropagation();
             console.log('=== Import button clicked ===');
-            alert('Import button clicked!'); // Temporary test
             const modal = document.getElementById('import-inventory-modal');
             const backdropEl = document.getElementById('panel-backdrop');
             console.log('Modal exists:', !!modal, 'Backdrop exists:', !!backdropEl);
