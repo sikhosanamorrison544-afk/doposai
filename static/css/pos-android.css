@@ -1,4 +1,17 @@
-/* Android WebView-only layout tweaks (body.pos-android-app) */
+/* POS Android WebView — professional mobile UI (body.pos-android-app) */
+
+:root {
+    --pa-bg: #eef2ff;
+    --pa-surface: #ffffff;
+    --pa-primary: #667eea;
+    --pa-primary-dark: #5a67d8;
+    --pa-text: #1e293b;
+    --pa-muted: #64748b;
+    --pa-border: #e2e8f0;
+    --pa-radius: 14px;
+    --pa-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+    --pa-shadow-lg: 0 8px 24px rgba(102, 126, 234, 0.12);
+}
 
 .pos-android-only {
     display: none !important;
@@ -12,90 +25,628 @@ body.pos-android-app .pos-android-hide {
     display: none !important;
 }
 
-/* Withdrawal history: hide wide table */
+/* Base: clean canvas, no distracting backgrounds */
+body.pos-android-app {
+    background: var(--pa-bg) !important;
+    color: var(--pa-text) !important;
+    overflow-x: hidden !important;
+}
+
+body.pos-android-app #bg3d-canvas,
+body.pos-android-app #light-theme-video,
+body.pos-android-app html::before,
+body.pos-android-app body::before {
+    display: none !important;
+}
+
+body.pos-android-app #app {
+    background: transparent !important;
+    max-width: 100vw !important;
+}
+
+body.pos-android-app .top-bar,
+body.pos-android-app .floating-icons {
+    display: none !important;
+}
+
+/* —— Mobile page header —— */
+.pa-mobile-shell {
+    padding: 0 0 4px;
+}
+
+.pa-mobile-header {
+    padding: 16px 16px 14px;
+    color: #fff;
+    border-radius: 0 0 20px 20px;
+    box-shadow: var(--pa-shadow-lg);
+    margin-bottom: 12px;
+}
+
+.pa-header-withdrawals {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%);
+}
+
+.pa-header-analytics {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.pa-header-pending {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.pa-mobile-title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.pa-mobile-subtitle {
+    margin: 4px 0 0;
+    font-size: 14px;
+    opacity: 0.92;
+    font-weight: 500;
+}
+
+.pa-mobile-badge {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.22);
+    border-radius: 20px;
+}
+
+.pa-mobile-refresh {
+    display: block;
+    margin-top: 12px;
+    width: 100%;
+    min-height: 40px;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* —— Shared cards & sections —— */
+body.pos-android-app .pa-section {
+    margin: 0 12px 14px;
+    padding: 14px 16px;
+    background: var(--pa-surface);
+    border-radius: var(--pa-radius);
+    border: 1px solid var(--pa-border);
+    box-shadow: var(--pa-shadow);
+}
+
+body.pos-android-app .pa-section-title {
+    margin: 0 0 12px;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--pa-muted);
+}
+
+body.pos-android-app main.pos-layout,
+body.pos-android-app main {
+    padding: 0 0 24px !important;
+    overflow-x: hidden !important;
+    background: transparent !important;
+}
+
+body.pos-android-app section {
+    padding: 0 !important;
+}
+
+/* Stat grid (2 columns on phone) */
+body.pos-android-app .pa-stat-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    margin: 0 12px 14px !important;
+}
+
+body.pos-android-app .pa-stat-grid > div {
+    background: var(--pa-surface) !important;
+    border: 1px solid var(--pa-border) !important;
+    border-radius: var(--pa-radius) !important;
+    padding: 14px 12px !important;
+    text-align: center !important;
+    box-shadow: var(--pa-shadow) !important;
+    backdrop-filter: none !important;
+}
+
+body.pos-android-app .pa-stat-grid > div > div:first-child {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.04em !important;
+    color: var(--pa-muted) !important;
+    margin-bottom: 6px !important;
+}
+
+body.pos-android-app .pa-stat-grid [id^="withdrawal-"],
+body.pos-android-app .pa-stat-grid .stat-value {
+    font-size: 20px !important;
+    font-weight: 800 !important;
+    color: var(--pa-text) !important;
+}
+
+body.pos-android-app #withdrawal-total-amount {
+    color: #ef4444 !important;
+}
+
+body.pos-android-app #withdrawal-expenses-total {
+    color: #f59e0b !important;
+}
+
+body.pos-android-app #withdrawal-assets-total {
+    color: #3b82f6 !important;
+}
+
+/* Filters */
+body.pos-android-app .pa-filters {
+    margin: 0 12px 14px !important;
+    padding: 14px 16px !important;
+    background: var(--pa-surface) !important;
+    border-radius: var(--pa-radius) !important;
+    border: 1px solid var(--pa-border) !important;
+    box-shadow: var(--pa-shadow) !important;
+}
+
+body.pos-android-app .pa-filters label {
+    display: block !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: var(--pa-muted) !important;
+    margin-bottom: 6px !important;
+}
+
+body.pos-android-app .pa-filters select,
+body.pos-android-app .pa-filters input[type="text"],
+body.pos-android-app .pa-filters input[type="search"] {
+    width: 100% !important;
+    min-height: 44px !important;
+    padding: 10px 12px !important;
+    font-size: 16px !important;
+    border: 1px solid var(--pa-border) !important;
+    border-radius: 10px !important;
+    background: #f8fafc !important;
+    color: var(--pa-text) !important;
+    box-sizing: border-box !important;
+    margin-bottom: 12px !important;
+}
+
+body.pos-android-app .pa-filters > div > div:last-child input,
+body.pos-android-app .pa-filters > div > div:last-child select {
+    margin-bottom: 0 !important;
+}
+
+/* Web CTA */
+.android-web-cta {
+    margin: 0 12px 16px;
+    padding: 16px;
+    text-align: center;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+    border: 1px dashed rgba(102, 126, 234, 0.35);
+    border-radius: var(--pa-radius);
+}
+
+.android-web-cta button,
+.android-web-cta .primary {
+    width: 100%;
+    min-height: 48px;
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: 10px;
+    border: none;
+    background: var(--pa-primary) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35);
+}
+
+.android-web-cta p {
+    margin: 10px 0 0 !important;
+    font-size: 13px !important;
+    color: var(--pa-muted) !important;
+}
+
+/* —— Withdrawals —— */
 body.pos-android-app.page-withdrawals #withdrawals-table-container {
     display: none !important;
+}
+
+body.pos-android-app.page-withdrawals .pa-page-heading,
+body.pos-android-app.page-withdrawals section > div:first-of-type h2 {
+    display: none !important;
+}
+
+body.pos-android-app.page-withdrawals #btn-sync-withdrawals-backup {
+    display: block !important;
+    width: calc(100% - 24px);
+    margin: 0 12px 12px;
+    min-height: 44px;
+    border-radius: 10px;
+    font-weight: 600;
 }
 
 body.pos-android-app.page-withdrawals #withdrawals-mobile-list {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    margin-bottom: 16px;
+    margin: 0 12px 16px;
+    padding: 0;
+}
+
+body.pos-android-app.page-withdrawals .pa-list-label {
+    margin: 0 12px 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--pa-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .withdrawal-mobile-card {
-    background: #fff;
-    border-radius: 12px;
-    padding: 12px 14px;
-    border: 1px solid rgba(102, 126, 234, 0.15);
-    box-shadow: 0 1px 4px rgba(26, 26, 46, 0.08);
+    background: var(--pa-surface);
+    border-radius: var(--pa-radius);
+    padding: 14px 16px;
+    border: 1px solid var(--pa-border);
+    box-shadow: var(--pa-shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.withdrawal-mobile-card .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
 }
 
 .withdrawal-mobile-card .amount {
-    font-size: 18px;
-    font-weight: 700;
+    font-size: 22px;
+    font-weight: 800;
     color: #ef4444;
+    line-height: 1.1;
+}
+
+.withdrawal-mobile-card .reason-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.withdrawal-mobile-card .reason-badge.expense {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.withdrawal-mobile-card .reason-badge.assets {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.withdrawal-mobile-card .reason-badge.other {
+    background: #f1f5f9;
+    color: #475569;
 }
 
 .withdrawal-mobile-card .meta {
     font-size: 13px;
-    color: #64748b;
-    margin-top: 4px;
+    color: var(--pa-muted);
+    line-height: 1.45;
 }
 
-.android-web-cta {
-    margin: 12px 0 20px;
-    text-align: center;
+.withdrawal-mobile-card .notes {
+    font-size: 13px;
+    color: var(--pa-text);
+    padding-top: 8px;
+    border-top: 1px solid var(--pa-border);
+    font-style: italic;
 }
 
-.android-web-cta button,
-.android-web-cta .primary {
-    width: 100%;
-    max-width: 420px;
-    min-height: 48px;
-    font-size: 15px;
-    font-weight: 600;
-    border-radius: 10px;
-}
-
-/* Analytics: hide revenue table and AI */
+/* —— Analytics —— */
 body.pos-android-app.page-analytics #revenue-per-product-section,
 body.pos-android-app.page-analytics #btn-ai-insights,
 body.pos-android-app.page-analytics #ai-insights-panel {
     display: none !important;
 }
 
-body.pos-android-app.page-analytics .analytics-web-cta {
-    margin-top: 8px;
-    margin-bottom: 20px;
-}
-
-/* Admin: hide accounting shortcut */
-body.pos-android-app.page-admin #admin-action-accounting {
+body.pos-android-app.page-analytics .analytics-header h1 {
     display: none !important;
 }
 
-/* Pending collection: mobile-friendly tables */
-body.pos-android-app.page-pending-collection #pending-collection-list table {
-    min-width: 0 !important;
+body.pos-android-app.page-analytics .analytics-container {
+    padding: 0 !important;
+    max-width: 100% !important;
+}
+
+body.pos-android-app.page-analytics .analytics-header {
+    margin: 0 12px 12px !important;
+    padding: 14px 16px !important;
+    background: var(--pa-surface) !important;
+    border-radius: var(--pa-radius) !important;
+    border: 1px solid var(--pa-border) !important;
+    box-shadow: var(--pa-shadow) !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+}
+
+body.pos-android-app.page-analytics .period-selector {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+}
+
+body.pos-android-app.page-analytics .period-selector label {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: var(--pa-muted) !important;
+    text-transform: uppercase !important;
+}
+
+body.pos-android-app.page-analytics .period-selector select {
     width: 100% !important;
-    font-size: 13px !important;
+    min-height: 44px !important;
+    padding: 10px 12px !important;
+    font-size: 16px !important;
+    border-radius: 10px !important;
+    border: 1px solid var(--pa-border) !important;
+    background: #f8fafc !important;
+    color: var(--pa-text) !important;
 }
 
-body.pos-android-app.page-pending-collection #pending-collection-list .card {
+body.pos-android-app.page-analytics .stats-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    margin: 0 12px 14px !important;
+    padding: 0 !important;
+}
+
+body.pos-android-app.page-analytics .stat-card {
+    background: var(--pa-surface) !important;
+    border: 1px solid var(--pa-border) !important;
+    border-radius: var(--pa-radius) !important;
     padding: 14px !important;
-    overflow-x: auto;
+    box-shadow: var(--pa-shadow) !important;
+    border-left-width: 4px !important;
 }
 
-body.pos-android-app.page-pending-collection #pending-collection-list table th,
-body.pos-android-app.page-pending-collection #pending-collection-list table td {
-    padding: 8px 6px !important;
-    font-size: 13px !important;
-    white-space: normal !important;
+body.pos-android-app.page-analytics .stat-card h3 {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.04em !important;
+    color: var(--pa-muted) !important;
+    margin-bottom: 8px !important;
+}
+
+body.pos-android-app.page-analytics .stat-card .value {
+    font-size: 18px !important;
+    font-weight: 800 !important;
+    color: var(--pa-text) !important;
+    line-height: 1.2 !important;
     word-break: break-word;
 }
 
-body.pos-android-app.page-pending-collection main h1 {
-    font-size: 24px !important;
+body.pos-android-app.page-analytics .stat-card .label {
+    font-size: 12px !important;
+    color: var(--pa-muted) !important;
+    margin-top: 4px !important;
+}
+
+body.pos-android-app.page-analytics .products-section {
+    margin: 0 12px 14px !important;
+    padding: 14px 16px !important;
+    background: var(--pa-surface) !important;
+    border-radius: var(--pa-radius) !important;
+    border: 1px solid var(--pa-border) !important;
+    box-shadow: var(--pa-shadow) !important;
+}
+
+body.pos-android-app.page-analytics .products-section h2 {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: var(--pa-text) !important;
+    margin-bottom: 12px !important;
+}
+
+body.pos-android-app.page-analytics .products-table table {
+    font-size: 13px !important;
+}
+
+body.pos-android-app.page-analytics .products-table th,
+body.pos-android-app.page-analytics .products-table td {
+    padding: 10px 8px !important;
+    color: var(--pa-text) !important;
+}
+
+body.pos-android-app.page-analytics .analytics-web-cta {
+    margin: 0 12px 14px !important;
+}
+
+/* —— Pending collection —— */
+body.pos-android-app.page-pending-collection #app {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 100vh !important;
+    height: auto !important;
+    overflow: visible !important;
+}
+
+body.pos-android-app.page-pending-collection main {
+    flex: 1 !important;
+    padding: 0 0 20px !important;
+}
+
+body.pos-android-app.page-pending-collection main > div > div:first-child {
+    display: none !important;
+}
+
+body.pos-android-app.page-pending-collection #pending-collection-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    padding: 0 12px !important;
+    margin: 0 !important;
+}
+
+.pending-sale-card {
+    background: var(--pa-surface);
+    border-radius: var(--pa-radius);
+    border: 1px solid var(--pa-border);
+    box-shadow: var(--pa-shadow);
+    overflow: hidden;
+}
+
+.pending-sale-card .card-header {
+    padding: 14px 16px;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.06) 0%, rgba(245, 158, 11, 0.06) 100%);
+    border-bottom: 1px solid var(--pa-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.pending-sale-card .sale-id {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--pa-primary);
+    margin: 0 0 4px;
+}
+
+.pending-sale-card .sale-date {
+    font-size: 13px;
+    color: var(--pa-muted);
+    margin: 0;
+}
+
+.pending-sale-card .sale-total {
+    font-size: 22px;
+    font-weight: 800;
+    color: #059669;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.pending-sale-card .card-body {
+    padding: 12px 16px;
+}
+
+.pending-sale-card .info-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    margin-bottom: 8px;
+    color: var(--pa-muted);
+}
+
+.pending-sale-card .info-row strong {
+    color: var(--pa-text);
+    font-weight: 600;
+}
+
+.pending-sale-card .items-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--pa-muted);
+    margin: 12px 0 8px;
+}
+
+.pending-item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--pa-border);
+    gap: 8px;
+}
+
+.pending-item-row:last-child {
+    border-bottom: none;
+}
+
+.pending-item-row .item-name {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--pa-text);
+}
+
+.pending-item-row .item-qty {
+    font-size: 13px;
+    color: var(--pa-muted);
+    margin-right: 8px;
+}
+
+.pending-item-row .item-total {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--pa-text);
+}
+
+.pending-sale-card .card-footer {
+    padding: 12px 16px 16px;
+    border-top: 1px solid var(--pa-border);
+}
+
+.pending-sale-card .btn-collect {
+    width: 100%;
+    min-height: 48px;
+    font-size: 15px;
+    font-weight: 700;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35);
+    cursor: pointer;
+}
+
+body.pos-android-app .pa-empty-state,
+body.pos-android-app .pa-loading-state {
+    margin: 12px;
+    padding: 32px 20px;
+    text-align: center;
+    background: var(--pa-surface);
+    border-radius: var(--pa-radius);
+    border: 1px solid var(--pa-border);
+    color: var(--pa-muted);
+    font-size: 15px;
+}
+
+body.pos-android-app .pa-error-state {
+    margin: 12px;
+    padding: 24px 16px;
+    text-align: center;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: var(--pa-radius);
+    color: #b91c1c;
+}
+
+body.pos-android-app .pa-error-state button {
+    margin-top: 12px;
+    min-height: 44px;
+    padding: 0 20px;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+body.pos-android-app.page-admin #admin-action-accounting {
+    display: none !important;
 }

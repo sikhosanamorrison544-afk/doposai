@@ -48,7 +48,7 @@
     </script>
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
     <link rel="stylesheet" href="/static/css/style.css?v=2">
-    <link rel="stylesheet" href="/static/css/pos-android.css?v=1">
+    <link rel="stylesheet" href="/static/css/pos-android.css?v=2">
     <style>
         /* Items table: no whitish background - transparent */
         #pending-collection-list table,
@@ -114,6 +114,14 @@
     </style>
 </head>
 <body class="page-pending-collection">
+<div class="pa-mobile-shell pos-android-only">
+    <header class="pa-mobile-header pa-header-pending">
+        <h1 class="pa-mobile-title">Pending collection</h1>
+        <p class="pa-mobile-subtitle">{{ store_name }}</p>
+        <span class="pa-mobile-badge">Paid · not yet collected</span>
+        <button type="button" class="pa-mobile-refresh pos-android-only" id="btn-refresh-android">↻ Refresh</button>
+    </header>
+</div>
 <!-- 3D Background Canvas for Default Theme -->
 <canvas id="bg3d-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none; background: transparent;"></canvas>
 <!-- Video Background for Light Theme -->
@@ -149,7 +157,8 @@
     </main>
 </div>
 
-<script src="/static/js/pos-android.js?v=1"></script>
+<script src="/static/js/pos-android.js?v=2"></script>
+<script src="/static/js/pos-android-pages.js?v=2"></script>
 <script>
 // Don't load app.js on this page - it expects POS page structure
 // We'll implement our own API and theme functions
@@ -258,13 +267,17 @@ async function loadPendingCollection() {
     const loadingBg = isClassicTheme ? 'rgba(255, 255, 255, 0.85)' : 'rgba(17, 24, 39, 0.6)';
     const loadingTextColor = isClassicTheme ? '#1a1a2e' : 'rgba(255,255,255,0.9)';
     const loadingBorder = isClassicTheme ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255,255,255,0.1)';
+    const isAndroid = typeof window.isPosAndroidApp === 'function' && window.isPosAndroidApp();
     
-    // Show loading state
-    container.innerHTML = `
+    if (isAndroid) {
+        container.innerHTML = '<div class="pa-loading-state">Loading pending items…</div>';
+    } else {
+        container.innerHTML = `
         <div style="text-align: center; padding: 40px; color: ${loadingTextColor} !important; background: ${loadingBg}; border-radius: 12px; backdrop-filter: blur(20px); border: 1px solid ${loadingBorder};">
             Loading pending collection items...
         </div>
     `;
+    }
     
     try {
         console.log('Loading pending collection sales...');
@@ -273,14 +286,23 @@ async function loadPendingCollection() {
         console.log('Number of sales:', sales ? sales.length : 0);
         
         if (!sales || sales.length === 0) {
-            const emptyBg = isClassicTheme ? 'rgba(255, 255, 255, 0.85)' : 'rgba(17, 24, 39, 0.6)';
-            const emptyTextColor = isClassicTheme ? '#1a1a2e' : 'rgba(255,255,255,0.9)';
-            const emptyBorder = isClassicTheme ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255,255,255,0.1)';
-            container.innerHTML = `
+            if (isAndroid) {
+                container.innerHTML = '<div class="pa-empty-state">No items pending collection</div>';
+            } else {
+                const emptyBg = isClassicTheme ? 'rgba(255, 255, 255, 0.85)' : 'rgba(17, 24, 39, 0.6)';
+                const emptyTextColor = isClassicTheme ? '#1a1a2e' : 'rgba(255,255,255,0.9)';
+                const emptyBorder = isClassicTheme ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255,255,255,0.1)';
+                container.innerHTML = `
                 <div style="text-align: center; padding: 60px; background: ${emptyBg}; border-radius: 12px; backdrop-filter: blur(20px); border: 1px solid ${emptyBorder}; width: 100%; box-sizing: border-box;">
                     <p style="color: ${emptyTextColor} !important; font-size: 18px; margin: 0;">No items pending collection</p>
                 </div>
             `;
+            }
+            return;
+        }
+
+        if (isAndroid && typeof window.renderPendingCollectionMobile === 'function') {
+            window.renderPendingCollectionMobile(sales, container);
             return;
         }
         
@@ -359,13 +381,23 @@ async function loadPendingCollection() {
         
         const container = document.getElementById('pending-collection-list');
         if (container) {
-            container.innerHTML = `
+            const isAndroidErr = typeof window.isPosAndroidApp === 'function' && window.isPosAndroidApp();
+            if (isAndroidErr) {
+                container.innerHTML = `
+                <div class="pa-error-state">
+                    <p style="margin:0;font-weight:700;">Could not load pending items</p>
+                    <p style="margin:8px 0 0;font-size:14px;">${errorMsg}</p>
+                    <button type="button" onclick="loadPendingCollection()" class="primary small">Retry</button>
+                </div>`;
+            } else {
+                container.innerHTML = `
                 <div style="text-align: center; padding: 40px; background: rgba(239, 68, 68, 0.2); border-radius: 12px; border: 2px solid rgba(239, 68, 68, 0.3);">
                     <p style="color: #ef4444 !important; font-size: 18px; margin: 0; font-weight: bold;">Error loading pending collection</p>
                     <p style="color: rgba(255,255,255,0.8) !important; font-size: 14px; margin: 8px 0 0 0;">${errorMsg}</p>
                     <button onclick="loadPendingCollection()" class="small primary" style="margin-top: 16px;">Retry</button>
                 </div>
             `;
+            }
         }
     }
 }
@@ -481,6 +513,10 @@ async function initializePage() {
     
     // Load theme immediately
     loadTheme();
+
+    if (typeof window.initPendingCollectionPageUi === 'function') {
+        window.initPendingCollectionPageUi();
+    }
     
     // Setup event listeners
     const btnRefresh = document.getElementById('btn-refresh');

@@ -51,7 +51,7 @@
     <!-- Preload 3D model for faster loading -->
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
     <link rel="stylesheet" href="/static/css/style.css">
-    <link rel="stylesheet" href="/static/css/pos-android.css?v=1">
+    <link rel="stylesheet" href="/static/css/pos-android.css?v=2">
     <script>
     
     </script>
@@ -68,6 +68,13 @@
     </style>
 </head>
 <body class="page-withdrawals">
+<div class="pa-mobile-shell pos-android-only">
+    <header class="pa-mobile-header pa-header-withdrawals">
+        <h1 class="pa-mobile-title">Withdrawal history</h1>
+        <p class="pa-mobile-subtitle">{{ store_name }}</p>
+        <span class="pa-mobile-badge">Assets &amp; expenses</span>
+    </header>
+</div>
 <!-- 3D Background Canvas for Default Theme -->
 <canvas id="bg3d-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none; background: transparent;"></canvas>
 <!-- Video Background for Light Theme -->
@@ -160,7 +167,8 @@
     </main>
 </div>
 
-<script src="/static/js/pos-android.js?v=1"></script>
+<script src="/static/js/pos-android.js?v=2"></script>
+<script src="/static/js/pos-android-pages.js?v=2"></script>
 <script src="/static/js/withdrawal_history.js"></script>
 <!-- Three.js for 3D Background -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

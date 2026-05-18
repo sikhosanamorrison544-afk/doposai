@@ -165,8 +165,7 @@ class WebViewActivity : AppCompatActivity() {
                 try { localStorage.setItem('pos_android_app', '1'); } catch (e) {}
                 if (typeof window.markPosAndroidApp === 'function') window.markPosAndroidApp();
                 if (typeof window.initAdminAndroidUi === 'function') window.initAdminAndroidUi();
-                if (typeof window.initWithdrawalsAndroidUi === 'function') window.initWithdrawalsAndroidUi();
-                if (typeof window.initAnalyticsAndroidUi === 'function') window.initAnalyticsAndroidUi();
+                if (typeof window.initPosAndroidPageUi === 'function') window.initPosAndroidPageUi();
             })();
         """.trimIndent()
         webView.evaluateJavascript(script, null)
