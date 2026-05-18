@@ -3,7 +3,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "0002_billing_subscriptions"
-down_revision = "0001_placeholder_baseline"
+down_revision = "0001_placeholder"
 branch_labels = None
 depends_on = None
 

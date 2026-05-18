@@ -23,11 +23,22 @@ def main() -> int:
         print("Billing tables already exist.")
         return 0
     print("Creating billing tables:", ", ".join(sorted(missing)))
-    Base.metadata.create_all(bind=engine, tables=[
-        Base.metadata.tables["subscriptions"],
-        Base.metadata.tables["subscription_payments"],
-        Base.metadata.tables["billing_logs"],
-    ])
+    Base.metadata.create_all(
+        bind=engine,
+        tables=[
+            Base.metadata.tables["subscriptions"],
+            Base.metadata.tables["subscription_payments"],
+            Base.metadata.tables["billing_logs"],
+        ],
+    )
+    try:
+        from alembic.config import Config
+        from alembic import command
+
+        command.stamp(Config("alembic.ini"), "head")
+        print("Stamped Alembic revision to head.")
+    except Exception as exc:
+        print("Note: could not stamp Alembic (tables still created):", exc)
     print("Done.")
     return 0
 

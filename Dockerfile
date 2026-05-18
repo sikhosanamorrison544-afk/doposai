@@ -21,6 +21,7 @@ COPY alembic ./alembic
 COPY static ./static
 COPY templates ./templates
 COPY scripts ./scripts
+COPY migrate_billing_paynow.py ./migrate_billing_paynow.py
 
 RUN chmod +x scripts/render_start.sh
 RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
