@@ -6,7 +6,6 @@
     <item android:id="@+id/page_pending_collection" android:title="Pending Collection" />
     <item android:id="@+id/page_store_settings" android:title="Store Settings" />
     <item android:id="@+id/page_analytics" android:title="Analytics" />
-    <item android:id="@+id/page_accounting" android:title="Accounting" />
     <item android:id="@+id/page_withdrawals" android:title="Withdrawals History" />
     <item android:id="@+id/page_outstanding_debts" android:title="Outstanding Debts" />
     <item android:id="@+id/page_quotations" android:title="Quotations" />

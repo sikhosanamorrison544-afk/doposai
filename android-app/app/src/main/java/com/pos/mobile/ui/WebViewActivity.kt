@@ -35,6 +35,34 @@ class WebViewActivity : AppCompatActivity() {
         const val EXTRA_PATH = "path"
         const val EXTRA_TITLE = "title"
         private const val FILE_CHOOSER_REQUEST = 2002
+
+        /** MIME types so CSV exports from Sheets/Drive/files are not greyed out in the picker. */
+        private val IMPORT_FILE_MIME_TYPES = arrayOf(
+            "text/csv",
+            "text/comma-separated-values",
+            "application/csv",
+            "application/vnd.ms-excel",
+            "text/plain",
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/octet-stream",
+            "*/*",
+        )
+
+        private fun buildImportFileChooserIntent(
+            params: WebChromeClient.FileChooserParams?,
+        ): Intent {
+            // Do not use params.createIntent() alone — its accept filter often blocks .csv on Android.
+            return Intent(Intent.ACTION_GET_CONTENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+                putExtra(Intent.EXTRA_MIME_TYPES, IMPORT_FILE_MIME_TYPES)
+                if (params?.mode == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
+                    putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                }
+            }
+        }
     }
 
     private lateinit var baseUrl: String
@@ -82,6 +110,7 @@ class WebViewActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView?, loadedUrl: String?) {
                 if (view != null) {
                     WebViewPrintSupport.injectHelper(view)
+                    injectAndroidWebUiHints(view)
                 }
                 val pending = injectThenReloadUrl
                 if (pending != null && view != null && loadedUrl == pending) {
@@ -99,14 +128,11 @@ class WebViewActivity : AppCompatActivity() {
             ): Boolean {
                 filePathCallback?.onReceiveValue(null)
                 filePathCallback = callback
-                val intent = params?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                    type = "*/*"
-                }
+                val intent = buildImportFileChooserIntent(params)
                 return try {
                     @Suppress("DEPRECATION")
                     startActivityForResult(
-                        Intent.createChooser(intent, "Choose file"),
+                        Intent.createChooser(intent, getString(R.string.choose_import_file)),
                         FILE_CHOOSER_REQUEST,
                     )
                     true
@@ -131,6 +157,21 @@ class WebViewActivity : AppCompatActivity() {
      * Inject token into the current page's origin (so it's the POS server origin, not about:blank),
      * then reload the page so it loads with token already in localStorage and does not show login.
      */
+    private fun injectAndroidWebUiHints(webView: WebView) {
+        val script = """
+            (function() {
+                document.documentElement.classList.add('pos-android-app');
+                if (document.body) document.body.classList.add('pos-android-app');
+                try { localStorage.setItem('pos_android_app', '1'); } catch (e) {}
+                if (typeof window.markPosAndroidApp === 'function') window.markPosAndroidApp();
+                if (typeof window.initAdminAndroidUi === 'function') window.initAdminAndroidUi();
+                if (typeof window.initWithdrawalsAndroidUi === 'function') window.initWithdrawalsAndroidUi();
+                if (typeof window.initAnalyticsAndroidUi === 'function') window.initAnalyticsAndroidUi();
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(script, null)
+    }
+
     private fun injectAuthThenReload(webView: WebView, targetUrl: String, token: String?, username: String, role: String) {
         val prefs = getSharedPreferences("pos", MODE_PRIVATE)
         val theme = prefs.getString("theme", "default") ?: "default"
@@ -188,7 +229,6 @@ class WebViewActivity : AppCompatActivity() {
             R.id.page_pending_collection -> loadPage("/pending-collection", "Pending Collection")
             R.id.page_store_settings -> loadPage("/store-settings", "Store Settings")
             R.id.page_analytics -> loadPage("/analytics", "Analytics")
-            R.id.page_accounting -> loadPage("/accounting", "Accounting")
             R.id.page_withdrawals -> loadPage("/withdrawals/history", "Withdrawals History")
             R.id.page_outstanding_debts -> loadPage("/debts/outstanding", "Outstanding Debts")
         }

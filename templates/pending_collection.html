@@ -48,6 +48,7 @@
     </script>
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
     <link rel="stylesheet" href="/static/css/style.css?v=2">
+    <link rel="stylesheet" href="/static/css/pos-android.css?v=1">
     <style>
         /* Items table: no whitish background - transparent */
         #pending-collection-list table,
@@ -112,7 +113,7 @@
         }
     </style>
 </head>
-<body>
+<body class="page-pending-collection">
 <!-- 3D Background Canvas for Default Theme -->
 <canvas id="bg3d-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none; background: transparent;"></canvas>
 <!-- Video Background for Light Theme -->
@@ -148,6 +149,7 @@
     </main>
 </div>
 
+<script src="/static/js/pos-android.js?v=1"></script>
 <script>
 // Don't load app.js on this page - it expects POS page structure
 // We'll implement our own API and theme functions
@@ -271,9 +273,9 @@ async function loadPendingCollection() {
         console.log('Number of sales:', sales ? sales.length : 0);
         
         if (!sales || sales.length === 0) {
-            const emptyBg = isImageColorPicker ? 'rgba(255, 255, 255, 0.85)' : 'rgba(17, 24, 39, 0.6)';
-            const emptyTextColor = isImageColorPicker ? '#1a1a2e' : 'rgba(255,255,255,0.9)';
-            const emptyBorder = isImageColorPicker ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255,255,255,0.1)';
+            const emptyBg = isClassicTheme ? 'rgba(255, 255, 255, 0.85)' : 'rgba(17, 24, 39, 0.6)';
+            const emptyTextColor = isClassicTheme ? '#1a1a2e' : 'rgba(255,255,255,0.9)';
+            const emptyBorder = isClassicTheme ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255,255,255,0.1)';
             container.innerHTML = `
                 <div style="text-align: center; padding: 60px; background: ${emptyBg}; border-radius: 12px; backdrop-filter: blur(20px); border: 1px solid ${emptyBorder}; width: 100%; box-sizing: border-box;">
                     <p style="color: ${emptyTextColor} !important; font-size: 18px; margin: 0;">No items pending collection</p>
@@ -283,15 +285,15 @@ async function loadPendingCollection() {
         }
         
         // Determine vibrant colors based on theme
-        const saleColor = isImageColorPicker ? '#2596be' : (isLightTheme ? '#2563eb' : '#3b82f6'); // Theme-appropriate blue
-        const totalColor = isImageColorPicker ? '#48bb78' : (isLightTheme ? '#059669' : '#10b981'); // Theme-appropriate green
+        const saleColor = isClassicTheme ? '#2596be' : (isLightTheme ? '#2563eb' : '#3b82f6'); // Theme-appropriate blue
+        const totalColor = isClassicTheme ? '#48bb78' : (isLightTheme ? '#059669' : '#10b981'); // Theme-appropriate green
         
         // Determine background and text colors for cards
-        const cardBg = isImageColorPicker ? 'rgba(255, 255, 255, 0.85)' : 'rgba(17, 24, 39, 0.6)';
-        const cardBorder = isImageColorPicker ? 'rgba(37, 150, 190, 0.3)' : 'rgba(59, 130, 246, 0.3)';
-        const textColor = isImageColorPicker ? '#1a1a2e' : 'rgba(255,255,255,0.8)';
-        const textColorStrong = isImageColorPicker ? '#1a1a2e' : 'rgba(255,255,255,0.95)';
-        const borderColor = isImageColorPicker ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255,255,255,0.1)';
+        const cardBg = isClassicTheme ? 'rgba(255, 255, 255, 0.85)' : 'rgba(17, 24, 39, 0.6)';
+        const cardBorder = isClassicTheme ? 'rgba(37, 150, 190, 0.3)' : 'rgba(59, 130, 246, 0.3)';
+        const textColor = isClassicTheme ? '#1a1a2e' : 'rgba(255,255,255,0.8)';
+        const textColorStrong = isClassicTheme ? '#1a1a2e' : 'rgba(255,255,255,0.95)';
+        const borderColor = isClassicTheme ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255,255,255,0.1)';
         
         container.innerHTML = sales.map(sale => `
             <div class="card" style="background: ${cardBg}; backdrop-filter: blur(20px); border: 2px solid ${cardBorder}; border-radius: 12px; padding: 24px; margin: 0; width: 100%; max-width: 100%; box-sizing: border-box;">

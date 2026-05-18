@@ -16,6 +16,10 @@ body.page-admin.pos-android-app .floating-icons {
     display: none !important;
 }
 
+body.page-admin.pos-android-app #btn-accounting {
+    display: none !important;
+}
+
 body.page-admin.pos-android-app #app {
     max-width: 100vw !important;
     min-height: 100vh;

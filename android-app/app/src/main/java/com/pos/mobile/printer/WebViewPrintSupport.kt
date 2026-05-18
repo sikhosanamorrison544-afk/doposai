@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.webkit.WebView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.pos.mobile.ui.PosAndroidUiBridge
 
 object WebViewPrintSupport {
 
@@ -13,6 +14,10 @@ object WebViewPrintSupport {
         webView.addJavascriptInterface(
             PosAndroidPrintBridge(activity, activity.lifecycleScope),
             "PosAndroidPrint",
+        )
+        webView.addJavascriptInterface(
+            PosAndroidUiBridge(activity),
+            "PosAndroidUi",
         )
     }
 

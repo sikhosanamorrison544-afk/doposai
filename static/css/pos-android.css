@@ -1,0 +1,101 @@
+/* Android WebView-only layout tweaks (body.pos-android-app) */
+
+.pos-android-only {
+    display: none !important;
+}
+
+body.pos-android-app .pos-android-only {
+    display: block !important;
+}
+
+body.pos-android-app .pos-android-hide {
+    display: none !important;
+}
+
+/* Withdrawal history: hide wide table */
+body.pos-android-app.page-withdrawals #withdrawals-table-container {
+    display: none !important;
+}
+
+body.pos-android-app.page-withdrawals #withdrawals-mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.withdrawal-mobile-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 12px 14px;
+    border: 1px solid rgba(102, 126, 234, 0.15);
+    box-shadow: 0 1px 4px rgba(26, 26, 46, 0.08);
+}
+
+.withdrawal-mobile-card .amount {
+    font-size: 18px;
+    font-weight: 700;
+    color: #ef4444;
+}
+
+.withdrawal-mobile-card .meta {
+    font-size: 13px;
+    color: #64748b;
+    margin-top: 4px;
+}
+
+.android-web-cta {
+    margin: 12px 0 20px;
+    text-align: center;
+}
+
+.android-web-cta button,
+.android-web-cta .primary {
+    width: 100%;
+    max-width: 420px;
+    min-height: 48px;
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: 10px;
+}
+
+/* Analytics: hide revenue table and AI */
+body.pos-android-app.page-analytics #revenue-per-product-section,
+body.pos-android-app.page-analytics #btn-ai-insights,
+body.pos-android-app.page-analytics #ai-insights-panel {
+    display: none !important;
+}
+
+body.pos-android-app.page-analytics .analytics-web-cta {
+    margin-top: 8px;
+    margin-bottom: 20px;
+}
+
+/* Admin: hide accounting shortcut */
+body.pos-android-app.page-admin #admin-action-accounting {
+    display: none !important;
+}
+
+/* Pending collection: mobile-friendly tables */
+body.pos-android-app.page-pending-collection #pending-collection-list table {
+    min-width: 0 !important;
+    width: 100% !important;
+    font-size: 13px !important;
+}
+
+body.pos-android-app.page-pending-collection #pending-collection-list .card {
+    padding: 14px !important;
+    overflow-x: auto;
+}
+
+body.pos-android-app.page-pending-collection #pending-collection-list table th,
+body.pos-android-app.page-pending-collection #pending-collection-list table td {
+    padding: 8px 6px !important;
+    font-size: 13px !important;
+    white-space: normal !important;
+    word-break: break-word;
+}
+
+body.pos-android-app.page-pending-collection main h1 {
+    font-size: 24px !important;
+}

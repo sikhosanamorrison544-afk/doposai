@@ -186,6 +186,40 @@ function filterAndRenderWithdrawals() {
     });
     
     updateWithdrawalTotals(filtered);
+    renderWithdrawalsMobile(filtered);
+}
+
+function renderWithdrawalsMobile(withdrawals) {
+    const list = document.getElementById('withdrawals-mobile-list');
+    if (!list || typeof window.isPosAndroidApp !== 'function' || !window.isPosAndroidApp()) {
+        return;
+    }
+    const recent = (withdrawals || []).slice(0, 15);
+    if (recent.length === 0) {
+        list.innerHTML = '<p style="text-align:center;color:#64748b;padding:16px;">No withdrawals match your filters.</p>';
+        return;
+    }
+    list.innerHTML = recent.map(function (w) {
+        const date = new Date(w.created_at);
+        const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const amount = parseFloat(w.amount || 0).toFixed(2);
+        return (
+            '<article class="withdrawal-mobile-card">' +
+            '<div class="amount">$' + amount + '</div>' +
+            '<div><strong>' + escapeHtml(w.reason || 'Other') + '</strong></div>' +
+            '<div class="meta">' + escapeHtml(dateStr) +
+            ' · Receipt ' + escapeHtml(w.receipt_number || 'N/A') +
+            ' · ' + escapeHtml(w.cashier_name || 'Unknown') + '</div>' +
+            (w.notes ? '<div class="meta">' + escapeHtml(w.notes) + '</div>' : '') +
+            '</article>'
+        );
+    }).join('');
+}
+
+function initWithdrawalsAndroidUi() {
+    if (typeof window.wireWebVersionButton === 'function') {
+        window.wireWebVersionButton('btn-view-withdrawals-web', '/withdrawals/history');
+    }
 }
 
 function updateWithdrawalTotals(withdrawals) {
@@ -359,6 +393,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         searchInput.addEventListener('input', filterAndRenderWithdrawals);
     }
     
+    initWithdrawalsAndroidUi();
+
     // Load withdrawals
     await loadWithdrawals();
 });

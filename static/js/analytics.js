@@ -282,11 +282,20 @@ function showError(message) {
 }
 
 async function refreshAll(days) {
-    await Promise.all([
-        loadDashboard(days),
-        loadRevenuePerProduct(days),
-        loadZeroSalesProducts(days)
-    ]);
+    const tasks = [loadDashboard(days), loadZeroSalesProducts(days)];
+    if (typeof window.isPosAndroidApp === 'function' && window.isPosAndroidApp()) {
+        const revenueEl = document.getElementById('revenue-table-container');
+        if (revenueEl) revenueEl.innerHTML = '';
+    } else {
+        tasks.push(loadRevenuePerProduct(days));
+    }
+    await Promise.all(tasks);
+}
+
+function initAnalyticsAndroidUi() {
+    if (typeof window.wireWebVersionButton === 'function') {
+        window.wireWebVersionButton('btn-view-analytics-revenue-web', '/analytics');
+    }
 }
 
 // Theme management
@@ -385,6 +394,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
     
+    initAnalyticsAndroidUi();
+
     // Load initial data
     const initialDays = periodSelect ? parseInt(periodSelect.value) : 30;
     await refreshAll(initialDays);

@@ -51,6 +51,7 @@
     <!-- Preload 3D model for faster loading -->
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/pos-android.css?v=1">
     <script>
     
     </script>
@@ -66,7 +67,7 @@
         }
     </style>
 </head>
-<body>
+<body class="page-withdrawals">
 <!-- 3D Background Canvas for Default Theme -->
 <canvas id="bg3d-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none; background: transparent;"></canvas>
 <!-- Video Background for Light Theme -->
@@ -129,6 +130,13 @@
                 </div>
             </div>
             
+            <div class="android-web-cta pos-android-only">
+                <button type="button" id="btn-view-withdrawals-web" class="primary">View full withdrawal history on web</button>
+                <p style="margin:8px 0 0;font-size:13px;color:#64748b;">Opens in your browser with the full table</p>
+            </div>
+
+            <div id="withdrawals-mobile-list" class="pos-android-only" aria-label="Recent withdrawals"></div>
+
             <!-- Table -->
             <div id="withdrawals-table-container" style="overflow-y: auto; overflow-x: auto; height: calc(100vh - 450px); min-height: 400px; background: rgba(17, 24, 39, 0.3); border-radius: 8px; padding: 8px;">
                 <table style="width: 100%; border-collapse: collapse;">
@@ -152,6 +160,7 @@
     </main>
 </div>
 
+<script src="/static/js/pos-android.js?v=1"></script>
 <script src="/static/js/withdrawal_history.js"></script>
 <!-- Three.js for 3D Background -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

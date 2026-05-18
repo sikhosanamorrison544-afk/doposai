@@ -52,7 +52,6 @@
             { id: 'admin-action-report', fn: function () { clickEl('btn-toggle-report'); } },
             { id: 'admin-action-withdrawals', fn: function () { navigate('/withdrawals/history'); } },
             { id: 'admin-action-analytics', fn: function () { navigate('/analytics'); } },
-            { id: 'admin-action-accounting', fn: function () { navigate('/accounting'); } },
             { id: 'admin-action-shifts', fn: function () { clickEl('btn-toggle-shifts'); } },
             { id: 'admin-action-pending', fn: function () { navigate('/pending-collection'); } },
             { id: 'admin-action-billing', fn: function () { navigate('/billing'); } },
