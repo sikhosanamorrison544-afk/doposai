@@ -253,7 +253,7 @@ def start_pending_payment(
 
     payload: Dict[str, Any] = {
         "payment_reference": reference,
-        "amount": price.amount_usd,
+        "amount": float(price.amount_usd),
         "currency": "USD",
         "plan": plan,
         "billing_cycle": cycle,

@@ -250,15 +250,30 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+  """Return FastAPI HTTP errors as plain detail strings (for mobile/web clients)."""
+  detail = exc.detail
+  if not isinstance(detail, str):
+    detail = str(detail)
+  return JSONResponse(status_code=exc.status_code, content={"detail": detail})
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Catch all exceptions and return detailed error for debugging."""
+    """Catch unexpected exceptions; keep billing/payment errors readable."""
     import traceback
+    from fastapi.exceptions import RequestValidationError
+
+    if isinstance(exc, HTTPException):
+        return await http_exception_handler(request, exc)
+    if isinstance(exc, RequestValidationError):
+        return JSONResponse(status_code=422, content={"detail": exc.errors()})
     error_detail = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
-    print(f"ERROR: {error_detail}")  # Print to server console
+    logging.error("Unhandled error on %s: %s", request.url.path, error_detail)
     return JSONResponse(
         status_code=500,
-        content={"detail": str(exc), "traceback": error_detail}
+        content={"detail": "Server error. Please try again or contact support."},
     )
 
 

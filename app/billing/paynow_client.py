@@ -11,6 +11,18 @@ from ..config import API_PUBLIC_URL
 logger = logging.getLogger(__name__)
 
 
+def _as_optional_str(value: Any) -> Optional[str]:
+    """Coerce Paynow SDK fields to strings (some responses expose methods, not text)."""
+    if value is None:
+        return None
+    if callable(value) and not isinstance(value, type):
+        try:
+            value = value()
+        except TypeError:
+            return None
+    return str(value).strip() or None
+
+
 @dataclass
 class PaynowInitResult:
     success: bool
@@ -84,14 +96,16 @@ class PaynowClient:
             if getattr(response, "success", False):
                 return PaynowInitResult(
                     success=True,
-                    redirect_url=getattr(response, "redirect_url", None),
-                    poll_url=getattr(response, "poll_url", None)
-                    or (raw_data.get("pollurl") if isinstance(raw_data, dict) else None),
+                    redirect_url=_as_optional_str(getattr(response, "redirect_url", None)),
+                    poll_url=_as_optional_str(
+                        getattr(response, "poll_url", None)
+                        or (raw_data.get("pollurl") if isinstance(raw_data, dict) else None)
+                    ),
                     raw={"reference": reference},
                 )
             return PaynowInitResult(
                 success=False,
-                error=str(err or "Paynow rejected request"),
+                error=_as_optional_str(err) or "Paynow rejected request",
             )
         except Exception as e:
             logger.exception("Paynow web initiate failed")
@@ -114,19 +128,24 @@ class PaynowClient:
             response = paynow.send_mobile(payment, phone, "ecocash")
             raw_data = getattr(response, "data", None) or {}
             if isinstance(raw_data, dict):
-                poll_url = getattr(response, "poll_url", None) or raw_data.get("pollurl")
-                instructions = (
+                poll_url = _as_optional_str(
+                    getattr(response, "poll_url", None) or raw_data.get("pollurl")
+                )
+                instructions = _as_optional_str(
                     getattr(response, "instructions", None)
                     or getattr(response, "instruction", None)
                     or raw_data.get("instructions")
                 )
-                err = getattr(response, "error", None) or raw_data.get("error")
-            else:
-                poll_url = getattr(response, "poll_url", None)
-                instructions = getattr(response, "instructions", None) or getattr(
-                    response, "instruction", None
+                err = _as_optional_str(
+                    getattr(response, "error", None) or raw_data.get("error")
                 )
-                err = getattr(response, "error", None)
+            else:
+                poll_url = _as_optional_str(getattr(response, "poll_url", None))
+                instructions = _as_optional_str(
+                    getattr(response, "instructions", None)
+                    or getattr(response, "instruction", None)
+                )
+                err = _as_optional_str(getattr(response, "error", None))
             if getattr(response, "success", False):
                 if not poll_url:
                     return PaynowInitResult(
@@ -142,7 +161,7 @@ class PaynowClient:
                 )
             return PaynowInitResult(
                 success=False,
-                error=str(err or "EcoCash request failed"),
+                error=err or "EcoCash request failed",
                 raw=raw_data if isinstance(raw_data, dict) else None,
             )
         except Exception as e:

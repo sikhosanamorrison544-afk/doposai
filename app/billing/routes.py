@@ -103,7 +103,9 @@ def upgrade_subscription(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
+        msg = str(e)
+        code = 402 if "insufficient" in msg.lower() or "balance" in msg.lower() else 400
+        raise HTTPException(status_code=code, detail=msg) from e
     return payload
 
 
@@ -153,7 +155,9 @@ def initiate_payment(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
+        msg = str(e)
+        code = 402 if "insufficient" in msg.lower() or "balance" in msg.lower() else 400
+        raise HTTPException(status_code=code, detail=msg) from e
 
 
 @payments_router.post("/verify")
