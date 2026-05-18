@@ -105,6 +105,37 @@ def upsert_device_record(device_id: str, data: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+def sync_subscription_firestore(tenant_uid: str, data: Dict[str, Any]) -> None:
+    """Subscriptions + tenant_security billing plane after Paynow activation."""
+    if not tenant_uid:
+        return
+    payload = {**data, "tenant_uid": tenant_uid}
+    upsert_tenant_security_record(tenant_uid, payload)
+    if not is_firestore_configured():
+        return
+    try:
+        from firebase_admin import firestore
+    except ImportError:
+        return
+    if not _ensure_firebase_app():
+        return
+    try:
+        db = firestore.client()
+        db.collection(COLLECTION_SUBSCRIPTIONS).document(tenant_uid).set(payload, merge=True)
+        db.collection(COLLECTION_TENANT_SECURITY).document(tenant_uid).set(
+            {
+                "subscription_status": data.get("subscription_status"),
+                "subscription_end": data.get("subscription_end"),
+                "billing_status": data.get("billing_status"),
+                "payment_verified": data.get("payment_verified", False),
+                "updated_at": data.get("updated_at"),
+            },
+            merge=True,
+        )
+    except Exception as e:
+        logger.warning("Firestore subscription sync failed: %s", e)
+
+
 def append_billing_event(event_id: str, data: Dict[str, Any]) -> Optional[str]:
     """Immutable billing audit trail (webhooks, trial conversions)."""
     if not is_firestore_configured():

@@ -1,1 +1,1 @@
-# Billing package (subscriptions, payment webhooks)
+"""Billing: Paynow / EcoCash subscriptions, webhooks, multi-tenant plans."""

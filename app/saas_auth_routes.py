@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from . import auth
 from .database import get_db
+from .billing import service as billing_service
 from .firestore_service import fetch_tenant_subscription, upsert_tenant_security_record
 from .models import StoreSettings, User
 from .quotation_models import Tenant
@@ -97,19 +98,24 @@ class VerifyResponse(BaseModel):
     last_verified_at: Optional[datetime] = None
 
 
-def _subscription_effective(tenant: Optional[Tenant]) -> str:
+def _subscription_effective(db: Session, tenant: Optional[Tenant]) -> str:
     if not tenant:
         return "active"
-    if tenant.subscription_status == "trial" and tenant.trial_ends_at:
-        if datetime.utcnow() > tenant.trial_ends_at:
-            return "trial_expired"
-    return tenant.subscription_status or "trial"
+    try:
+        sub = billing_service.get_or_create_subscription(db, tenant)
+        eff, _, _ = billing_service.effective_status(sub, tenant)
+        return eff
+    except Exception:
+        if tenant.subscription_status == "trial" and tenant.trial_ends_at:
+            if datetime.utcnow() > tenant.trial_ends_at:
+                return "trial_expired"
+        return tenant.subscription_status or "trial"
 
 
 def _issue_tokens(db: Session, user: User, tenant: Optional[Tenant]) -> AuthResponse:
     tid = user.tenant_id
     tenant_uid = tenant.tenant_uid if tenant else None
-    sub_status = _subscription_effective(tenant)
+    sub_status = _subscription_effective(db, tenant)
     payload: Dict[str, Any] = {"sub": user.username, "role": user.role}
     if tid is not None:
         payload["tid"] = tid
@@ -204,6 +210,7 @@ def auth_register(request: Request, body: RegisterBody, db: Session = Depends(ge
     )
     if fs_id:
         tenant.firestore_doc_id = fs_id
+    billing_service.create_trial_subscription(db, tenant)
     db.commit()
     db.refresh(user)
     db.refresh(tenant)
@@ -288,7 +295,7 @@ def auth_verify(
         user_id=user.id,
         tenant_id=user.tenant_id,
         tenant_uid=tenant.tenant_uid if tenant else None,
-        subscription_status=_subscription_effective(tenant),
+        subscription_status=_subscription_effective(db, tenant),
         trial_ends_at=tenant.trial_ends_at if tenant else None,
         role=user.role,
         username=user.username,

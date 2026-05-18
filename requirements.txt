@@ -18,3 +18,4 @@ psycopg2-binary==2.9.10
 reportlab==4.0.9
 APScheduler==3.10.4
 firebase-admin==6.5.0
+paynow>=1.0.0

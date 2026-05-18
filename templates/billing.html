@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Subscription &amp; Billing — {{ store_name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .billing-wrap { max-width: 960px; margin: 0 auto; padding: 16px; }
+        .billing-card { background: rgba(255,255,255,0.95); border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        .plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+        .plan-card { border: 2px solid #e2e8f0; border-radius: 10px; padding: 14px; }
+        .plan-card.selected { border-color: #667eea; background: #f5f3ff; }
+        .plan-card h3 { margin: 0 0 8px; color: #1a1a2e; }
+        .price { font-size: 1.4rem; font-weight: bold; color: #667eea; }
+        .status-pill { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+        .status-trial { background: #dbeafe; color: #1d4ed8; }
+        .status-active { background: #d1fae5; color: #047857; }
+        .status-expired { background: #fee2e2; color: #b91c1c; }
+        .status-pending { background: #fef3c7; color: #b45309; }
+        .billing-msg { margin-top: 10px; padding: 10px; border-radius: 8px; display: none; }
+        .billing-msg.error { display: block; background: #fee2e2; color: #991b1b; }
+        .billing-msg.success { display: block; background: #d1fae5; color: #065f46; }
+        .billing-msg.info { display: block; background: #e0e7ff; color: #3730a3; }
+        table.billing-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        table.billing-table th, table.billing-table td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+        .cycle-toggle { margin: 12px 0; }
+        .cycle-toggle button { margin-right: 8px; }
+        .cycle-toggle button.active { background: #667eea; color: #fff; }
+    </style>
+</head>
+<body>
+    <div class="billing-wrap">
+        <p><a href="/">← Back to POS</a></p>
+        <h1>Subscription &amp; Billing</h1>
+
+        <div id="billing-gate" class="billing-card" style="display:none;">
+            <p>Sign in as an admin to manage billing.</p>
+            <a href="/?next=/billing" class="primary">Sign in</a>
+        </div>
+
+        <div id="billing-app" style="display:none;">
+            <div class="billing-card">
+                <h2>Current plan</h2>
+                <p id="sub-status-line">Loading…</p>
+                <span id="sub-status-pill" class="status-pill status-trial">—</span>
+                <p id="sub-dates" style="color:#64748b;font-size:14px;margin-top:8px;"></p>
+            </div>
+
+            <div id="trial-banner" class="billing-card billing-msg info" style="display:block;">
+                Your 14-day free trial lets you use the POS offline. Subscribe with EcoCash before trial ends to keep access.
+            </div>
+
+            <div class="billing-card">
+                <h2>Choose a plan</h2>
+                <div class="cycle-toggle">
+                    <button type="button" id="cycle-monthly" class="active small">Monthly</button>
+                    <button type="button" id="cycle-yearly" class="small">Yearly (save)</button>
+                </div>
+                <div id="plan-grid" class="plan-grid"></div>
+                <div style="margin-top:14px;">
+                    <label for="ecocash-phone">EcoCash number (optional — pay on your phone)</label>
+                    <input type="tel" id="ecocash-phone" placeholder="0771234567" style="width:100%;max-width:320px;padding:10px;margin-top:4px;">
+                </div>
+                <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
+                    <button type="button" id="btn-pay-ecocash" class="primary">Pay with EcoCash</button>
+                    <button type="button" id="btn-pay-web" class="small">Pay in browser (Paynow)</button>
+                    <button type="button" id="btn-verify-payment" class="small">I’ve paid — verify</button>
+                </div>
+                <div id="payment-instructions" class="billing-msg info" style="display:none;"></div>
+                <div id="billing-message" class="billing-msg"></div>
+            </div>
+
+            <div class="billing-card">
+                <h2>Payment history</h2>
+                <table class="billing-table">
+                    <thead>
+                        <tr><th>Reference</th><th>Amount</th><th>Status</th><th>Date</th></tr>
+                    </thead>
+                    <tbody id="payments-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script src="/static/js/billing.js"></script>
+</body>
+</html>

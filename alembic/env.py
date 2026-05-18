@@ -15,6 +15,7 @@ import app.models  # noqa: E402, F401
 import app.saas_models  # noqa: E402, F401
 import app.quotation_models  # noqa: E402, F401
 import app.accounting_models  # noqa: E402, F401
+import app.billing.models  # noqa: E402, F401
 
 config = context.config
 if config.config_file_name is not None:

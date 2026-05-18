@@ -12,10 +12,14 @@ APP_ENV = os.environ.get("APP_ENV", "development").lower()
 WEB_PUBLIC_URL = os.environ.get("WEB_PUBLIC_URL", "https://doposai.com").rstrip("/")
 API_PUBLIC_URL = os.environ.get("API_PUBLIC_URL", "https://api.doposai.com").rstrip("/")
 
-# SaaS / billing (future Paynow, EcoCash webhooks — validate signatures in billing layer)
+# SaaS / billing (Paynow + EcoCash)
 TRIAL_DAYS_DEFAULT = int(os.environ.get("TRIAL_DAYS", "14"))
 OFFLINE_GRACE_HOURS_DEFAULT = int(os.environ.get("OFFLINE_GRACE_HOURS", "72"))
 BILLING_WEBHOOK_SECRET = os.environ.get("BILLING_WEBHOOK_SECRET", "").strip()
+PAYNOW_INTEGRATION_ID = os.environ.get("PAYNOW_INTEGRATION_ID", "").strip()
+PAYNOW_INTEGRATION_KEY = os.environ.get("PAYNOW_INTEGRATION_KEY", "").strip()
+PAYNOW_RETURN_URL = os.environ.get("PAYNOW_RETURN_URL", "").strip()
+PAYNOW_RESULT_URL = os.environ.get("PAYNOW_RESULT_URL", "").strip()
 
 
 def _normalize_database_url() -> str:

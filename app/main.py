@@ -117,11 +117,13 @@ from starlette.middleware.gzip import GZipMiddleware
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-from .billing.routes import router as billing_router
+from .billing.routes import billing_router, payments_router, subscriptions_router
 from .platform_routes import router as platform_router
 from .saas_auth_routes import router as saas_auth_router
 
 app.include_router(saas_auth_router)
+app.include_router(subscriptions_router)
+app.include_router(payments_router)
 app.include_router(billing_router)
 app.include_router(platform_router)
 
@@ -386,6 +388,7 @@ class ProductCreate(BaseModel):
     barcode: Optional[str] = None
     category_id: Optional[int] = None
     stock_qty: float = Field(default=0, ge=0, description="Stock quantity must be >= 0")
+    reserved_qty: float = Field(default=0, ge=0, description="Stock reserved for layby / to-collect")
     cost_price: Decimal
     selling_price: Decimal
     is_active: bool = True
@@ -3051,6 +3054,14 @@ async def withdrawal_history_page(request: Request, db: Session = Depends(get_db
     else:
         store_name = STORE_NAME.upper()
     return templates.TemplateResponse("withdrawal_history.html", {"request": request, "store_name": store_name})
+
+
+@app.get("/billing", response_class=HTMLResponse)
+async def billing_page(request: Request, db: Session = Depends(get_db)):
+    """Subscription management & Paynow / EcoCash billing."""
+    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
+    store_name = store_settings.store_name.upper() if store_settings else STORE_NAME.upper()
+    return templates.TemplateResponse("billing.html", {"request": request, "store_name": store_name})
 
 
 @app.get("/analytics", response_class=HTMLResponse)
