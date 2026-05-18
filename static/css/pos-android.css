@@ -1,4 +1,4 @@
-/* POS Android WebView — professional mobile UI (body.pos-android-app) */
+/* POS Android WebView only — every rule requires body.pos-android-app (not used on desktop web). */
 
 :root {
     --pa-bg: #eef2ff;
