@@ -1844,6 +1844,7 @@ window.hideImportModal = hideImportModal;
 window.setupFileInputHandlers = setupFileInputHandlers;
 window.triggerFileInput = triggerFileInput;
 window.uploadInventoryFile = uploadInventoryFile;
+window.uploadInventoryCsvFile = uploadInventoryCsvFile;
 
 function hideImportModal() {
     const modal = document.getElementById('import-inventory-modal');
@@ -1861,80 +1862,125 @@ function hideImportModal() {
     if (uploadBtn) uploadBtn.disabled = true;
 }
 
-async function uploadInventoryFile() {
-    const fileInput = document.getElementById('inventory-file-input');
-    const messageEl = document.getElementById('import-message');
-    const uploadBtn = document.getElementById('btn-upload-inventory');
-    
-    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-        if (messageEl) messageEl.textContent = 'Please select a file';
-        return;
+function parseApiErrorText(text) {
+    if (!text) return 'Request failed';
+    try {
+        const j = JSON.parse(text);
+        if (typeof j.detail === 'string') return j.detail;
+        if (Array.isArray(j.detail) && j.detail.length > 0) {
+            return j.detail.map((d) => d.msg || JSON.stringify(d)).join('; ');
+        }
+    } catch (_) {}
+    return text.length > 400 ? text.slice(0, 400) + '…' : text;
+}
+
+function getImportAuthToken() {
+    if (adminToken) return adminToken;
+    const t = localStorage.getItem('pos_token');
+    if (t) adminToken = t;
+    return t;
+}
+
+async function uploadInventoryCsvFile(file, options) {
+    const messageEl =
+        (options && options.messageEl) ||
+        document.getElementById('import-message') ||
+        document.getElementById('backup-message');
+    const uploadBtn =
+        (options && options.uploadBtn) || document.getElementById('btn-upload-inventory');
+
+    if (!file) {
+        if (messageEl) messageEl.textContent = 'Please select a CSV file';
+        return null;
     }
-    
-    const file = fileInput.files[0];
+
+    const token = getImportAuthToken();
+    if (!token) {
+        if (messageEl) messageEl.textContent = 'Not signed in. Open Admin from a logged-in account.';
+        return null;
+    }
+
     const formData = new FormData();
     formData.append('file', file);
-    
+
     if (messageEl) {
-        messageEl.textContent = 'Uploading and processing file...';
+        messageEl.textContent = 'Uploading and processing CSV…';
         messageEl.style.color = 'rgba(255, 255, 255, 0.9)';
     }
     if (uploadBtn) uploadBtn.disabled = true;
-    
+
     try {
         const response = await fetch('/api/products/import', {
             method: 'POST',
-            headers: {
-                'Authorization': 'Bearer ' + adminToken,
-            },
+            headers: { Authorization: 'Bearer ' + token },
             body: formData,
         });
-        
+
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(errorText || 'Upload failed');
+            throw new Error(parseApiErrorText(errorText));
         }
-        
+
         const result = await response.json();
-        
+
         if (messageEl) {
             let message = `Import completed!\n`;
             message += `Total rows: ${result.total_rows || 0}\n`;
             message += `Created: ${result.created || 0}\n`;
             message += `Updated: ${result.updated || 0}\n`;
+            if (result.merged_rows) {
+                message += `Duplicate rows merged in file: ${result.merged_rows}\n`;
+            }
             message += `Skipped: ${result.skipped || 0}`;
             if (result.errors && result.errors.length > 0) {
                 message += `\n\nErrors: ${result.errors.length}`;
                 if (result.errors.length <= 10) {
                     message += '\n' + result.errors.join('\n');
                 } else {
-                    message += '\n' + result.errors.slice(0, 10).join('\n') + `\n... and ${result.errors.length - 10} more`;
+                    message +=
+                        '\n' +
+                        result.errors.slice(0, 10).join('\n') +
+                        `\n… and ${result.errors.length - 10} more`;
                 }
             }
             messageEl.textContent = message;
-            messageEl.style.color = result.errors && result.errors.length > 0 ? 'rgba(251, 191, 36, 1)' : 'rgba(34, 197, 94, 1)';
+            messageEl.style.color =
+                result.errors && result.errors.length > 0
+                    ? 'rgba(251, 191, 36, 1)'
+                    : 'rgba(34, 197, 94, 1)';
         }
-        
-        // Reload products after successful import
+
         if (result.created > 0 || result.updated > 0) {
             await loadAdminProducts();
         }
-        
-        // Auto-close after 3 seconds if successful
-        if (!result.errors || result.errors.length === 0) {
-            setTimeout(() => {
-                hideImportModal();
-            }, 3000);
+
+        if (
+            (!options || options.autoCloseModal !== false) &&
+            (!result.errors || result.errors.length === 0)
+        ) {
+            setTimeout(() => hideImportModal(), 3000);
         }
+        return result;
     } catch (e) {
         console.error('Import error:', e);
         if (messageEl) {
-            messageEl.textContent = 'Import failed: ' + e.message;
+            messageEl.textContent = 'Import failed: ' + (e.message || 'Unknown error');
             messageEl.style.color = 'rgba(239, 68, 68, 1)';
         }
+        return null;
     } finally {
         if (uploadBtn) uploadBtn.disabled = false;
     }
+}
+
+async function uploadInventoryFile() {
+    const fileInput = document.getElementById('inventory-file-input');
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        const messageEl = document.getElementById('import-message');
+        if (messageEl) messageEl.textContent = 'Please select a file';
+        return;
+    }
+    await uploadInventoryCsvFile(fileInput.files[0]);
 }
 
 function setupAdminEvents() {
@@ -2658,33 +2704,13 @@ async function processBackupQueue() {
     }
 }
 
+function triggerStoreSettingsCsvImport() {
+    const input = document.getElementById('store-csv-file-input');
+    if (input) input.click();
+}
+
 async function importFromBackup() {
-    if (!confirm('This will import all products from Google Sheets backup. Existing products may be updated. Continue?')) {
-        return;
-    }
-    
-    const msg = document.getElementById('backup-message');
-    msg.textContent = 'Importing from Google Sheets...';
-    msg.style.color = 'rgba(255, 255, 255, 0.9)';
-    
-    try {
-        const result = await adminApi('/api/backup/import', {
-            method: 'POST'
-        });
-        if (result.success) {
-            msg.textContent = result.message || `Imported ${(result.created || 0) + (result.updated || 0)} products`;
-            msg.style.color = 'rgba(34, 197, 94, 1)';
-            // Reload products
-            await loadAdminProducts();
-        } else {
-            msg.textContent = result.message || 'Import failed';
-            msg.style.color = 'rgba(239, 68, 68, 1)';
-        }
-    } catch (e) {
-        console.error(e);
-        msg.textContent = 'Import failed: ' + (e.message || 'Unknown error');
-        msg.style.color = 'rgba(239, 68, 68, 1)';
-    }
+    triggerStoreSettingsCsvImport();
 }
 
 async function exportProductsCSV() {
@@ -2763,6 +2789,18 @@ function setupBackupEvents() {
     }
     if (btnImport) {
         btnImport.addEventListener('click', importFromBackup);
+    }
+
+    const storeCsvInput = document.getElementById('store-csv-file-input');
+    if (storeCsvInput && !storeCsvInput.dataset.bound) {
+        storeCsvInput.dataset.bound = '1';
+        storeCsvInput.addEventListener('change', async function (e) {
+            const file = e.target.files && e.target.files[0];
+            if (file) {
+                await uploadInventoryCsvFile(file, { autoCloseModal: false });
+            }
+            e.target.value = '';
+        });
     }
 }
 

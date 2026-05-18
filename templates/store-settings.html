@@ -228,12 +228,13 @@
                         </div>
 
                         <h4 class="settings-subheading">Simple Manual Backup (No Setup Required)</h4>
+                        <input type="file" id="store-csv-file-input" accept=".csv,text/csv" style="display:none;">
                         <div class="settings-actions settings-actions-row">
                             <button id="btn-export-csv" class="primary small">📥 Download CSV Backup</button>
-                            <button id="btn-import-backup" class="small">📤 Import from CSV</button>
+                            <button type="button" id="btn-import-backup" class="small">📤 Import from CSV</button>
                         </div>
                         <p class="help-text">
-                            Download your inventory as CSV, then upload it to Google Sheets manually. To restore, download from Google Sheets and import it here.
+                            Download a CSV backup, then use Import from CSV to restore inventory (same format as export).
                         </p>
 
                         <h4 class="settings-subheading">Automatic Backup (Google Apps Script)</h4>

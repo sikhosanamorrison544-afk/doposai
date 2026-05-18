@@ -450,17 +450,21 @@ async def export_products_csv(
     output = io.StringIO()
     writer = csv.writer(output)
     
-    # Write header
+    # Headers recognized by extract_products_from_csv (export round-trip)
     writer.writerow([
-        "ID", "Name", "Barcode", "Category", "Stock Qty",
-        "Cost Price", "Selling Price", "Is Active"
+        "Name",
+        "Barcode",
+        "Category",
+        "Stock Qty",
+        "Cost Price",
+        "Selling Price",
+        "Is Active",
     ])
     
     # Write product data
     for product in products:
         category_name = product.category.name if product.category else ""
         writer.writerow([
-            product.id,
             product.name,
             product.barcode or "",
             category_name,
@@ -726,26 +730,10 @@ def parse_float(value: str) -> float:
 
 
 def extract_products_from_csv(content: bytes) -> List[dict]:
-    """Extract product data from CSV content."""
-    products = []
-    try:
-        # Try utf-8-sig first to handle BOM
-        content_str = content.decode('utf-8-sig')
-    except UnicodeDecodeError:
-        # Fallback to utf-8
-        content_str = content.decode('utf-8')
-    
-    reader = csv.DictReader(io.StringIO(content_str))
-    for row in reader:
-        products.append({
-            'name': row.get("Product name", "").strip(),
-            'code': str(row.get("Product code", "")).strip(),
-            'category': row.get("Product category", "").strip(),
-            'cost': parse_decimal(row.get("Average cost", "0")),
-            'price': parse_decimal(row.get("Selling price", "0")),
-            'stock': parse_float(row.get("In hand stock", "0")),
-        })
-    return products
+    """Extract product data from CSV (export format, legacy headers, aliases)."""
+    from .inventory_csv import extract_products_from_csv_bytes
+
+    return extract_products_from_csv_bytes(content)
 
 
 def extract_products_from_pdf(content: bytes) -> List[dict]:
@@ -912,174 +900,14 @@ async def import_inventory(
     if not products_data:
         raise HTTPException(status_code=400, detail="No products found in file")
     
-    stats = {
-        "total_rows": len(products_data),
-        "created": 0,
-        "updated": 0,
-        "skipped": 0,
-        "errors": [],
-    }
-    
-    # Import products into database
-    for row_num, product_data in enumerate(products_data, start=1):
-        try:
-            product_name = product_data.get('name', '').strip()
-            if not product_name:
-                stats["skipped"] += 1
-                stats["errors"].append(f"Row {row_num}: Missing product name")
-                continue
-            
-            product_code = product_data.get('code', '').strip()
-            category_name = product_data.get('category', '').strip()
-            avg_cost = product_data.get('cost', Decimal("0.00"))
-            selling_price = product_data.get('price', Decimal("0.00"))
-            in_hand_stock = max(0.0, float(product_data.get('stock', 0.0)))  # Ensure non-negative
-            
-            # Get or create category
-            category = None
-            if category_name:
-                category = get_or_create_category(db, category_name, current_admin)
+    from .inventory_import import import_products_into_db
 
-            # Handle barcode
-            barcode = product_code if product_code else None
-
-            pq = tenant_scope.filter_products(db, current_admin)
-
-            # Check if product exists - prioritize barcode match, then name match
-            # IMPORTANT: Match by name only in safe scenarios to avoid incorrect merges
-            # when multiple CSVs have products with same name but different barcodes
-            existing_product = None
-            if barcode:
-                # First try to find by barcode (most reliable)
-                existing_product = pq.filter(Product.barcode == barcode).first()
-
-            # If not found by barcode, try matching by name in these scenarios:
-            # 1. CSV has no barcode - match by name (regardless of existing barcode status)
-            #    This handles cases where same product appears with/without barcode across CSVs
-            # 2. CSV has barcode BUT existing product has no barcode (adding barcode to existing product)
-            #    BUT only if the barcode doesn't already exist on another product
-            if not existing_product:
-                if not barcode:
-                    # CSV has no barcode - match by name (regardless of whether existing has barcode)
-                    # This ensures products with same name are merged even if barcode status differs
-                    existing_product = pq.filter(
-                        func.lower(Product.name) == func.lower(product_name)
-                    ).first()
-            else:
-                # CSV has barcode - check if this barcode already exists on another product
-                barcode_conflict = pq.filter(Product.barcode == barcode).first()
-                if not barcode_conflict:
-                    # Barcode is free - can match by name to add barcode to existing product
-                    # Only match if existing has no barcode (to avoid merging different products)
-                    existing_product = pq.filter(
-                        func.lower(Product.name) == func.lower(product_name),
-                        Product.barcode == None  # noqa: E711
-                    ).first()
-                # If barcode conflict exists, don't match - will create new product
-
-            if existing_product:
-                # Update existing product - merge stock instead of overwriting
-                old_stock = float(existing_product.stock_qty)
-
-                # Log the merge for debugging
-                logging.info(
-                    f"CSV Import: Updating existing product ID {existing_product.id} '{existing_product.name}' "
-                    f"(matched by {'barcode' if barcode and existing_product.barcode == barcode else 'name'})"
-                )
-
-                # Update product details (overwrite name, category, prices)
-                existing_product.name = product_name
-                existing_product.category_id = category.id if category else None
-                existing_product.cost_price = avg_cost
-                existing_product.selling_price = selling_price
-                existing_product.is_active = True
-
-                # MERGE stock: Add CSV stock to existing stock instead of overwriting
-                csv_stock = max(0.0, float(in_hand_stock))
-                new_stock = old_stock + csv_stock
-                existing_product.stock_qty = new_stock
-
-                # Add barcode if product doesn't have one and barcode is available
-                if not existing_product.barcode and barcode:
-                    existing_barcode = pq.filter(
-                        Product.barcode == barcode,
-                        Product.id != existing_product.id,
-                    ).first()
-                    if not existing_barcode:
-                        existing_product.barcode = barcode
-
-                db.commit()
-                db.refresh(existing_product)
-
-                # Create inventory movement for the stock addition (only if CSV stock > 0)
-                if csv_stock > 0:
-                    movement = InventoryMovement(
-                        product_id=existing_product.id,
-                        change_qty=csv_stock,  # Positive change (addition)
-                        reason=f"Stock merge (file import: +{csv_stock})",
-                    )
-                    db.add(movement)
-                    db.commit()
-
-                stats["updated"] += 1
-            else:
-                # Create new product - check for barcode conflicts first
-                if barcode:
-                    # Check if this barcode already exists (shouldn't happen due to logic above, but safety check)
-                    conflicting_product = pq.filter(
-                        Product.barcode == barcode
-                    ).first()
-                    if conflicting_product:
-                        # Barcode already exists on a different product
-                        # Create the product without barcode to avoid duplicate, but still import it
-                        stats["errors"].append(
-                            f"Row {row_num}: Barcode '{barcode}' already exists on product '{conflicting_product.name}'. "
-                            f"Creating '{product_name}' without barcode to avoid duplicate."
-                        )
-                        barcode = None  # Remove barcode but still create the product
-
-                # Create new - ensure stock_qty is non-negative
-                product = Product(
-                    name=product_name,
-                    barcode=barcode,
-                    category_id=category.id if category else None,
-                    stock_qty=max(0.0, float(in_hand_stock)),  # Ensure non-negative (set negative values to 0)
-                    cost_price=avg_cost,
-                    selling_price=selling_price,
-                    is_active=True,
-                    tenant_id=tenant_scope.tenant_id_for_row(current_admin),
-                )
-                db.add(product)
-                db.commit()
-                db.refresh(product)
-                
-                # Log the creation for debugging
-                logging.info(
-                    f"CSV Import: Created new product ID {product.id} '{product_name}' "
-                    f"(barcode: {barcode or 'none'})"
-                )
-                
-                # Create inventory movement only if final stock is positive
-                final_stock = max(0.0, float(in_hand_stock))
-                if final_stock > 0:
-                    movement = InventoryMovement(
-                        product_id=product.id,
-                        change_qty=final_stock,
-                        reason="Initial stock (file import)",
-                    )
-                    db.add(movement)
-                    db.commit()
-                
-                stats["created"] += 1
-        except Exception as e:
-            stats["skipped"] += 1
-            error_msg = f"Row {row_num}: {str(e)}"
-            stats["errors"].append(error_msg)
-            logging.error(f"Error processing row {row_num}: {e}")
-            db.rollback()
-            continue
-    
-    return stats
+    return import_products_into_db(
+        db,
+        current_admin,
+        products_data,
+        get_or_create_category,
+    )
 
 
 class CustomerCreate(BaseModel):

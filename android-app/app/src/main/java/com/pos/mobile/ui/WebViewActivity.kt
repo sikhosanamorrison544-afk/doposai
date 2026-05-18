@@ -1,11 +1,15 @@
 package com.pos.mobile.ui
 
 import android.annotation.SuppressLint
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import android.webkit.CookieManager
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -30,10 +34,12 @@ class WebViewActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_PATH = "path"
         const val EXTRA_TITLE = "title"
+        private const val FILE_CHOOSER_REQUEST = 2002
     }
 
     private lateinit var baseUrl: String
     private lateinit var webView: WebView
+    private var filePathCallback: ValueCallback<Array<Uri>>? = null
     /** URL we are loading; when it finishes we inject auth into that origin then reload so the page sees the token. */
     private var injectThenReloadUrl: String? = null
 
@@ -85,6 +91,32 @@ class WebViewActivity : AppCompatActivity() {
             }
         }
         webView.webViewClient = OfflineWebViewClient(this, baseUrl, authClient)
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(
+                view: WebView?,
+                callback: ValueCallback<Array<Uri>>?,
+                params: FileChooserParams?,
+            ): Boolean {
+                filePathCallback?.onReceiveValue(null)
+                filePathCallback = callback
+                val intent = params?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "*/*"
+                }
+                return try {
+                    @Suppress("DEPRECATION")
+                    startActivityForResult(
+                        Intent.createChooser(intent, "Choose file"),
+                        FILE_CHOOSER_REQUEST,
+                    )
+                    true
+                } catch (_: ActivityNotFoundException) {
+                    filePathCallback?.onReceiveValue(null)
+                    filePathCallback = null
+                    false
+                }
+            }
+        }
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
 
         if (!token.isNullOrBlank() && path != "/" && path.isNotBlank()) {
@@ -200,6 +232,17 @@ class WebViewActivity : AppCompatActivity() {
         """.trimIndent()
         webView.evaluateJavascript(script) {
             webView.loadUrl(targetUrl)
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == FILE_CHOOSER_REQUEST) {
+            val callback = filePathCallback
+            filePathCallback = null
+            val uris = WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+            callback?.onReceiveValue(uris)
         }
     }
 

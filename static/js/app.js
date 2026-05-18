@@ -538,10 +538,13 @@ async function enterPosAfterAuth(data) {
 
     document.getElementById('user-info').textContent = `${currentUser.username} (${currentUser.role})`;
     const adminBtn = document.getElementById('btn-admin');
+    const billingBtn = document.getElementById('btn-billing');
     if (currentUser.role === 'admin') {
         adminBtn.style.display = 'inline-block';
+        if (billingBtn) billingBtn.style.display = 'inline-block';
     } else {
         adminBtn.style.display = 'none';
+        if (billingBtn) billingBtn.style.display = 'none';
     }
 
     const btnPendingCollection = document.getElementById('btn-pending-collection');
@@ -1214,6 +1217,12 @@ function setupEvents() {
     document.getElementById('btn-admin').addEventListener('click', () => {
         window.location.href = '/admin';
     });
+    const btnBillingNav = document.getElementById('btn-billing');
+    if (btnBillingNav) {
+        btnBillingNav.addEventListener('click', () => {
+            window.location.href = '/billing';
+        });
+    }
     document.getElementById('btn-layby').addEventListener('click', () => {
         window.location.href = '/layby';
     });
@@ -2385,12 +2394,16 @@ async function restoreSession() {
         }
         
         const adminBtn = document.getElementById('btn-admin');
+        const billingBtn = document.getElementById('btn-billing');
         if (adminBtn) {
             if (currentUser.role === 'admin') {
                 adminBtn.style.display = 'inline-block';
             } else {
                 adminBtn.style.display = 'none';
             }
+        }
+        if (billingBtn) {
+            billingBtn.style.display = currentUser.role === 'admin' ? 'inline-block' : 'none';
         }
         
         // Show pending collection button for admin and supervisor
