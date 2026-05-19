@@ -200,7 +200,19 @@ body.page-admin.pos-android-app #products-table td:nth-child(7) {
 }
 
 body.page-admin.pos-android-app #products-mobile-list {
-    display: flex;
+    display: flex !important;
+    flex: 1;
+    min-height: 120px;
+    max-height: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+body.page-admin.pos-android-app .pos-layout .left {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    flex: 1 !important;
 }
 
 .admin-product-card {

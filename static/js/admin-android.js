@@ -150,8 +150,9 @@
         wireMobileActions();
         setupProductSearch();
 
-        if (typeof window.adminProducts !== 'undefined' && window.adminProducts.length) {
-            renderAdminProductsMobile(window.adminProducts);
+        const products = window.adminProducts;
+        if (products && products.length && typeof renderAdminProductsMobile === 'function') {
+            renderAdminProductsMobile(products);
         }
     }
 

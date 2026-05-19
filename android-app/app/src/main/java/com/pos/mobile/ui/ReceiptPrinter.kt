@@ -216,4 +216,77 @@ object ReceiptPrinter {
         "credit" -> "Credit"
         else -> method.replace('_', ' ').replaceFirstChar { it.uppercase() }
     }
+
+    data class WithdrawalReceiptRequest(
+        val storeName: String,
+        val withdrawalId: Int?,
+        val receiptNumber: String?,
+        val amount: Double,
+        val reason: String,
+        val cashierName: String?,
+        val notes: String?,
+        val storePhone: String? = null,
+        val storeLocation: String? = null,
+    )
+
+    fun printWithdrawal(
+        context: Context,
+        request: WithdrawalReceiptRequest,
+        scope: CoroutineScope? = null,
+    ) {
+        val activity = context as? Activity ?: return
+        if (activity.isFinishing) return
+
+        if (PrinterPreferences.isConfigured(context)) {
+            val appActivity = activity as? AppCompatActivity
+            val printScope = scope ?: appActivity?.lifecycleScope
+            if (printScope != null && appActivity != null) {
+                val handler = CoroutineExceptionHandler { _, e ->
+                    Log.e(TAG, "Withdrawal print failed", e)
+                    showError(activity, e.message ?: "Print failed")
+                }
+                val startPrint: () -> Unit = {
+                    printScope.launch(handler) {
+                        printWithdrawalThermal(activity, request)
+                    }
+                }
+                if (PrinterPreferences.getTransport(context) == PrinterTransport.BLUETOOTH) {
+                    PrinterSetupDialog.runWithBluetoothPermission(appActivity, startPrint)
+                } else {
+                    startPrint.invoke()
+                }
+                return
+            }
+        }
+        showError(activity, activity.getString(R.string.printer_none_selected))
+    }
+
+    private suspend fun printWithdrawalThermal(activity: Activity, request: WithdrawalReceiptRequest) {
+        try {
+            val width = PrinterPreferences.getPaperWidth(activity)
+            val data = EscPosReceiptBuilder(width).buildWithdrawalReceipt(
+                storeName = request.storeName,
+                withdrawalId = request.withdrawalId,
+                receiptNumber = request.receiptNumber,
+                amount = request.amount,
+                reason = request.reason,
+                cashierName = request.cashierName,
+                notes = request.notes,
+                storePhone = request.storePhone,
+                storeLocation = request.storeLocation,
+            )
+            val result = ThermalPrintService.print(activity, data)
+            withContext(Dispatchers.Main) {
+                if (result.isSuccess) return@withContext
+                val msg = result.exceptionOrNull()?.message ?: "Print failed"
+                Log.w(TAG, "Withdrawal thermal print failed: $msg")
+                showError(activity, msg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "printWithdrawalThermal error", e)
+            withContext(Dispatchers.Main) {
+                showError(activity, e.message ?: "Print failed")
+            }
+        }
+    }
 }

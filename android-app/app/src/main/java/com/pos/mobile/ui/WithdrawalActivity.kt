@@ -122,11 +122,46 @@ class WithdrawalActivity : BaseNativeActivity() {
                 val msg = getString(R.string.withdrawal_success, body?.receipt_number ?: "—")
                 NativeUi.bindMessage(messageTv, msg, isError = false)
                 NativeUi.showSuccess(this@WithdrawalActivity, msg)
+                printWithdrawalReceipt(
+                    withdrawalId = body?.id,
+                    receiptNumber = body?.receipt_number,
+                    amount = amount,
+                    reason = finalReason,
+                    notes = notes,
+                )
                 findViewById<TextInputEditText>(R.id.withdrawal_amount).text?.clear()
                 reasonSpinner.setSelection(0)
             } catch (e: Exception) {
                 NativeUi.bindMessage(messageTv, e.message ?: "Withdrawal failed")
             }
         }
+    }
+
+    private fun printWithdrawalReceipt(
+        withdrawalId: Int?,
+        receiptNumber: String?,
+        amount: Double,
+        reason: String,
+        notes: String?,
+    ) {
+        val prefs = getSharedPreferences("pos", MODE_PRIVATE)
+        val storeName = prefs.getString("store_name", getString(R.string.store_name))
+            ?: getString(R.string.store_name)
+        val username = prefs.getString("username", "") ?: ""
+        ReceiptPrinter.printWithdrawal(
+            context = this,
+            request = ReceiptPrinter.WithdrawalReceiptRequest(
+                storeName = storeName,
+                withdrawalId = withdrawalId,
+                receiptNumber = receiptNumber,
+                amount = amount,
+                reason = reason,
+                cashierName = username.ifBlank { null },
+                notes = notes?.ifBlank { null },
+                storePhone = prefs.getString("store_phone", null),
+                storeLocation = prefs.getString("store_location", null),
+            ),
+            scope = lifecycleScope,
+        )
     }
 }

@@ -61,6 +61,7 @@ async function loadAdminProducts() {
     
     try {
         adminProducts = await adminApi('/api/products');
+        window.adminProducts = adminProducts;
         console.log(`Loaded ${adminProducts.length} products`);
         body.innerHTML = '';
         

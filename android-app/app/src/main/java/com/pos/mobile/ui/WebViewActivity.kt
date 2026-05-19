@@ -169,6 +169,9 @@ class WebViewActivity : AppCompatActivity() {
                 else if (typeof window.markPosAndroidApp === 'function') window.markPosAndroidApp();
                 if (typeof window.initAdminAndroidUi === 'function') window.initAdminAndroidUi();
                 if (typeof window.initPosAndroidPageUi === 'function') window.initPosAndroidPageUi();
+                if (typeof window.renderAdminProductsMobile === 'function' && window.adminProducts && window.adminProducts.length) {
+                    window.renderAdminProductsMobile(window.adminProducts);
+                }
             })();
         """.trimIndent()
         webView.evaluateJavascript(script, null)
