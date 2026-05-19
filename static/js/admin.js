@@ -2925,15 +2925,10 @@ function applyTheme(themeName) {
         document.documentElement.classList.add(cls);
     }
     
-    const video = document.getElementById('light-theme-video');
-    if (video) {
-        if (theme === 'light') {
-            video.style.display = 'block';
-            video.play().catch(() => {});
-        } else {
-            video.style.display = 'none';
-            video.pause();
-        }
+    if (theme === 'light') {
+        if (typeof window.playLightThemeVideo === 'function') window.playLightThemeVideo();
+    } else if (typeof window.hideLightThemeVideo === 'function') {
+        window.hideLightThemeVideo();
     }
     localStorage.setItem('pos-theme', theme);
     document.querySelectorAll('.theme-btn').forEach(btn => {
@@ -2948,12 +2943,7 @@ function loadTheme() {
     applyTheme(theme);
     if (theme === 'light') {
         setTimeout(() => {
-            const video = document.getElementById('light-theme-video');
-            if (video && video.paused) {
-                video.play().catch(err => {
-                    console.log('Video autoplay on load prevented:', err);
-                });
-            }
+            if (typeof window.playLightThemeVideo === 'function') window.playLightThemeVideo();
         }, 100);
     }
 }

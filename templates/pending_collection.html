@@ -125,10 +125,11 @@
 <!-- 3D Background Canvas for Default Theme -->
 <canvas id="bg3d-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none; background: transparent;"></canvas>
 <!-- Video Background for Light Theme -->
-<video id="light-theme-video" autoplay loop muted playsinline style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; pointer-events: none; display: none;">
+<video id="light-theme-video" autoplay loop muted playsinline preload="auto" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; pointer-events: none; display: none;">
     <source src="/static/background.mp4" type="video/mp4">
     <source src="/static/background.mov" type="video/quicktime">
 </video>
+<script src="/static/js/light-theme-video.js?v=1"></script>
 <div id="app" class="screen active" style="height: 100vh; overflow: hidden; display: flex; flex-direction: column;">
     <header class="top-bar" style="flex-shrink: 0; position: relative; z-index: 100; color: #1a1a1a !important;">
         <div style="flex: 0 0 auto; color: #1a1a1a !important; font-weight: 600;">Pending Collection</div>
@@ -432,30 +433,14 @@ function applyTheme(themeName) {
         document.documentElement.classList.add(themeClass);
     }
     
-    // Handle video background for light theme
-    const video = document.getElementById('light-theme-video');
-    if (video) {
-        if (themeName === 'light') {
-            video.style.display = 'block';
-            video.play().catch(err => {
-                console.log('Video autoplay prevented:', err);
-                document.addEventListener('click', function playVideoOnce() {
-                    video.play().catch(() => {});
-                    document.removeEventListener('click', playVideoOnce);
-                }, { once: true });
-            });
-            // Add water droplets for light theme
-            setTimeout(() => {
-                if (typeof window.addWaterDroplets === 'function') {
-                    window.addWaterDroplets();
-                }
-            }, 200);
-        } else {
-            video.style.display = 'none';
-            video.pause();
-            // Remove water droplets for other themes
-            document.querySelectorAll('.water-droplet').forEach(droplet => droplet.remove());
-        }
+    if (themeName === 'light') {
+        if (typeof window.playLightThemeVideo === 'function') window.playLightThemeVideo();
+        setTimeout(() => {
+            if (typeof window.addWaterDroplets === 'function') window.addWaterDroplets();
+        }, 200);
+    } else {
+        if (typeof window.hideLightThemeVideo === 'function') window.hideLightThemeVideo();
+        document.querySelectorAll('.water-droplet').forEach((droplet) => droplet.remove());
     }
     
     // Save to localStorage
@@ -470,13 +455,7 @@ function loadTheme() {
     // Ensure video plays if light theme is already active
     if (savedTheme === 'light') {
         setTimeout(() => {
-            const video = document.getElementById('light-theme-video');
-            if (video && video.paused) {
-                video.play().catch(err => {
-                    console.log('Video autoplay on load prevented:', err);
-                });
-            }
-            // Add water droplets
+            if (typeof window.playLightThemeVideo === 'function') window.playLightThemeVideo();
             if (typeof window.addWaterDroplets === 'function') {
                 window.addWaterDroplets();
             }

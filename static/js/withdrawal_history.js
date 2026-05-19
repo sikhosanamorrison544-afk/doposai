@@ -273,23 +273,10 @@ function applyTheme(themeName) {
         document.documentElement.classList.add(cls);
     }
     
-    // Handle video background for light theme
-    const video = document.getElementById('light-theme-video');
-    if (video) {
-        if (themeName === 'light') {
-            video.style.display = 'block';
-            video.play().catch(err => {
-                console.log('Video autoplay prevented:', err);
-                // If autoplay fails, try again after user interaction
-                document.addEventListener('click', function playVideoOnce() {
-                    video.play().catch(() => {});
-                    document.removeEventListener('click', playVideoOnce);
-                }, { once: true });
-            });
-        } else {
-            video.style.display = 'none';
-            video.pause();
-        }
+    if (themeName === 'light') {
+        if (typeof window.playLightThemeVideo === 'function') window.playLightThemeVideo();
+    } else if (typeof window.hideLightThemeVideo === 'function') {
+        window.hideLightThemeVideo();
     }
     
     // Save to localStorage
@@ -311,12 +298,7 @@ function loadTheme() {
     // Ensure video plays if light theme is already active
     if (savedTheme === 'light') {
         setTimeout(() => {
-            const video = document.getElementById('light-theme-video');
-            if (video && video.paused) {
-                video.play().catch(err => {
-                    console.log('Video autoplay on load prevented:', err);
-                });
-            }
+            if (typeof window.playLightThemeVideo === 'function') window.playLightThemeVideo();
         }, 100);
     }
 }

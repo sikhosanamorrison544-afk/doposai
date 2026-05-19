@@ -347,31 +347,20 @@ function applyTheme(themeName) {
         document.documentElement.classList.add(cls);
     }
     
-    // Handle video background for light theme
-    const video = document.getElementById('light-theme-video');
-    if (video) {
-        if (theme === 'light') {
-            video.style.display = 'block';
-            video.play().catch(err => {
-                console.log('Video autoplay prevented:', err);
-                // If autoplay fails, try again after user interaction
-                document.addEventListener('click', function playVideoOnce() {
-                    video.play().catch(() => {});
-                    document.removeEventListener('click', playVideoOnce);
-                }, { once: true });
-            });
-            // Add water droplets for light theme
-            setTimeout(() => {
-                if (typeof window.addWaterDroplets === 'function') {
-                    window.addWaterDroplets();
-                }
-            }, 200);
-        } else {
-            video.style.display = 'none';
-            video.pause();
-            // Remove water droplets for other themes
-            document.querySelectorAll('.water-droplet').forEach(droplet => droplet.remove());
+    if (theme === 'light') {
+        if (typeof window.playLightThemeVideo === 'function') {
+            window.playLightThemeVideo();
         }
+        setTimeout(() => {
+            if (typeof window.addWaterDroplets === 'function') {
+                window.addWaterDroplets();
+            }
+        }, 200);
+    } else {
+        if (typeof window.hideLightThemeVideo === 'function') {
+            window.hideLightThemeVideo();
+        }
+        document.querySelectorAll('.water-droplet').forEach((droplet) => droplet.remove());
     }
     
     localStorage.setItem('pos-theme', theme);
@@ -388,13 +377,9 @@ function loadTheme() {
     
     if (theme === 'light') {
         setTimeout(() => {
-            const video = document.getElementById('light-theme-video');
-            if (video && video.paused) {
-                video.play().catch(err => {
-                    console.log('Video autoplay on load prevented:', err);
-                });
+            if (typeof window.playLightThemeVideo === 'function') {
+                window.playLightThemeVideo();
             }
-            // Add water droplets
             if (typeof window.addWaterDroplets === 'function') {
                 window.addWaterDroplets();
             }
