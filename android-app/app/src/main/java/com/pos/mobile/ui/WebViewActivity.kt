@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import android.webkit.CookieManager
+import androidx.activity.result.contract.ActivityResultContracts
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
@@ -57,6 +58,7 @@ class WebViewActivity : AppCompatActivity() {
             return Intent(Intent.ACTION_GET_CONTENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
                 type = "*/*"
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 putExtra(Intent.EXTRA_MIME_TYPES, IMPORT_FILE_MIME_TYPES)
                 if (params?.mode == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
                     putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
@@ -69,12 +71,16 @@ class WebViewActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var importBridge: PosAndroidImportBridge
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
+    private lateinit var importFileLauncher: androidx.activity.result.ActivityResultLauncher<Intent>
     /** URL we are loading; when it finishes we inject auth into that origin then reload so the page sees the token. */
     private var injectThenReloadUrl: String? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        importFileLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            handleImportFileChooserResult(result.resultCode, result.data)
+        }
         BluetoothPermissionDelegate.install(this)
         setContentView(R.layout.activity_webview)
         applyEdgeToEdgeInsets(findViewById(R.id.webview_root))
@@ -136,10 +142,8 @@ class WebViewActivity : AppCompatActivity() {
                 filePathCallback = callback
                 val intent = buildImportFileChooserIntent(params)
                 return try {
-                    @Suppress("DEPRECATION")
-                    startActivityForResult(
+                    importFileLauncher.launch(
                         Intent.createChooser(intent, getString(R.string.choose_import_file)),
-                        FILE_CHOOSER_REQUEST,
                     )
                     true
                 } catch (_: ActivityNotFoundException) {
@@ -298,6 +302,8 @@ class WebViewActivity : AppCompatActivity() {
         val quoted = JSONObject.quote(fileName)
         val script = """
             (function() {
+                window.__posAndroidImportReady = true;
+                window.__posAndroidImportFileName = $quoted;
                 if (typeof window.onPosAndroidImportFileReady === 'function') {
                     window.onPosAndroidImportFileReady($quoted);
                 }
@@ -306,31 +312,45 @@ class WebViewActivity : AppCompatActivity() {
         webView.post { webView.evaluateJavascript(script, null) }
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == FILE_CHOOSER_REQUEST) {
-            val callback = filePathCallback
-            filePathCallback = null
-            val uris = parseFileChooserUris(resultCode, data)
-            callback?.onReceiveValue(uris)
-            val uri = uris?.firstOrNull()
-            if (uri != null) {
-                try {
-                    contentResolver.takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                    )
-                } catch (_: SecurityException) {
-                    // GET_CONTENT grants temporary read access; ignore if not persistable
-                }
-                val name = importBridge.resolveDisplayName(uri)
-                importBridge.setPendingImport(uri, name)
-                notifyWebViewImportFileSelected(name)
-            } else {
-                importBridge.clearPendingImport()
+    private fun handleImportFileChooserResult(resultCode: Int, data: Intent?) {
+        val callback = filePathCallback
+        filePathCallback = null
+        val uris = parseFileChooserUris(resultCode, data)
+        val uri = uris?.firstOrNull()
+
+        if (uri != null) {
+            try {
+                grantUriPermission(
+                    packageName,
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            } catch (_: Exception) {
+                // ignore
+            }
+            try {
+                contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            } catch (_: SecurityException) {
+                // one-time read from picker is still OK
+            }
+            val name = importBridge.resolveDisplayName(uri)
+            importBridge.setPendingImport(uri, name)
+            notifyWebViewImportFileSelected(name)
+        } else {
+            importBridge.clearPendingImport()
+            webView.post {
+                webView.evaluateJavascript(
+                    "(function(){window.__posAndroidImportReady=false;})();",
+                    null,
+                )
             }
         }
+
+        // Satisfy WebView file input (may fire empty change — JS ignores when native pending is set)
+        callback?.onReceiveValue(uris)
     }
 
     override fun onRequestPermissionsResult(

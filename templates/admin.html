@@ -386,18 +386,7 @@
     <div class="card" style="max-width:none;margin:8px 0;">
         <p style="margin-top:0;color:rgba(255,255,255,0.9);">Upload a CSV, PDF, or Word file to import inventory.</p>
         <div style="margin-top:16px;">
-            <input type="file" id="inventory-file-input" accept=".csv,.CSV,text/csv,text/comma-separated-values,text/plain,application/vnd.ms-excel,application/csv,.pdf,.doc,.docx" style="display:none;" onchange="
-                var fileNameEl = document.getElementById('selected-file-name');
-                var uploadBtnEl = document.getElementById('btn-upload-inventory');
-                if (this.files && this.files.length > 0) {
-                    if (fileNameEl) fileNameEl.textContent = 'Selected: ' + this.files[0].name;
-                    if (uploadBtnEl) uploadBtnEl.disabled = false;
-                    console.log('File selected:', this.files[0].name);
-                } else {
-                    if (fileNameEl) fileNameEl.textContent = '';
-                    if (uploadBtnEl) uploadBtnEl.disabled = true;
-                }
-            ">
+            <input type="file" id="inventory-file-input" accept=".csv,.CSV,text/csv,text/comma-separated-values,text/plain,application/vnd.ms-excel,application/csv,.pdf,.doc,.docx" style="display:none;" onchange="if(window.handleInventoryFileInputChange){window.handleInventoryFileInputChange(this);}">
             <div id="inventory-file-label" style="display:block;padding:12px;border:2px dashed rgba(255,255,255,0.3);border-radius:8px;text-align:center;cursor:pointer;background:rgba(255,255,255,0.05);transition:background 0.2s;" onclick="
                 console.log('File label clicked (inline)');
                 var fileInputEl = document.getElementById('inventory-file-input');
@@ -424,7 +413,7 @@
             <div id="selected-file-name" style="margin-top:8px;color:rgba(255,255,255,0.7);font-size:14px;"></div>
         </div>
         <div style="margin-top:16px;display:flex;gap:8px;">
-            <button type="button" id="btn-upload-inventory" class="primary small" disabled>Upload & Import</button>
+            <button type="button" id="btn-upload-inventory" class="primary small" disabled onclick="return window.handleImportUploadClick(event);">Upload & Import</button>
             <button id="btn-cancel-import" class="small">Cancel</button>
         </div>
         <div id="import-message" class="info" style="margin-top:12px;"></div>
@@ -449,8 +438,8 @@
         })();
     </script>
     <script src="/static/js/pos-android.js?v=3"></script>
-    <script src="/static/js/admin.js"></script>
-    <script src="/static/js/admin-android.js?v=3"></script>
+    <script src="/static/js/admin.js?v=4"></script>
+    <script src="/static/js/admin-android.js?v=4"></script>
     <script>
         // Disable 3D background on admin page for better performance
         // The admin page doesn't need the 3D background animation

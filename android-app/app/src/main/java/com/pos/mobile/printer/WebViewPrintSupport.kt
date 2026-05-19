@@ -34,6 +34,24 @@ object WebViewPrintSupport {
             (function() {
                 if (window.__posAndroidPrintReady) return;
                 window.__posAndroidPrintReady = true;
+                window.posNativeImport = {
+                    hasPending: function() {
+                        try {
+                            if (typeof PosAndroidImport === 'undefined') return false;
+                            return PosAndroidImport.hasPendingImport() === true;
+                        } catch (e) { return false; }
+                    },
+                    upload: function() {
+                        try {
+                            if (typeof PosAndroidImport === 'undefined') {
+                                return { ok: false, error: 'Import not available' };
+                            }
+                            return JSON.parse(PosAndroidImport.uploadPendingImport());
+                        } catch (e) {
+                            return { ok: false, error: String(e) };
+                        }
+                    }
+                };
                 window.posNativePrint = {
                     isAvailable: function() {
                         try {

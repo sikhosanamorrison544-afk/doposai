@@ -159,6 +159,41 @@
         }
     }
 
+    function wireImportModalAndroid() {
+        const uploadBtn = document.getElementById('btn-upload-inventory');
+        const chooseBtn = document.getElementById('btn-choose-file');
+        const fileLabel = document.getElementById('inventory-file-label');
+
+        function runUpload(e) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            if (typeof window.handleImportUploadClick === 'function') {
+                window.handleImportUploadClick(e);
+            } else if (typeof window.uploadInventoryFile === 'function') {
+                window.uploadInventoryFile(e);
+            }
+        }
+
+        if (uploadBtn) {
+            uploadBtn.addEventListener('click', runUpload, true);
+            uploadBtn.addEventListener('touchend', runUpload, true);
+        }
+        if (chooseBtn) {
+            chooseBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                clickEl('inventory-file-input');
+            }, true);
+        }
+        if (fileLabel) {
+            fileLabel.addEventListener('click', function (e) {
+                e.preventDefault();
+                clickEl('inventory-file-input');
+            }, true);
+        }
+    }
+
     function initAdminAndroidUi() {
         if (!document.body.classList.contains('page-admin')) return;
         if (!isPosAndroidApp()) return;
@@ -166,6 +201,7 @@
         syncMobileHeader();
         wireMobileToolbar();
         wireMobileActions();
+        wireImportModalAndroid();
         setupProductSearch();
 
         const products = window.adminProducts;

@@ -1766,20 +1766,8 @@ function setupFileInputHandlers() {
         return;
     }
     
-    // Set up change handler
-    fileInput.addEventListener('change', function(e) {
-        console.log('File input change event fired');
-        const fileName = document.getElementById('selected-file-name');
-        const uploadBtn = document.getElementById('btn-upload-inventory');
-        if (e.target.files && e.target.files.length > 0) {
-            clearAndroidPendingImport();
-            if (fileName) fileName.textContent = 'Selected: ' + e.target.files[0].name;
-            if (uploadBtn) uploadBtn.disabled = false;
-            console.log('File selected:', e.target.files[0].name);
-        } else if (!hasAndroidPendingImport()) {
-            if (fileName) fileName.textContent = '';
-            if (uploadBtn) uploadBtn.disabled = true;
-        }
+    fileInput.addEventListener('change', function (e) {
+        handleInventoryFileInputChange(e.target);
     });
     console.log('File input change handler attached');
     
@@ -1851,6 +1839,7 @@ window.setupFileInputHandlers = setupFileInputHandlers;
 window.triggerFileInput = triggerFileInput;
 window.uploadInventoryFile = uploadInventoryFile;
 window.uploadInventoryCsvFile = uploadInventoryCsvFile;
+window.handleInventoryFileInputChange = handleInventoryFileInputChange;
 
 function hideImportModal() {
     const modal = document.getElementById('import-inventory-modal');
@@ -1888,21 +1877,34 @@ function getImportAuthToken() {
     return t;
 }
 
-function hasAndroidPendingImport() {
+function androidImportBridgeReady() {
     try {
-        return (
-            typeof PosAndroidImport !== 'undefined' &&
-            PosAndroidImport.hasPendingImport &&
-            PosAndroidImport.hasPendingImport()
-        );
+        return typeof PosAndroidImport !== 'undefined' && PosAndroidImport !== null;
+    } catch (e) {
+        return false;
+    }
+}
+
+function hasAndroidPendingImport() {
+    if (window.__posAndroidImportReady === true) {
+        return true;
+    }
+    if (!androidImportBridgeReady()) {
+        return false;
+    }
+    try {
+        const v = PosAndroidImport.hasPendingImport();
+        return v === true || v === 'true';
     } catch (e) {
         return false;
     }
 }
 
 function clearAndroidPendingImport() {
+    window.__posAndroidImportReady = false;
+    window.__posAndroidImportFileName = '';
     try {
-        if (typeof PosAndroidImport !== 'undefined' && PosAndroidImport.clearPendingImport) {
+        if (androidImportBridgeReady() && PosAndroidImport.clearPendingImport) {
             PosAndroidImport.clearPendingImport();
         }
     } catch (e) {
@@ -1910,14 +1912,50 @@ function clearAndroidPendingImport() {
     }
 }
 
-/** Called from Android after the user picks a file in the system chooser. */
-window.onPosAndroidImportFileReady = function (fileName) {
+function updateImportFileUi(fileName) {
     const fileNameEl = document.getElementById('selected-file-name');
     const uploadBtn = document.getElementById('btn-upload-inventory');
+    const messageEl = document.getElementById('import-message');
     if (fileNameEl) {
-        fileNameEl.textContent = 'Selected: ' + (fileName || 'file');
+        fileNameEl.textContent = fileName ? 'Selected: ' + fileName : '';
     }
-    if (uploadBtn) uploadBtn.disabled = false;
+    if (uploadBtn) {
+        uploadBtn.disabled = !fileName && !hasAndroidPendingImport();
+    }
+    if (messageEl && fileName) {
+        messageEl.textContent = 'Ready to upload: ' + fileName;
+        messageEl.style.color = 'rgba(255, 255, 255, 0.85)';
+    }
+}
+
+/** Called from Android after the user picks a file in the system chooser. */
+window.onPosAndroidImportFileReady = function (fileName) {
+    window.__posAndroidImportReady = true;
+    window.__posAndroidImportFileName = fileName || '';
+    updateImportFileUi(fileName || 'file');
+};
+
+function handleInventoryFileInputChange(fileInput) {
+    if (!fileInput) return;
+    if (hasAndroidPendingImport() && (!fileInput.files || !fileInput.files.length)) {
+        updateImportFileUi(window.__posAndroidImportFileName || 'file');
+        return;
+    }
+    if (fileInput.files && fileInput.files.length > 0) {
+        clearAndroidPendingImport();
+        updateImportFileUi(fileInput.files[0].name);
+    } else {
+        updateImportFileUi('');
+    }
+}
+
+window.handleImportUploadClick = function (e) {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    uploadInventoryFile(e);
+    return false;
 };
 
 function formatImportResultMessage(result) {
@@ -1965,6 +2003,9 @@ async function applyImportResult(result, options) {
 
     if (result.created > 0 || result.updated > 0) {
         await loadAdminProducts();
+        if (typeof window.renderAdminProductsMobile === 'function' && window.adminProducts) {
+            window.renderAdminProductsMobile(window.adminProducts);
+        }
     }
 
     if (
@@ -1984,7 +2025,18 @@ async function uploadInventoryViaAndroidBridge(options) {
         (options && options.uploadBtn) || document.getElementById('btn-upload-inventory');
 
     if (!hasAndroidPendingImport()) {
-        if (messageEl) messageEl.textContent = 'Please select a file';
+        if (messageEl) {
+            messageEl.textContent = androidImportBridgeReady()
+                ? 'Please select a file again'
+                : 'File upload is only available in the POS Android app. Use the website on a computer, or update the app.';
+        }
+        return null;
+    }
+
+    if (!androidImportBridgeReady()) {
+        if (messageEl) {
+            messageEl.textContent = 'Update the POS app to import files on mobile.';
+        }
         return null;
     }
 
@@ -1995,8 +2047,13 @@ async function uploadInventoryViaAndroidBridge(options) {
     if (uploadBtn) uploadBtn.disabled = true;
 
     try {
-        const raw = PosAndroidImport.uploadPendingImport();
-        const payload = JSON.parse(raw);
+        let payload;
+        if (window.posNativeImport && typeof window.posNativeImport.upload === 'function') {
+            payload = window.posNativeImport.upload();
+        } else {
+            const raw = PosAndroidImport.uploadPendingImport();
+            payload = JSON.parse(raw);
+        }
         if (!payload.ok) {
             throw new Error(payload.error || 'Import failed');
         }

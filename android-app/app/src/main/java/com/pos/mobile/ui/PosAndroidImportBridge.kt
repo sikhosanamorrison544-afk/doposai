@@ -12,7 +12,10 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okio.source
 import org.json.JSONObject
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /**
  * Reads inventory import files picked in WebView (content:// URIs) and uploads them
@@ -32,6 +35,8 @@ class PosAndroidImportBridge(
         .readTimeout(120, TimeUnit.SECONDS)
         .writeTimeout(120, TimeUnit.SECONDS)
         .build()
+
+    private val uploadExecutor = Executors.newSingleThreadExecutor()
 
     fun setPendingImport(uri: Uri?, fileName: String?) {
         pendingUri = uri
@@ -74,6 +79,21 @@ class PosAndroidImportBridge(
 
     @JavascriptInterface
     fun uploadPendingImport(): String {
+        if (pendingUri == null) {
+            return errorJson("No file selected. Choose a CSV file again.")
+        }
+        val future = uploadExecutor.submit(Callable { performUpload() })
+        return try {
+            future.get(120, TimeUnit.SECONDS)
+        } catch (_: TimeoutException) {
+            future.cancel(true)
+            errorJson("Import timed out. Try a smaller file or check your connection.")
+        } catch (e: Exception) {
+            errorJson(e.message ?: "Import failed")
+        }
+    }
+
+    private fun performUpload(): String {
         val uri = pendingUri
             ?: return errorJson("No file selected. Choose a CSV file again.")
         val prefs = activity.getSharedPreferences("pos", Context.MODE_PRIVATE)
