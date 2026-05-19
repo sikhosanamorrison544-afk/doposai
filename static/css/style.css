@@ -2106,6 +2106,10 @@ body.theme-light #light-theme-video {
     height: 100% !important;
     object-fit: cover !important;
     pointer-events: none !important;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
 }
 
 /* Ensure app content is above video */

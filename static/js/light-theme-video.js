@@ -1,9 +1,12 @@
 /**
- * Light theme background video (background.mp4 / background.mov).
- * Browsers need MP4 (H.264); MOV is a fallback for Safari.
+ * Light theme background video — uses background-web.mp4 (720p, web-optimized).
  */
 (function () {
     'use strict';
+
+    var WEB_SRC = '/static/background-web.mp4';
+    var FALLBACK_SRC = '/static/background.mp4';
+    var playWatchdog = null;
 
     function isLightThemeActive() {
         return (
@@ -16,21 +19,127 @@
         return document.getElementById('light-theme-video');
     }
 
-    function ensureSources(video) {
-        if (!video || video.dataset.sourcesReady === '1') {
+    function configureVideoElement(video) {
+        video.muted = true;
+        video.defaultMuted = true;
+        video.loop = true;
+        video.playsInline = true;
+        video.autoplay = true;
+        video.preload = 'auto';
+        video.setAttribute('muted', '');
+        video.setAttribute('loop', '');
+        video.setAttribute('playsinline', '');
+        video.setAttribute('webkit-playsinline', '');
+        video.setAttribute('autoplay', '');
+        video.removeAttribute('poster');
+    }
+
+    function setVideoSource(video, src) {
+        if (!video || video.dataset.currentSrc === src) {
             return;
         }
+        video.dataset.currentSrc = src;
         video.innerHTML = '';
-        [
-            { src: '/static/background.mp4', type: 'video/mp4' },
-            { src: '/static/background.mov', type: 'video/quicktime' },
-        ].forEach(function (spec) {
-            var source = document.createElement('source');
-            source.src = spec.src;
-            source.type = spec.type;
-            video.appendChild(source);
+        video.src = src;
+    }
+
+    function tryPlay(video) {
+        if (!video || !isLightThemeActive()) {
+            return;
+        }
+        configureVideoElement(video);
+        var promise = video.play();
+        if (promise && typeof promise.then === 'function') {
+            promise.catch(function () {
+                /* Autoplay blocked until user gesture */
+            });
+        }
+    }
+
+    function startPlayWatchdog() {
+        stopPlayWatchdog();
+        playWatchdog = window.setInterval(function () {
+            if (!isLightThemeActive()) {
+                return;
+            }
+            var video = getVideo();
+            if (!video) {
+                return;
+            }
+            if (video.paused && !video.ended) {
+                tryPlay(video);
+            }
+        }, 1500);
+    }
+
+    function stopPlayWatchdog() {
+        if (playWatchdog) {
+            window.clearInterval(playWatchdog);
+            playWatchdog = null;
+        }
+    }
+
+    function bindVideoEvents(video) {
+        if (!video || video.dataset.eventsBound === '1') {
+            return;
+        }
+        video.dataset.eventsBound = '1';
+
+        video.addEventListener('loadeddata', function () {
+            if (isLightThemeActive()) {
+                tryPlay(video);
+            }
         });
-        video.dataset.sourcesReady = '1';
+
+        video.addEventListener('canplay', function () {
+            if (isLightThemeActive()) {
+                tryPlay(video);
+            }
+        });
+
+        video.addEventListener('ended', function () {
+            video.currentTime = 0;
+            tryPlay(video);
+        });
+
+        video.addEventListener('stalled', function () {
+            if (isLightThemeActive()) {
+                tryPlay(video);
+            }
+        });
+
+        video.addEventListener('error', function () {
+            if (!isLightThemeActive()) {
+                return;
+            }
+            if (video.dataset.currentSrc !== FALLBACK_SRC) {
+                setVideoSource(video, FALLBACK_SRC);
+                video.load();
+                tryPlay(video);
+            } else if (video.dataset.currentSrc !== '/static/background.mov') {
+                setVideoSource(video, '/static/background.mov');
+                video.load();
+                tryPlay(video);
+            } else {
+                console.warn('Light theme background video failed to load');
+            }
+        });
+
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible' && isLightThemeActive()) {
+                tryPlay(video);
+            }
+        });
+
+        document.addEventListener(
+            'click',
+            function resumeOnGesture() {
+                if (isLightThemeActive()) {
+                    tryPlay(video);
+                }
+            },
+            { capture: true, passive: true }
+        );
     }
 
     function playLightThemeVideo() {
@@ -40,69 +149,35 @@
         }
 
         if (!isLightThemeActive()) {
-            video.style.display = 'none';
-            video.pause();
+            hideLightThemeVideo();
             return;
         }
 
-        ensureSources(video);
-        video.muted = true;
-        video.playsInline = true;
-        video.setAttribute('playsinline', '');
-        video.setAttribute('webkit-playsinline', '');
-        video.loop = true;
-        video.style.display = 'block';
+        bindVideoEvents(video);
+        if (!video.dataset.currentSrc) {
+            setVideoSource(video, WEB_SRC);
+        }
 
-        if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        video.style.display = 'block';
+        video.style.visibility = 'visible';
+
+        if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+            tryPlay(video);
+        } else {
             video.load();
         }
 
-        var tryPlay = function () {
-            var p = video.play();
-            if (p && typeof p.catch === 'function') {
-                p.catch(function () {
-                    document.addEventListener(
-                        'click',
-                        function once() {
-                            video.play().catch(function () {});
-                        },
-                        { once: true }
-                    );
-                });
-            }
-        };
-
-        if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-            tryPlay();
-        } else {
-            video.addEventListener('loadeddata', tryPlay, { once: true });
-            video.addEventListener('canplay', tryPlay, { once: true });
-        }
+        startPlayWatchdog();
     }
 
     function hideLightThemeVideo() {
+        stopPlayWatchdog();
         var video = getVideo();
         if (!video) {
             return;
         }
-        video.style.display = 'none';
         video.pause();
-    }
-
-    function onVideoError() {
-        var video = getVideo();
-        if (!video || !isLightThemeActive()) {
-            return;
-        }
-        var sources = video.querySelectorAll('source');
-        var failed = parseInt(video.dataset.failedSourceIndex || '0', 10);
-        if (failed < sources.length - 1) {
-            video.dataset.failedSourceIndex = String(failed + 1);
-            video.load();
-            playLightThemeVideo();
-        } else {
-            console.warn('Light theme background video could not be loaded');
-        }
+        video.style.display = 'none';
     }
 
     function init() {
@@ -110,15 +185,11 @@
         if (!video) {
             return;
         }
-        ensureSources(video);
-        video.addEventListener('error', onVideoError);
+        bindVideoEvents(video);
         if (isLightThemeActive()) {
             playLightThemeVideo();
         }
     }
-
-    window.playLightThemeVideo = playLightThemeVideo;
-    window.hideLightThemeVideo = hideLightThemeVideo;
 
     function watchThemeClass() {
         var sync = function () {
@@ -132,19 +203,11 @@
         obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
         if (document.body) {
             obs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-        } else {
-            document.addEventListener(
-                'DOMContentLoaded',
-                function () {
-                    if (document.body) {
-                        obs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-                    }
-                    sync();
-                },
-                { once: true }
-            );
         }
     }
+
+    window.playLightThemeVideo = playLightThemeVideo;
+    window.hideLightThemeVideo = hideLightThemeVideo;
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function () {
