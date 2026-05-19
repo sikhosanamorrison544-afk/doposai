@@ -1772,10 +1772,11 @@ function setupFileInputHandlers() {
         const fileName = document.getElementById('selected-file-name');
         const uploadBtn = document.getElementById('btn-upload-inventory');
         if (e.target.files && e.target.files.length > 0) {
+            clearAndroidPendingImport();
             if (fileName) fileName.textContent = 'Selected: ' + e.target.files[0].name;
             if (uploadBtn) uploadBtn.disabled = false;
             console.log('File selected:', e.target.files[0].name);
-        } else {
+        } else if (!hasAndroidPendingImport()) {
             if (fileName) fileName.textContent = '';
             if (uploadBtn) uploadBtn.disabled = true;
         }
@@ -1865,6 +1866,7 @@ function hideImportModal() {
     if (fileInput) fileInput.value = '';
     if (fileName) fileName.textContent = '';
     if (uploadBtn) uploadBtn.disabled = true;
+    clearAndroidPendingImport();
 }
 
 function parseApiErrorText(text) {
@@ -1886,6 +1888,133 @@ function getImportAuthToken() {
     return t;
 }
 
+function hasAndroidPendingImport() {
+    try {
+        return (
+            typeof PosAndroidImport !== 'undefined' &&
+            PosAndroidImport.hasPendingImport &&
+            PosAndroidImport.hasPendingImport()
+        );
+    } catch (e) {
+        return false;
+    }
+}
+
+function clearAndroidPendingImport() {
+    try {
+        if (typeof PosAndroidImport !== 'undefined' && PosAndroidImport.clearPendingImport) {
+            PosAndroidImport.clearPendingImport();
+        }
+    } catch (e) {
+        /* ignore */
+    }
+}
+
+/** Called from Android after the user picks a file in the system chooser. */
+window.onPosAndroidImportFileReady = function (fileName) {
+    const fileNameEl = document.getElementById('selected-file-name');
+    const uploadBtn = document.getElementById('btn-upload-inventory');
+    if (fileNameEl) {
+        fileNameEl.textContent = 'Selected: ' + (fileName || 'file');
+    }
+    if (uploadBtn) uploadBtn.disabled = false;
+};
+
+function formatImportResultMessage(result) {
+    let message = 'Import completed!\n';
+    message += `Total rows: ${result.total_rows || 0}\n`;
+    message += `Created: ${result.created || 0}\n`;
+    message += `Updated: ${result.updated || 0}\n`;
+    if (result.merged_rows) {
+        message += `Duplicate rows merged in file: ${result.merged_rows}\n`;
+    }
+    message += `Skipped: ${result.skipped || 0}`;
+    if (result.file_merged_rows) {
+        message += `\nDuplicate lines merged in file: ${result.file_merged_rows}`;
+    }
+    if (result.stock_mode) {
+        message += `\nStock handling: ${result.stock_mode === 'set' ? 'set on-hand qty from file' : 'add qty to existing stock'}`;
+    }
+    if (result.errors && result.errors.length > 0) {
+        message += `\n\nErrors: ${result.errors.length}`;
+        if (result.errors.length <= 10) {
+            message += '\n' + result.errors.join('\n');
+        } else {
+            message +=
+                '\n' +
+                result.errors.slice(0, 10).join('\n') +
+                `\n… and ${result.errors.length - 10} more`;
+        }
+    }
+    return message;
+}
+
+async function applyImportResult(result, options) {
+    const messageEl =
+        (options && options.messageEl) ||
+        document.getElementById('import-message') ||
+        document.getElementById('backup-message');
+
+    if (messageEl) {
+        messageEl.textContent = formatImportResultMessage(result);
+        messageEl.style.color =
+            result.errors && result.errors.length > 0
+                ? 'rgba(251, 191, 36, 1)'
+                : 'rgba(34, 197, 94, 1)';
+    }
+
+    if (result.created > 0 || result.updated > 0) {
+        await loadAdminProducts();
+    }
+
+    if (
+        (!options || options.autoCloseModal !== false) &&
+        (!result.errors || result.errors.length === 0)
+    ) {
+        setTimeout(() => hideImportModal(), 3000);
+    }
+}
+
+async function uploadInventoryViaAndroidBridge(options) {
+    const messageEl =
+        (options && options.messageEl) ||
+        document.getElementById('import-message') ||
+        document.getElementById('backup-message');
+    const uploadBtn =
+        (options && options.uploadBtn) || document.getElementById('btn-upload-inventory');
+
+    if (!hasAndroidPendingImport()) {
+        if (messageEl) messageEl.textContent = 'Please select a file';
+        return null;
+    }
+
+    if (messageEl) {
+        messageEl.textContent = 'Uploading and processing file…';
+        messageEl.style.color = 'rgba(255, 255, 255, 0.9)';
+    }
+    if (uploadBtn) uploadBtn.disabled = true;
+
+    try {
+        const raw = PosAndroidImport.uploadPendingImport();
+        const payload = JSON.parse(raw);
+        if (!payload.ok) {
+            throw new Error(payload.error || 'Import failed');
+        }
+        const result = payload.result || payload;
+        await applyImportResult(result, options);
+        return result;
+    } catch (e) {
+        console.error('Android import error:', e);
+        if (messageEl) {
+            messageEl.textContent = 'Import failed: ' + (e.message || String(e));
+            messageEl.style.color = 'rgba(239, 68, 68, 1)';
+        }
+        return null;
+    } finally {
+        if (uploadBtn) uploadBtn.disabled = false;
+    }
+}
+
 async function uploadInventoryCsvFile(file, options) {
     const messageEl =
         (options && options.messageEl) ||
@@ -1893,6 +2022,10 @@ async function uploadInventoryCsvFile(file, options) {
         document.getElementById('backup-message');
     const uploadBtn =
         (options && options.uploadBtn) || document.getElementById('btn-upload-inventory');
+
+    if (!file && hasAndroidPendingImport()) {
+        return uploadInventoryViaAndroidBridge(options);
+    }
 
     if (!file) {
         if (messageEl) messageEl.textContent = 'Please select a CSV file';
@@ -1927,44 +2060,7 @@ async function uploadInventoryCsvFile(file, options) {
         }
 
         const result = await response.json();
-
-        if (messageEl) {
-            let message = `Import completed!\n`;
-            message += `Total rows: ${result.total_rows || 0}\n`;
-            message += `Created: ${result.created || 0}\n`;
-            message += `Updated: ${result.updated || 0}\n`;
-            if (result.merged_rows) {
-                message += `Duplicate rows merged in file: ${result.merged_rows}\n`;
-            }
-            message += `Skipped: ${result.skipped || 0}`;
-            if (result.errors && result.errors.length > 0) {
-                message += `\n\nErrors: ${result.errors.length}`;
-                if (result.errors.length <= 10) {
-                    message += '\n' + result.errors.join('\n');
-                } else {
-                    message +=
-                        '\n' +
-                        result.errors.slice(0, 10).join('\n') +
-                        `\n… and ${result.errors.length - 10} more`;
-                }
-            }
-            messageEl.textContent = message;
-            messageEl.style.color =
-                result.errors && result.errors.length > 0
-                    ? 'rgba(251, 191, 36, 1)'
-                    : 'rgba(34, 197, 94, 1)';
-        }
-
-        if (result.created > 0 || result.updated > 0) {
-            await loadAdminProducts();
-        }
-
-        if (
-            (!options || options.autoCloseModal !== false) &&
-            (!result.errors || result.errors.length === 0)
-        ) {
-            setTimeout(() => hideImportModal(), 3000);
-        }
+        await applyImportResult(result, options);
         return result;
     } catch (e) {
         console.error('Import error:', e);
@@ -1978,7 +2074,15 @@ async function uploadInventoryCsvFile(file, options) {
     }
 }
 
-async function uploadInventoryFile() {
+async function uploadInventoryFile(e) {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    if (hasAndroidPendingImport()) {
+        await uploadInventoryViaAndroidBridge();
+        return;
+    }
     const fileInput = document.getElementById('inventory-file-input');
     if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
         const messageEl = document.getElementById('import-message');

@@ -67,6 +67,7 @@ class WebViewActivity : AppCompatActivity() {
 
     private lateinit var baseUrl: String
     private lateinit var webView: WebView
+    private lateinit var importBridge: PosAndroidImportBridge
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     /** URL we are loading; when it finishes we inject auth into that origin then reload so the page sees the token. */
     private var injectThenReloadUrl: String? = null
@@ -96,6 +97,7 @@ class WebViewActivity : AppCompatActivity() {
         val role = prefs.getString("role", "cashier") ?: "cashier"
 
         webView = findViewById<WebView>(R.id.webview)
+        importBridge = PosAndroidImportBridge(this)
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -109,7 +111,7 @@ class WebViewActivity : AppCompatActivity() {
                 userAgentString = "$baseUa DoPosPOS-Android/1"
             }
         }
-        WebViewPrintSupport.attach(this, webView)
+        WebViewPrintSupport.attach(this, webView, importBridge)
         val authClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, loadedUrl: String?) {
                 if (view != null) {
@@ -280,14 +282,54 @@ class WebViewActivity : AppCompatActivity() {
         }
     }
 
+    private fun parseFileChooserUris(resultCode: Int, data: Intent?): Array<Uri>? {
+        if (resultCode != RESULT_OK) return null
+        val fromParser = WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+        if (!fromParser.isNullOrEmpty()) return fromParser
+        if (data == null) return null
+        val clip = data.clipData
+        if (clip != null && clip.itemCount > 0) {
+            return Array(clip.itemCount) { clip.getItemAt(it).uri }
+        }
+        return data.data?.let { arrayOf(it) }
+    }
+
+    private fun notifyWebViewImportFileSelected(fileName: String) {
+        val quoted = JSONObject.quote(fileName)
+        val script = """
+            (function() {
+                if (typeof window.onPosAndroidImportFileReady === 'function') {
+                    window.onPosAndroidImportFileReady($quoted);
+                }
+            })();
+        """.trimIndent()
+        webView.post { webView.evaluateJavascript(script, null) }
+    }
+
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == FILE_CHOOSER_REQUEST) {
             val callback = filePathCallback
             filePathCallback = null
-            val uris = WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+            val uris = parseFileChooserUris(resultCode, data)
             callback?.onReceiveValue(uris)
+            val uri = uris?.firstOrNull()
+            if (uri != null) {
+                try {
+                    contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
+                } catch (_: SecurityException) {
+                    // GET_CONTENT grants temporary read access; ignore if not persistable
+                }
+                val name = importBridge.resolveDisplayName(uri)
+                importBridge.setPendingImport(uri, name)
+                notifyWebViewImportFileSelected(name)
+            } else {
+                importBridge.clearPendingImport()
+            }
         }
     }
 

@@ -4,12 +4,17 @@ import android.annotation.SuppressLint
 import android.webkit.WebView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.pos.mobile.ui.PosAndroidImportBridge
 import com.pos.mobile.ui.PosAndroidUiBridge
 
 object WebViewPrintSupport {
 
     @SuppressLint("SetJavaScriptEnabled")
-    fun attach(activity: AppCompatActivity, webView: WebView) {
+    fun attach(
+        activity: AppCompatActivity,
+        webView: WebView,
+        importBridge: PosAndroidImportBridge,
+    ) {
         webView.settings.javaScriptEnabled = true
         webView.addJavascriptInterface(
             PosAndroidPrintBridge(activity, activity.lifecycleScope),
@@ -19,6 +24,7 @@ object WebViewPrintSupport {
             PosAndroidUiBridge(activity),
             "PosAndroidUi",
         )
+        webView.addJavascriptInterface(importBridge, "PosAndroidImport")
     }
 
     const val INJECT_FLAG = "pos_android_print_injected"

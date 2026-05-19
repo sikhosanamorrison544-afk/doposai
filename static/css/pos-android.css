@@ -357,6 +357,8 @@ body.pos-android-app.page-withdrawals .pa-list-label {
 
 /* —— Analytics —— */
 body.pos-android-app.page-analytics #revenue-per-product-section,
+body.pos-android-app.page-analytics #zero-sales-section,
+body.pos-android-app.page-analytics .stat-card.zero-sales,
 body.pos-android-app.page-analytics #btn-ai-insights,
 body.pos-android-app.page-analytics #ai-insights-panel {
     display: none !important;

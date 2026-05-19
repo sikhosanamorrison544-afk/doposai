@@ -280,6 +280,16 @@ body.page-admin.pos-android-app .pos-layout .left {
     height: auto !important;
 }
 
+body.page-admin.pos-android-app #panel-backdrop {
+    z-index: 9998 !important;
+}
+
+body.page-admin.pos-android-app #summary-report-panel,
+body.page-admin.pos-android-app #shifts-panel,
+body.page-admin.pos-android-app #import-inventory-modal {
+    z-index: 9999 !important;
+}
+
 body.page-admin.pos-android-app .floating-panel {
     width: calc(100vw - 24px) !important;
     max-width: calc(100vw - 24px) !important;

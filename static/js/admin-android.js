@@ -49,10 +49,28 @@
     function wireMobileActions() {
         const actions = [
             { id: 'admin-action-settings', fn: function () { navigate('/store-settings'); } },
-            { id: 'admin-action-report', fn: function () { clickEl('btn-toggle-report'); } },
+            {
+                id: 'admin-action-report',
+                fn: function () {
+                    if (typeof window.toggleReportPanel === 'function') {
+                        window.toggleReportPanel();
+                    } else {
+                        clickEl('btn-toggle-report');
+                    }
+                },
+            },
             { id: 'admin-action-withdrawals', fn: function () { navigate('/withdrawals/history'); } },
             { id: 'admin-action-analytics', fn: function () { navigate('/analytics'); } },
-            { id: 'admin-action-shifts', fn: function () { clickEl('btn-toggle-shifts'); } },
+            {
+                id: 'admin-action-shifts',
+                fn: function () {
+                    if (typeof window.toggleShiftsPanel === 'function') {
+                        window.toggleShiftsPanel();
+                    } else {
+                        clickEl('btn-toggle-shifts');
+                    }
+                },
+            },
             { id: 'admin-action-pending', fn: function () { navigate('/pending-collection'); } },
             { id: 'admin-action-billing', fn: function () { navigate('/billing'); } },
         ];

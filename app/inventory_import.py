@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import logging
+import re
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .models import InventoryMovement, Product, User
@@ -20,6 +22,14 @@ def normalize_product_name(name: str) -> str:
 
 def normalize_barcode(code: str) -> Optional[str]:
     c = (code or "").strip()
+    if not c:
+        return None
+    # Excel often exports long numeric barcodes as scientific notation (e.g. 6.98E+12)
+    if re.match(r"^\d+\.?\d*[eE][+\-]?\d+$", c):
+        try:
+            c = str(int(float(c)))
+        except (ValueError, OverflowError):
+            pass
     return c if c else None
 
 
@@ -83,6 +93,22 @@ def _lookup_pending(
     return pending.get(_pending_name_key(name))
 
 
+def _apply_import_prices(
+    product: Product,
+    *,
+    avg_cost: Decimal,
+    selling_price: Decimal,
+    has_cost: bool,
+    has_price: bool,
+    is_new: bool,
+) -> None:
+    """Apply cost/selling from CSV; on updates, do not wipe prices when columns are missing."""
+    if is_new or has_cost:
+        product.cost_price = avg_cost
+    if is_new or has_price:
+        product.selling_price = selling_price
+
+
 def merge_product_from_import(
     db: Session,
     pq,
@@ -92,14 +118,25 @@ def merge_product_from_import(
     category_id: Optional[int],
     avg_cost: Decimal,
     selling_price: Decimal,
-    stock_to_add: float,
+    has_cost: bool,
+    has_price: bool,
+    has_stock: bool,
+    stock_mode: str,
+    stock_qty: float,
     barcode: Optional[str],
 ) -> float:
-    """Add stock and refresh prices; return quantity added."""
+    """Merge prices and stock; return quantity change recorded."""
     existing.name = normalize_product_name(name) or existing.name
-    existing.category_id = category_id
-    existing.cost_price = avg_cost
-    existing.selling_price = selling_price
+    if category_id is not None:
+        existing.category_id = category_id
+    _apply_import_prices(
+        existing,
+        avg_cost=avg_cost,
+        selling_price=selling_price,
+        has_cost=has_cost,
+        has_price=has_price,
+        is_new=False,
+    )
     existing.is_active = True
 
     if barcode and not existing.barcode:
@@ -110,19 +147,95 @@ def merge_product_from_import(
         if not conflict:
             existing.barcode = barcode
 
-    csv_stock = max(0.0, float(stock_to_add))
-    existing.stock_qty = float(existing.stock_qty or 0) + csv_stock
+    qty = max(0.0, float(stock_qty))
+    delta = 0.0
+    if has_stock:
+        before = float(existing.stock_qty or 0)
+        if stock_mode == "set":
+            existing.stock_qty = qty
+            delta = qty - before
+        else:
+            existing.stock_qty = before + qty
+            delta = qty
     db.flush()
 
-    if csv_stock > 0:
+    if has_stock and abs(delta) > 1e-9:
+        reason = (
+            f"Stock set to {qty} (file import)"
+            if stock_mode == "set"
+            else f"Stock merge (file import: +{delta})"
+        )
         db.add(
             InventoryMovement(
                 product_id=existing.id,
-                change_qty=csv_stock,
-                reason=f"Stock merge (file import: +{csv_stock})",
+                change_qty=delta,
+                reason=reason,
             )
         )
-    return csv_stock
+    return delta
+
+
+def _create_product_from_import(
+    db: Session,
+    *,
+    tenant_id: Optional[int],
+    name: str,
+    barcode: Optional[str],
+    category_id: Optional[int],
+    avg_cost: Decimal,
+    selling_price: Decimal,
+    has_cost: bool,
+    has_price: bool,
+    in_hand_stock: float,
+) -> Optional[Product]:
+    """Insert a new product; retry without barcode if barcode is globally duplicate."""
+
+    def _build(bcode: Optional[str]) -> Product:
+        p = Product(
+            name=name,
+            barcode=bcode,
+            category_id=category_id,
+            stock_qty=max(0.0, in_hand_stock),
+            cost_price=Decimal("0.00"),
+            selling_price=Decimal("0.00"),
+            is_active=True,
+            tenant_id=tenant_id,
+        )
+        _apply_import_prices(
+            p,
+            avg_cost=avg_cost,
+            selling_price=selling_price,
+            has_cost=has_cost,
+            has_price=has_price,
+            is_new=True,
+        )
+        return p
+
+    attempts: List[Optional[str]] = [barcode] if barcode else [None]
+    if barcode:
+        attempts.append(None)
+    for attempt_barcode in attempts:
+        product = _build(attempt_barcode)
+        try:
+            db.add(product)
+            db.flush()
+            if in_hand_stock > 0:
+                db.add(
+                    InventoryMovement(
+                        product_id=product.id,
+                        change_qty=in_hand_stock,
+                        reason="Initial stock (file import)",
+                    )
+                )
+            db.commit()
+            db.refresh(product)
+            return product
+        except IntegrityError:
+            db.rollback()
+            if attempt_barcode is None:
+                return None
+            continue
+    return None
 
 
 def import_products_into_db(
@@ -136,13 +249,19 @@ def import_products_into_db(
     - Matches existing by barcode or name (merge stock).
     - Duplicate rows in the same file merge into one product.
     """
+    from .inventory_csv import merge_import_rows
+
+    products_data, file_merged = merge_import_rows(products_data)
+
     stats: Dict[str, Any] = {
         "total_rows": len(products_data),
         "created": 0,
         "updated": 0,
         "merged_rows": 0,
+        "file_merged_rows": file_merged,
         "skipped": 0,
         "errors": [],
+        "stock_mode": products_data[0].get("stock_mode", "add") if products_data else "add",
     }
     pq = tenant_scope.filter_products(db, current_admin)
     tenant_id = tenant_scope.tenant_id_for_row(current_admin)
@@ -161,7 +280,12 @@ def import_products_into_db(
             category_name = (product_data.get("category") or "").strip()
             avg_cost = product_data.get("cost", Decimal("0.00"))
             selling_price = product_data.get("price", Decimal("0.00"))
+            has_cost = bool(product_data.get("has_cost"))
+            has_price = bool(product_data.get("has_price"))
+            has_stock = bool(product_data.get("has_stock"))
+            stock_mode = str(product_data.get("stock_mode") or "add")
             in_hand_stock = max(0.0, float(product_data.get("stock", 0.0)))
+            product_id = product_data.get("product_id")
 
             category = None
             if category_name:
@@ -169,6 +293,29 @@ def import_products_into_db(
             category_id = category.id if category else None
 
             pending_id = _lookup_pending(pending, product_name, product_code)
+
+            if product_id is not None:
+                by_id = pq.filter(Product.id == product_id).first()
+                if by_id:
+                    merge_product_from_import(
+                        db,
+                        pq,
+                        by_id,
+                        name=product_name,
+                        category_id=category_id,
+                        avg_cost=avg_cost,
+                        selling_price=selling_price,
+                        has_cost=has_cost,
+                        has_price=has_price,
+                        has_stock=has_stock,
+                        stock_mode=stock_mode,
+                        stock_qty=in_hand_stock,
+                        barcode=product_code,
+                    )
+                    db.commit()
+                    _register_pending(pending, by_id.id, product_name, product_code)
+                    stats["updated"] += 1
+                    continue
 
             if pending_id is not None:
                 existing = pq.filter(Product.id == pending_id).first()
@@ -181,7 +328,11 @@ def import_products_into_db(
                         category_id=category_id,
                         avg_cost=avg_cost,
                         selling_price=selling_price,
-                        stock_to_add=in_hand_stock,
+                        has_cost=has_cost,
+                        has_price=has_price,
+                        has_stock=has_stock,
+                        stock_mode=stock_mode,
+                        stock_qty=in_hand_stock,
                         barcode=product_code,
                     )
                     db.commit()
@@ -200,7 +351,11 @@ def import_products_into_db(
                     category_id=category_id,
                     avg_cost=avg_cost,
                     selling_price=selling_price,
-                    stock_to_add=in_hand_stock,
+                    has_cost=has_cost,
+                    has_price=has_price,
+                    has_stock=has_stock,
+                    stock_mode=stock_mode,
+                    stock_qty=in_hand_stock,
                     barcode=product_code,
                 )
                 db.commit()
@@ -217,12 +372,7 @@ def import_products_into_db(
             barcode = product_code
             if barcode:
                 conflict = pq.filter(Product.barcode == barcode).first()
-                if conflict:
-                    stats["errors"].append(
-                        f"Row {row_num}: Barcode '{barcode}' already on '{conflict.name}'. "
-                        f"Merged by name if possible."
-                    )
-                    # Try name-only product without this barcode
+                if conflict and conflict.name.strip().lower() != product_name.lower():
                     by_name = find_existing_product(pq, product_name, None)
                     if by_name:
                         merge_product_from_import(
@@ -233,7 +383,11 @@ def import_products_into_db(
                             category_id=category_id,
                             avg_cost=avg_cost,
                             selling_price=selling_price,
-                            stock_to_add=in_hand_stock,
+                            has_cost=has_cost,
+                            has_price=has_price,
+                            has_stock=has_stock,
+                            stock_mode=stock_mode,
+                            stock_qty=in_hand_stock,
                             barcode=None,
                         )
                         db.commit()
@@ -241,6 +395,26 @@ def import_products_into_db(
                         stats["updated"] += 1
                         continue
                     barcode = None
+                elif conflict:
+                    merge_product_from_import(
+                        db,
+                        pq,
+                        conflict,
+                        name=product_name,
+                        category_id=category_id,
+                        avg_cost=avg_cost,
+                        selling_price=selling_price,
+                        has_cost=has_cost,
+                        has_price=has_price,
+                        has_stock=has_stock,
+                        stock_mode=stock_mode,
+                        stock_qty=in_hand_stock,
+                        barcode=barcode,
+                    )
+                    db.commit()
+                    _register_pending(pending, conflict.id, product_name, product_code)
+                    stats["updated"] += 1
+                    continue
 
             # Last chance: same name in DB (avoid duplicate POS line)
             again = find_existing_product(pq, product_name, None)
@@ -253,7 +427,11 @@ def import_products_into_db(
                     category_id=category_id,
                     avg_cost=avg_cost,
                     selling_price=selling_price,
-                    stock_to_add=in_hand_stock,
+                    has_cost=has_cost,
+                    has_price=has_price,
+                    has_stock=has_stock,
+                    stock_mode=stock_mode,
+                    stock_qty=in_hand_stock,
                     barcode=product_code if not again.barcode else None,
                 )
                 db.commit()
@@ -261,30 +439,25 @@ def import_products_into_db(
                 stats["updated"] += 1
                 continue
 
-            product = Product(
+            created = _create_product_from_import(
+                db,
+                tenant_id=tenant_id,
                 name=product_name,
                 barcode=barcode,
                 category_id=category_id,
-                stock_qty=max(0.0, in_hand_stock),
-                cost_price=avg_cost,
+                avg_cost=avg_cost,
                 selling_price=selling_price,
-                is_active=True,
-                tenant_id=tenant_id,
+                has_cost=has_cost,
+                has_price=has_price,
+                in_hand_stock=in_hand_stock,
             )
-            db.add(product)
-            db.flush()
-
-            if in_hand_stock > 0:
-                db.add(
-                    InventoryMovement(
-                        product_id=product.id,
-                        change_qty=in_hand_stock,
-                        reason="Initial stock (file import)",
-                    )
+            if created is None:
+                stats["skipped"] += 1
+                stats["errors"].append(
+                    f"Row {row_num}: Could not create '{product_name}' (duplicate barcode or database error)"
                 )
-            db.commit()
-            db.refresh(product)
-            _register_pending(pending, product.id, product_name, product_code)
+                continue
+            _register_pending(pending, created.id, product_name, product_code)
             stats["created"] += 1
         except Exception as e:
             stats["skipped"] += 1

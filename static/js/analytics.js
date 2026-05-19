@@ -144,10 +144,12 @@ async function loadDashboard(days = 30) {
             revenueLabelEl.textContent = `${summary.total_products_sold} products sold`;
         }
         
-        // Zero sales count
-        const zeroSalesCountEl = document.getElementById('zero-sales-count');
-        if (zeroSalesCountEl) {
-            zeroSalesCountEl.textContent = formatNumber(summary.zero_sales_count);
+        // Zero sales count (hidden on Android app)
+        if (!isAnalyticsAndroidApp()) {
+            const zeroSalesCountEl = document.getElementById('zero-sales-count');
+            if (zeroSalesCountEl) {
+                zeroSalesCountEl.textContent = formatNumber(summary.zero_sales_count);
+            }
         }
         
     } catch (e) {
@@ -213,6 +215,7 @@ async function loadRevenuePerProduct(days = 30) {
 }
 
 async function loadZeroSalesProducts(days = 30) {
+    if (isAnalyticsAndroidApp()) return;
     const container = document.getElementById('zero-sales-table-container');
     if (!container) return;
     
@@ -281,9 +284,22 @@ function showError(message) {
     }
 }
 
+function isAnalyticsAndroidApp() {
+    if (typeof window.isPosAndroidWebView === 'function') {
+        return window.isPosAndroidWebView();
+    }
+    if (typeof window.isPosAndroidApp === 'function') {
+        return window.isPosAndroidApp();
+    }
+    return false;
+}
+
 async function refreshAll(days) {
-    const tasks = [loadDashboard(days), loadZeroSalesProducts(days)];
-    if (typeof window.isPosAndroidApp === 'function' && window.isPosAndroidApp()) {
+    const tasks = [loadDashboard(days)];
+    if (!isAnalyticsAndroidApp()) {
+        tasks.push(loadZeroSalesProducts(days));
+    }
+    if (isAnalyticsAndroidApp()) {
         const revenueEl = document.getElementById('revenue-table-container');
         if (revenueEl) revenueEl.innerHTML = '';
     } else {

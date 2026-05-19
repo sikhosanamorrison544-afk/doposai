@@ -210,4 +210,5 @@
     <string name="payment_failed">Payment could not be started</string>
     <string name="payment_failed_no_poll">Paynow did not return a payment reference. Check server Paynow settings.</string>
     <string name="payment_starting">Starting EcoCash payment…</string>
+    <string name="choose_import_file">Choose file to import</string>
 </resources>

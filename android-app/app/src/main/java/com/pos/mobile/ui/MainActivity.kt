@@ -767,69 +767,38 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        fun showBrowseProducts(all: List<ProductEntity>) {
-            val browse = all.filter { it.isActive }.take(80)
-            if (browse.isEmpty()) {
-                searchResults.isVisible = false
-                searchAdapter.submitList(emptyList())
-                return
-            }
-            searchAdapter.submitList(browse) {
-                searchResults.isVisible = true
-                searchResults.requestLayout()
-            }
-        }
-
-        fun applySearchResults(matches: List<ProductEntity>, fromQuery: Boolean) {
-            if (fromQuery && matches.size == 1) {
+        fun applySearchResults(matches: List<ProductEntity>) {
+            if (matches.size == 1) {
                 viewModel.addToCart(matches[0], 1)
                 barcodeInput.text.clear()
-                lifecycleScope.launch {
-                    showBrowseProducts(viewModel.products.value)
-                }
-                return
-            }
-            if (matches.isNotEmpty()) {
-                searchAdapter.submitList(matches.take(30)) {
+                searchResults.isVisible = false
+                searchAdapter.submitList(emptyList())
+            } else if (matches.isNotEmpty()) {
+                searchAdapter.submitList(matches.take(20)) {
                     searchResults.isVisible = true
                     searchResults.requestLayout()
                 }
-            } else if (fromQuery) {
+            } else {
                 searchResults.isVisible = false
                 searchAdapter.submitList(emptyList())
-            } else {
-                showBrowseProducts(viewModel.products.value)
-            }
-        }
-
-        lifecycleScope.launch {
-            viewModel.products.collect { list ->
-                val query = barcodeInput.text?.toString()?.trim().orEmpty()
-                if (query.isEmpty()) {
-                    showBrowseProducts(list)
-                }
             }
         }
 
         if (!posSearchSetupDone) {
             posSearchSetupDone = true
-            barcodeInput.setOnFocusChangeListener { _, hasFocus ->
-                if (hasFocus && barcodeInput.text.isNullOrBlank()) {
-                    showBrowseProducts(viewModel.products.value)
-                }
-            }
             barcodeInput.addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
                 override fun afterTextChanged(s: Editable?) {
                     val value = s?.toString()?.trim() ?: ""
                     if (value.isEmpty()) {
-                        showBrowseProducts(viewModel.products.value)
+                        searchResults.isVisible = false
+                        searchAdapter.submitList(emptyList())
                         return
                     }
                     lifecycleScope.launch {
                         val matches = viewModel.searchProducts(value)
-                        applySearchResults(matches, fromQuery = true)
+                        applySearchResults(matches)
                     }
                 }
             })
@@ -851,7 +820,7 @@ class MainActivity : AppCompatActivity() {
                             if (matches.isEmpty()) {
                                 Toast.makeText(this@MainActivity, "No product found", Toast.LENGTH_SHORT).show()
                             } else {
-                                applySearchResults(matches, fromQuery = true)
+                                applySearchResults(matches)
                             }
                         }
                     }

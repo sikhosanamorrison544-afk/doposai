@@ -43,7 +43,7 @@
     <!-- Preload 3D model for faster loading -->
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
     <link rel="stylesheet" href="/static/css/style.css">
-    <link rel="stylesheet" href="/static/css/pos-android.css?v=3">
+    <link rel="stylesheet" href="/static/css/pos-android.css?v=4">
     <style>
         /* Critical override for light theme AI insights panel - must come after main CSS */
         /* This inline style has highest priority and will override everything */
@@ -679,7 +679,7 @@
             </div>
 
             <!-- Zero Sales Products -->
-            <div class="products-section">
+            <div class="products-section" id="zero-sales-section">
                 <h2>Products with Zero Sales</h2>
                 <div id="zero-sales-table-container" class="products-table">
                     <div class="loading">Loading zero sales products...</div>

@@ -443,45 +443,20 @@ async def export_products_csv(
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
 ):
-    """Export all products as CSV file for backup."""
+    """Export all products as CSV file for backup (round-trip safe with import)."""
+    from .inventory_csv import build_products_csv_bytes, product_to_export_row
+
     products = tenant_scope.filter_products(db, current_user).order_by(Product.name).all()
-    
-    # Create CSV content
-    output = io.StringIO()
-    writer = csv.writer(output)
-    
-    # Headers recognized by extract_products_from_csv (export round-trip)
-    writer.writerow([
-        "Name",
-        "Barcode",
-        "Category",
-        "Stock Qty",
-        "Cost Price",
-        "Selling Price",
-        "Is Active",
-    ])
-    
-    # Write product data
-    for product in products:
-        category_name = product.category.name if product.category else ""
-        writer.writerow([
-            product.name,
-            product.barcode or "",
-            category_name,
-            float(product.stock_qty),
-            float(product.cost_price),
-            float(product.selling_price),
-            "Yes" if product.is_active else "No",
-        ])
-    
-    # Create response
+    rows = [product_to_export_row(p) for p in products]
+    content = build_products_csv_bytes(rows)
+
     from datetime import datetime
     filename = f"inventory_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-    
+
     return Response(
-        content=output.getvalue(),
-        media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        content=content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -708,25 +683,17 @@ def get_or_create_category(db: Session, name: str, user: User, description: str 
 
 
 def parse_decimal(value: str) -> Decimal:
-    """Parse a string value to Decimal, handling empty strings and invalid values."""
-    if not value or not value.strip():
-        return Decimal("0.00")
-    try:
-        return Decimal(str(value).strip())
-    except (InvalidOperation, ValueError):
-        return Decimal("0.00")
+    """Parse currency/number text (delegates to inventory_csv)."""
+    from .inventory_csv import parse_decimal as _parse_decimal
+
+    return _parse_decimal(value)
 
 
 def parse_float(value: str) -> float:
-    """Parse a string value to float, handling empty strings and invalid values."""
-    if not value or not value.strip():
-        return 0.0
-    try:
-        result = float(str(value).strip())
-        # Ensure non-negative (set negative values to 0)
-        return max(0.0, result)
-    except (ValueError, TypeError):
-        return 0.0
+    """Parse number text (delegates to inventory_csv)."""
+    from .inventory_csv import parse_float as _parse_float
+
+    return _parse_float(value)
 
 
 def extract_products_from_csv(content: bytes) -> List[dict]:
@@ -888,8 +855,12 @@ async def import_inventory(
     
     # Extract products based on file type
     products_data = []
+    import_meta: dict = {}
     if file_ext == '.csv':
+        from .inventory_csv import parse_csv_import_meta
+
         products_data = extract_products_from_csv(content)
+        import_meta = parse_csv_import_meta(content)
     elif file_ext == '.pdf':
         products_data = extract_products_from_pdf(content)
     elif file_ext in ['.doc', '.docx']:
@@ -902,12 +873,17 @@ async def import_inventory(
     
     from .inventory_import import import_products_into_db
 
-    return import_products_into_db(
+    result = import_products_into_db(
         db,
         current_admin,
         products_data,
         get_or_create_category,
     )
+    if import_meta:
+        result["columns_mapped"] = import_meta.get("columns_mapped", {})
+        if import_meta.get("stock_mode"):
+            result["stock_mode"] = import_meta["stock_mode"]
+    return result
 
 
 class CustomerCreate(BaseModel):
