@@ -6664,18 +6664,29 @@ html.theme-light body.theme-light:not(.pos-android-app) #login-screen input:focu
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12) !important;
 }
 
-html.theme-light body.theme-light:not(.pos-android-app) #login-screen #login-button,
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen #login-button {
+    background: rgba(255, 255, 255, 0.96) !important;
+    border: 1px solid rgba(0, 0, 0, 0.2) !important;
+    color: #000000 !important;
+    text-shadow: none !important;
+}
+
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen #login-button:hover {
+    background: rgba(245, 245, 245, 0.98) !important;
+    border-color: rgba(0, 0, 0, 0.28) !important;
+    color: #000000 !important;
+}
+
 html.theme-light body.theme-light:not(.pos-android-app) #login-screen #register-button,
-html.theme-light body.theme-light:not(.pos-android-app) #login-screen .card button {
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen #register-form-card button {
     background: #0a0a0a !important;
     border: 1px solid rgba(0, 0, 0, 0.85) !important;
     color: #ffffff !important;
     text-shadow: none !important;
 }
 
-html.theme-light body.theme-light:not(.pos-android-app) #login-screen #login-button:hover,
 html.theme-light body.theme-light:not(.pos-android-app) #login-screen #register-button:hover,
-html.theme-light body.theme-light:not(.pos-android-app) #login-screen .card button:hover {
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen #register-form-card button:hover {
     background: #1a1a1a !important;
     border-color: #1a1a1a !important;
     color: #ffffff !important;
