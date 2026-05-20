@@ -511,7 +511,7 @@ html body.theme-light #products-table thead {
 
 #products-table thead th,
 #products-table th {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     background: rgba(255, 255, 255, 0.2) !important; /* Transparent background for glassmorphism */
     backdrop-filter: blur(15px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(15px) saturate(180%) !important;
@@ -1500,14 +1500,14 @@ body.theme-light #transactions-table thead {
 body.theme-light #customers-table thead th,
 body.theme-light #transactions-table thead th {
     background: rgba(255, 255, 255, 0.2) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     border-bottom: 2px solid rgba(0, 0, 0, 0.12) !important;
 }
 
 body.theme-light #customers-table td,
 body.theme-light #transactions-table td {
     background: rgba(255, 255, 255, 0.05) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     border-color: rgba(0, 0, 0, 0.08) !important;
 }
 
@@ -2090,7 +2090,7 @@ body.theme-light {
     background-repeat: no-repeat !important;
     background-position: center center !important;
     animation: none !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     position: relative !important;
 }
 
@@ -2132,7 +2132,7 @@ body.theme-light .floating-panel {
     -webkit-backdrop-filter: blur(25px) saturate(200%) !important;
     border: 1px solid rgba(255, 255, 255, 0.3) !important;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* Regular cards (not floating panels) in light theme */
@@ -2895,7 +2895,7 @@ html body.theme-light #store-settings-panel .settings-page-nav {
     font-weight: 600 !important;
     border: 2px solid rgba(255, 255, 255, 0.3) !important;
     background: rgba(255, 255, 255, 0.08) !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     border-radius: clamp(0.5rem, 1vw, 0.75rem) !important;
     cursor: pointer !important;
     transition: all 0.3s ease !important;
@@ -2925,7 +2925,7 @@ html body.theme-light #store-settings-panel .settings-page-btn:hover {
 #store-settings-panel .settings-page-btn.active {
     background: rgba(59, 130, 246, 0.3) !important;
     border-color: rgba(59, 130, 246, 0.6) !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     font-weight: 700 !important;
     box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3) !important;
 }
@@ -2933,7 +2933,7 @@ html body.theme-light #store-settings-panel .settings-page-btn:hover {
 html body.theme-light #store-settings-panel .settings-page-btn.active {
     background: rgba(59, 130, 246, 0.4) !important;
     border-color: rgba(59, 130, 246, 0.7) !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     box-shadow: 0 4px 16px rgba(59, 130, 246, 0.4) !important;
 }
 
@@ -3277,7 +3277,7 @@ html body.theme-light .store-settings-page-content .settings-section > div:not(.
 }
 
 html body.theme-light .store-settings-page-content label {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     font-weight: 500 !important;
     font-size: clamp(0.9rem, 1.6vw, 1.1rem) !important;
 }
@@ -3571,13 +3571,13 @@ html body.theme-light .store-settings-page-content table {
 
 html body.theme-light .store-settings-page-content .users-table thead th {
     background: rgba(255, 255, 255, 0.2) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     border-bottom: 2px solid rgba(0, 0, 0, 0.12) !important;
 }
 
 html body.theme-light .store-settings-page-content .users-table td {
     background: rgba(255, 255, 255, 0.05) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
 }
 
@@ -3602,7 +3602,7 @@ html body.theme-light .store-settings-page-content .users-table button.small {
     line-height: 1.2 !important;
     min-height: auto !important;
     height: auto !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* Actions column: arrange Edit, Activate/Deactivate, Delete horizontally in light theme */
@@ -3631,12 +3631,12 @@ html body.theme-light .store-settings-page-content table thead {
 }
 
 html body.theme-light .store-settings-page-content table thead th {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     border-bottom: 2px solid rgba(0, 0, 0, 0.12) !important;
 }
 
 html body.theme-light .store-settings-page-content table td {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     background: rgba(255, 255, 255, 0.05) !important;
 }
 
@@ -4591,21 +4591,19 @@ html body.theme-light #store-settings-panel .settings-danger {
     background: rgba(239, 68, 68, 0.08) !important;
 }
 
-/* Light theme: force dark text even if some inline styles still use white */
-html body.theme-light #store-settings-panel [style*="color:rgba(255"],
-html body.theme-light #store-settings-panel [style*="color: rgba(255"],
-html body.theme-light #store-settings-panel [style*="color:#fff"],
-html body.theme-light #store-settings-panel [style*="color: #fff"],
-html body.theme-light #store-settings-panel [style*="color:#ffffff"],
-html body.theme-light #store-settings-panel [style*="color: #ffffff"],
-html body.theme-light #store-settings-panel [style*="color:white"],
-html body.theme-light #store-settings-panel [style*="color: white"] {
-    color: #111827 !important;
+/* Light theme: force white text when inline styles still use dark colors */
+html body.theme-light #store-settings-panel [style*="color:#1a1a1a"],
+html body.theme-light #store-settings-panel [style*="color: #1a1a1a"],
+html body.theme-light #store-settings-panel [style*="color:#1a1a2e"],
+html body.theme-light #store-settings-panel [style*="color: #1a1a2e"],
+html body.theme-light #store-settings-panel [style*="color:rgba(26, 26, 46"],
+html body.theme-light #store-settings-panel [style*="color: rgba(26, 26, 46"] {
+    color: #ffffff !important;
 }
 
 html body.theme-light #store-settings-panel code {
-    background: rgba(17, 24, 39, 0.08) !important;
-    color: #111827 !important;
+    background: rgba(0, 0, 0, 0.25) !important;
+    color: #ffffff !important;
     padding: 2px 6px !important;
     border-radius: 6px !important;
 }
@@ -4703,15 +4701,17 @@ html body.theme-light #ai-insights-panel #ai-chat-panel,
 html body.theme-light #ai-insights-panel #ai-chat-panel *,
 html body.theme-light #ai-insights-panel #ai-chat-messages,
 html body.theme-light #ai-insights-panel #ai-chat-messages * {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
-/* Override any black text colors */
+/* Override any black text colors in inline styles */
 html body.theme-light #ai-insights-panel [style*="color:#1a1a2e"],
 html body.theme-light #ai-insights-panel [style*="color: #1a1a2e"],
+html body.theme-light #ai-insights-panel [style*="color:#1a1a1a"],
+html body.theme-light #ai-insights-panel [style*="color: #1a1a1a"],
 html body.theme-light #ai-insights-panel [style*="color:rgba(26, 26, 46"],
 html body.theme-light #ai-insights-panel [style*="color: rgba(26, 26, 46"] {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 html body.theme-light #ai-insights-panel #ai-chat-panel {
@@ -4886,7 +4886,7 @@ body.theme-light textarea {
     -webkit-backdrop-filter: blur(15px) saturate(200%) !important;
     border: 1px solid rgba(0, 0, 0, 0.2) !important;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-light input:focus,
@@ -4909,7 +4909,7 @@ body.theme-light button {
     -webkit-backdrop-filter: blur(15px) saturate(200%) !important;
     border: 1px solid rgba(0, 0, 0, 0.2) !important;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     transition: all 0.3s ease !important;
 }
 
@@ -4926,7 +4926,7 @@ body.theme-light button.primary {
     -webkit-backdrop-filter: blur(15px) saturate(200%) !important;
     border: 1px solid rgba(59, 130, 246, 0.5) !important;
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-light button.primary:hover {
@@ -5060,13 +5060,13 @@ body.theme-classic .totals * {
 
 /* Light theme - white text */
 body.theme-light #btn-process-withdrawal {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     text-shadow: none !important;
     margin-left: 255px !important;
 }
 
 body.theme-light #btn-process-withdrawal:hover {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* More vibrant text colors for specific buttons in light theme */
@@ -5113,12 +5113,12 @@ body.theme-light .totals {
     -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
     border: 1px solid rgba(255, 255, 255, 0.3) !important;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* Labels with better contrast */
 body.theme-light label {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5) !important;
 }
 
@@ -5141,14 +5141,14 @@ body.theme-light table th {
     background: rgba(255, 255, 255, 0.2) !important;
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     border-bottom: 2px solid rgba(0, 0, 0, 0.12) !important;
     border-color: rgba(0, 0, 0, 0.08) !important;
 }
 
 body.theme-light table td {
     background: rgba(255, 255, 255, 0.05) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
     border-color: rgba(0, 0, 0, 0.08) !important;
 }
@@ -5201,7 +5201,7 @@ body.theme-light #payment-history-body *,
 body.theme-light main h1,
 body.theme-light main h2,
 body.theme-light main div[style*="background"] * {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* Payment history table: same layby-style in light theme */
@@ -5211,14 +5211,14 @@ body.theme-light #payment-history-table thead th {
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
     border-bottom: 2px solid rgba(0, 0, 0, 0.12) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-light #payment-history-table tbody td {
     background: rgba(255, 255, 255, 0.05) !important;
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
 }
 
@@ -5241,24 +5241,24 @@ body.theme-light #app.screen.active section td,
 body.theme-light #app.screen.active section button:not(.primary):not(.danger),
 body.theme-light #grand-total,
 body.theme-light #debts-count {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* Debts table: same layby-style in light theme */
 body.theme-light #debts-table-container table th,
 body.theme-light #debts-table-container table td {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     border-color: rgba(0, 0, 0, 0.08) !important;
 }
 
 body.theme-light #debts-table-container table thead th {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     background: rgba(255, 255, 255, 0.2) !important;
     border-bottom: 2px solid rgba(0, 0, 0, 0.12) !important;
 }
 
 body.theme-light #debts-table-container table tbody td {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     background: rgba(255, 255, 255, 0.05) !important;
     border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
 }
@@ -5303,7 +5303,7 @@ body.theme-light #btn-debts-logout {
     backdrop-filter: blur(20px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-light #btn-back-to-layby:hover,
@@ -5315,7 +5315,7 @@ body.theme-light #btn-debts-logout:hover {
 body.theme-light #btn-debts-logout.danger {
     background: rgba(239, 68, 68, 0.2) !important;
     border-color: rgba(239, 68, 68, 0.4) !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-light #btn-debts-logout.danger:hover {
@@ -5333,11 +5333,11 @@ body.theme-light #app.screen.active .top-bar {
 
 body.theme-light #app.screen.active .top-bar > span,
 body.theme-light #app.screen.active .shop-name {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-light #app.screen.active .top-bar-right {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* Outstanding Debts page - all text white in default theme (when no theme class is present) */
@@ -5572,7 +5572,7 @@ html body.theme-light #customer-form-container.card {
 body.theme-light #customer-form-container h3,
 body.theme-light #customer-form-container label,
 body.theme-light #customer-form-container .info {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
 }
 
@@ -5583,13 +5583,13 @@ body.theme-light #customer-form-container textarea {
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
     border: 1px solid rgba(255, 255, 255, 0.3) !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1) !important;
 }
 
 body.theme-light #customer-form-container input::placeholder,
 body.theme-light #customer-form-container textarea::placeholder {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-light #customer-form-container input:focus,
@@ -5599,7 +5599,7 @@ body.theme-light #customer-form-container textarea:focus {
     border-color: rgba(102, 126, 234, 0.5) !important;
     outline: none !important;
     box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2) !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-light #customer-form-container button.primary {
@@ -5618,7 +5618,7 @@ body.theme-light #customer-form-container button:not(.primary):not(.danger) {
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
     border: 1px solid rgba(255, 255, 255, 0.3) !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-light #customer-form-container button:not(.primary):not(.danger):hover {
@@ -5631,7 +5631,7 @@ body.theme-classic #customer-form-container {
     border: 1px solid #ccc !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #customer-form-container h3,
@@ -5813,13 +5813,13 @@ body.theme-light #pending-collection-list table thead th {
     background: rgba(255, 255, 255, 0.2) !important;
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     border-bottom: 2px solid rgba(0, 0, 0, 0.12) !important;
 }
 
 body.theme-light #pending-collection-list table td {
     background: rgba(255, 255, 255, 0.05) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
 }
 
@@ -6564,5 +6564,66 @@ html body.theme-light .layby-page #customer-form-container.card {
     margin: 8px 0 !important;
 }
 
+/* =============================================================================
+   Light theme — web/laptop: white text on video background (not Android app)
+   ============================================================================= */
+html.theme-light body.theme-light:not(.pos-android-app),
+html.theme-light body.theme-light:not(.pos-android-app) #app {
+    color: #ffffff !important;
+}
+
+html.theme-light body.theme-light:not(.pos-android-app) #app *:not(svg):not(path):not(circle):not(rect):not(line):not(polygon):not(polyline):not(ellipse):not(use):not(g):not(iframe):not(img):not(video):not(canvas):not(#light-theme-video):not(#light-theme-video *) {
+    color: #ffffff !important;
+}
+
+html.theme-light body.theme-light:not(.pos-android-app) .pos-layout .left > h2,
+html.theme-light body.theme-light:not(.pos-android-app) .pos-layout .left > div:not(.card):not(.floating-panel) > h2,
+html.theme-light body.theme-light:not(.pos-android-app) .pos-layout .left > div:not(.card):not(.floating-panel) > h3,
+html.theme-light body.theme-light:not(.pos-android-app) #products-table,
+html.theme-light body.theme-light:not(.pos-android-app) #products-table *,
+html.theme-light body.theme-light:not(.pos-android-app) #products-table thead th,
+html.theme-light body.theme-light:not(.pos-android-app) .top-bar > span,
+html.theme-light body.theme-light:not(.pos-android-app) .shop-name,
+html.theme-light body.theme-light:not(.pos-android-app) .product-form-card,
+html.theme-light body.theme-light:not(.pos-android-app) .product-form-card *:not(button.primary):not(button.danger),
+html.theme-light body.theme-light:not(.pos-android-app) label,
+html.theme-light body.theme-light:not(.pos-android-app) table th,
+html.theme-light body.theme-light:not(.pos-android-app) table td,
+html.theme-light body.theme-light:not(.pos-android-app) .floating-icon,
+html.theme-light body.theme-light:not(.pos-android-app) .totals,
+html.theme-light body.theme-light:not(.pos-android-app) .totals * {
+    color: #ffffff !important;
+}
+
+html.theme-light body.theme-light:not(.pos-android-app) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+html.theme-light body.theme-light:not(.pos-android-app) textarea,
+html.theme-light body.theme-light:not(.pos-android-app) select,
+html.theme-light body.theme-light:not(.pos-android-app) option {
+    color: #ffffff !important;
+    caret-color: #ffffff !important;
+}
+
+html.theme-light body.theme-light:not(.pos-android-app) input::placeholder,
+html.theme-light body.theme-light:not(.pos-android-app) textarea::placeholder {
+    color: rgba(255, 255, 255, 0.65) !important;
+}
+
+html.theme-light body.theme-light:not(.pos-android-app) [style*="color:#1a1a1a"],
+html.theme-light body.theme-light:not(.pos-android-app) [style*="color: #1a1a1a"],
+html.theme-light body.theme-light:not(.pos-android-app) [style*="color:#1a1a2e"],
+html.theme-light body.theme-light:not(.pos-android-app) [style*="color: #1a1a2e"],
+html.theme-light body.theme-light:not(.pos-android-app) [style*="color:rgba(26, 26, 46"],
+html.theme-light body.theme-light:not(.pos-android-app) [style*="color: rgba(26, 26, 46"] {
+    color: #ffffff !important;
+}
+
+html.theme-light body.theme-light:not(.pos-android-app) a {
+    color: #ffffff !important;
+}
+
+html.theme-light body.theme-light:not(.pos-android-app) button.primary,
+html.theme-light body.theme-light:not(.pos-android-app) button.danger {
+    color: #ffffff !important;
+}
 
 

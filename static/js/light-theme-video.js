@@ -191,10 +191,34 @@
         }
     }
 
+    var DARK_TEXT_PATTERN = /#1a1a1a|#1a1a2e|rgba?\(\s*26\s*,\s*26\s*,\s*46/i;
+
+    function isAndroidApp() {
+        return document.body && document.body.classList.contains('pos-android-app');
+    }
+
+    /** Override inline black/dark text when light theme is on (web/laptop only). */
+    function applyLightThemeWhiteText() {
+        if (!isLightThemeActive() || isAndroidApp()) {
+            return;
+        }
+        var roots = [document.body, document.getElementById('app')].filter(Boolean);
+        roots.forEach(function (root) {
+            root.querySelectorAll('[style]').forEach(function (el) {
+                var style = el.getAttribute('style') || '';
+                if (DARK_TEXT_PATTERN.test(style) && /color/i.test(style)) {
+                    el.style.setProperty('color', '#ffffff', 'important');
+                }
+            });
+        });
+    }
+
     function watchThemeClass() {
         var sync = function () {
             if (isLightThemeActive()) {
                 playLightThemeVideo();
+                setTimeout(applyLightThemeWhiteText, 0);
+                setTimeout(applyLightThemeWhiteText, 300);
             } else {
                 hideLightThemeVideo();
             }
@@ -208,14 +232,31 @@
 
     window.playLightThemeVideo = playLightThemeVideo;
     window.hideLightThemeVideo = hideLightThemeVideo;
+    window.applyLightThemeWhiteText = applyLightThemeWhiteText;
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function () {
             init();
             watchThemeClass();
+            if (isLightThemeActive()) {
+                applyLightThemeWhiteText();
+            }
         });
     } else {
         init();
         watchThemeClass();
+        if (isLightThemeActive()) {
+            applyLightThemeWhiteText();
+        }
+    }
+
+    /* Re-apply when dynamic content is added (tables, modals, etc.) */
+    if (typeof MutationObserver !== 'undefined' && document.body) {
+        var textObserver = new MutationObserver(function () {
+            if (isLightThemeActive() && !isAndroidApp()) {
+                applyLightThemeWhiteText();
+            }
+        });
+        textObserver.observe(document.body, { childList: true, subtree: true });
     }
 })();
