@@ -523,6 +523,10 @@ async function enterPosAfterAuth(data) {
     currentUser = { username: data.username, role: data.role };
     localStorage.setItem('pos_token', token);
     localStorage.setItem('pos_user', JSON.stringify(currentUser));
+    if (window.PosBranding && typeof window.PosBranding.clearCache === 'function') {
+        window.PosBranding.clearCache();
+        window.PosBranding.refresh();
+    }
 
     const next = new URLSearchParams(window.location.search).get('next');
     if (
@@ -1246,6 +1250,9 @@ function setupEvents() {
         renderCart();
         localStorage.removeItem('pos_token');
         localStorage.removeItem('pos_user');
+        if (window.PosBranding && typeof window.PosBranding.clearCache === 'function') {
+            window.PosBranding.clearCache();
+        }
         const regCard = document.getElementById('register-form-card');
         const logCard = document.getElementById('login-form-card');
         const lt = document.getElementById('login-screen-title');

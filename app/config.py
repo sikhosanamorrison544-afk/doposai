@@ -71,9 +71,9 @@ PRINTER_DEVICE = "/dev/usb/lp0"
 
 PWD_HASH_SCHEME = "pbkdf2_sha256"
 
-STORE_NAME = "J & B MALL"
-STORE_PHONE = ""
-STORE_LOCATION = ""
+STORE_NAME = (os.environ.get("STORE_NAME", "").strip() or "POS")
+STORE_PHONE = os.environ.get("STORE_PHONE", "").strip()
+STORE_LOCATION = os.environ.get("STORE_LOCATION", "").strip()
 
 
 def _parse_platform_owner_usernames() -> frozenset[str]:
