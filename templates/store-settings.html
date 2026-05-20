@@ -140,6 +140,38 @@
                         </div>
                     </div>
                 </details>
+                <details class="settings-section" id="web-printer-section" open>
+                    <summary class="settings-section-summary">🖨️ Receipt printer (USB / Bluetooth)</summary>
+                    <p class="help-text">
+                        For Chrome or Edge on a laptop: connect a USB thermal printer or pair a Bluetooth printer in system settings, then authorize it below.
+                        Bluetooth uses the Web Serial port created when the printer is paired.
+                    </p>
+                    <p id="web-printer-status" class="info">Checking printers…</p>
+                    <div class="settings-actions settings-actions-row" style="flex-wrap:wrap;gap:8px;">
+                        <button type="button" id="btn-connect-usb-printer" class="primary small">Connect USB printer</button>
+                        <button type="button" id="btn-connect-bt-printer" class="small">Connect Bluetooth printer</button>
+                        <button type="button" id="btn-test-web-printer" class="small">Test print</button>
+                    </div>
+                    <div class="grid-2" style="margin-top:12px;">
+                        <div>
+                            <label for="web-printer-preference">When both are connected</label>
+                            <select id="web-printer-preference">
+                                <option value="auto">Ask which to use</option>
+                                <option value="usb">Always USB</option>
+                                <option value="bluetooth">Always Bluetooth</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="web-printer-paper-width">Paper width (characters)</label>
+                            <select id="web-printer-paper-width">
+                                <option value="32">58mm (32)</option>
+                                <option value="48">80mm (48)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="web-printer-message" class="info" style="margin-top:8px;"></div>
+                </details>
+
             </div>
 
             <!-- PAGE 2: Users, Backup & Factory Reset -->
@@ -436,6 +468,11 @@
     </main>
 </div>
 
+<script src="/static/js/printer-web-prefs.js?v=1"></script>
+<script src="/static/js/receipt-escpos.js?v=2"></script>
+<script src="/static/js/receipt-native.js?v=2"></script>
+<script src="/static/js/receipt.js?v=4"></script>
+<script src="/static/js/printer-web-setup.js?v=1"></script>
 <script src="/static/js/admin.js?v=2"></script>
 <script>
     // Switch between settings pages

@@ -59,16 +59,18 @@ object WebViewPrintSupport {
                             return JSON.parse(PosAndroidPrint.isAvailable());
                         } catch (e) { return { native: false }; }
                     },
-                    printSale: function(opts) {
+                    printSale: function(opts, transport) {
                         try {
                             if (typeof PosAndroidPrint === 'undefined') return { ok: false };
-                            return JSON.parse(PosAndroidPrint.printSaleReceipt(JSON.stringify(opts || {})));
+                            var t = transport ? String(transport) : '';
+                            return JSON.parse(PosAndroidPrint.printSaleReceipt(JSON.stringify(opts || {}), t));
                         } catch (e) { return { ok: false, error: String(e) }; }
                     },
-                    printWithdrawal: function(opts) {
+                    printWithdrawal: function(opts, transport) {
                         try {
                             if (typeof PosAndroidPrint === 'undefined') return { ok: false };
-                            return JSON.parse(PosAndroidPrint.printWithdrawalReceipt(JSON.stringify(opts || {})));
+                            var t = transport ? String(transport) : '';
+                            return JSON.parse(PosAndroidPrint.printWithdrawalReceipt(JSON.stringify(opts || {}), t));
                         } catch (e) { return { ok: false, error: String(e) }; }
                     }
                 };

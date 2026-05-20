@@ -21,30 +21,36 @@ class PosAndroidPrintBridge(
 
     @JavascriptInterface
     fun isAvailable(): String = JSONObject().apply {
+        val hasBt = PrinterPreferences.hasBluetoothPrinter(activity)
+        val hasUsb = PrinterPreferences.hasUsbPrinter(activity)
         put("native", true)
-        put("configured", PrinterPreferences.isConfigured(activity))
+        put("configured", hasBt || hasUsb)
+        put("bluetooth", hasBt)
+        put("usb", hasUsb)
         put("transport", PrinterPreferences.getTransport(activity).name.lowercase())
         put("paperWidth", PrinterPreferences.getPaperWidth(activity))
     }.toString()
 
     @JavascriptInterface
-    fun printSaleReceipt(json: String): String = enqueuePrint("sale", json)
+    fun printSaleReceipt(json: String, transport: String?): String = enqueuePrint("sale", json, transport)
 
     @JavascriptInterface
-    fun printWithdrawalReceipt(json: String): String = enqueuePrint("withdrawal", json)
+    fun printWithdrawalReceipt(json: String, transport: String?): String =
+        enqueuePrint("withdrawal", json, transport)
 
-    private fun enqueuePrint(kind: String, json: String): String {
+    private fun enqueuePrint(kind: String, json: String, transport: String?): String {
         if (!PrinterPreferences.isConfigured(activity)) {
             return JSONObject().apply {
                 put("ok", false)
                 put("error", "no_printer")
             }.toString()
         }
+        val override = transport?.trim()?.takeIf { it.isNotEmpty() }
         scope.launch {
             try {
                 val result = when (kind) {
-                    "withdrawal" -> NativeReceiptPrinter.printWithdrawalFromJson(activity, json)
-                    else -> NativeReceiptPrinter.printSaleFromJson(activity, json)
+                    "withdrawal" -> NativeReceiptPrinter.printWithdrawalFromJson(activity, json, override)
+                    else -> NativeReceiptPrinter.printSaleFromJson(activity, json, override)
                 }
                 if (result.isFailure) {
                     withContext(Dispatchers.Main) {

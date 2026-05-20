@@ -140,6 +140,9 @@
 
     function getPaperWidth() {
         try {
+            if (window.posWebPrinterPrefs && window.posWebPrinterPrefs.getPaperWidth) {
+                return window.posWebPrinterPrefs.getPaperWidth();
+            }
             const w = parseInt(localStorage.getItem('pos_paper_width') || '32', 10);
             return w >= 48 ? 48 : 32;
         } catch (e) {

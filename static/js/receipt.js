@@ -250,14 +250,14 @@
         const title = 'Receipt #' + opts.saleId;
         const body = buildSaleReceiptBody(opts);
         const html = wrapReceiptHtml(title, body);
-        if (global.posWebPrint && typeof global.posWebPrint.routePrint === 'function') {
-            if (
-                global.posWebPrint.routePrint('sale', opts, printWindow, function () {
-                    printHtml(html, title, printWindow);
-                })
-            ) {
-                return true;
-            }
+        const fallback = function () {
+            printHtml(html, title, printWindow);
+        };
+        if (global.posWebPrint && typeof global.posWebPrint.routePrintAsync === 'function') {
+            global.posWebPrint.routePrintAsync('sale', opts, printWindow, fallback).then(function (handled) {
+                if (!handled) fallback();
+            });
+            return true;
         }
         return printHtml(html, title, printWindow);
     }
@@ -279,14 +279,16 @@
         body += '<hr><div class="footer">Withdrawal receipt</div>';
         const title = 'Withdrawal ' + (opts.receiptNumber || '');
         const html = wrapReceiptHtml(title, body);
-        if (global.posWebPrint && typeof global.posWebPrint.routePrint === 'function') {
-            if (
-                global.posWebPrint.routePrint('withdrawal', opts, printWindow, function () {
-                    printHtml(html, title, printWindow);
-                })
-            ) {
-                return true;
-            }
+        const fallback = function () {
+            printHtml(html, title, printWindow);
+        };
+        if (global.posWebPrint && typeof global.posWebPrint.routePrintAsync === 'function') {
+            global.posWebPrint
+                .routePrintAsync('withdrawal', opts, printWindow, fallback)
+                .then(function (handled) {
+                    if (!handled) fallback();
+                });
+            return true;
         }
         return printHtml(html, title, printWindow);
     }

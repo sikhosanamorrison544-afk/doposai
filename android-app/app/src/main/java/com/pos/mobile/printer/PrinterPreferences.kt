@@ -9,6 +9,7 @@ object PrinterPreferences {
     const val KEY_PRINTER_MAC = "bluetooth_printer_mac"
     const val KEY_PRINTER_NAME = "bluetooth_printer_name"
     const val KEY_TRANSPORT = "printer_transport"
+    const val KEY_PREFERRED_TRANSPORT = "printer_preferred_transport"
     const val KEY_PAPER_WIDTH = "receipt_paper_width"
     const val KEY_USB_DEVICE_ID = "usb_printer_device_id"
     const val KEY_USB_VENDOR_ID = "usb_printer_vendor_id"
@@ -19,35 +20,41 @@ object PrinterPreferences {
     fun prefs(context: Context): SharedPreferences =
         context.getSharedPreferences("pos", Context.MODE_PRIVATE)
 
-    fun getTransport(context: Context): PrinterTransport {
-        val p = prefs(context)
-        return when (p.getString(KEY_TRANSPORT, "")?.lowercase()) {
-            "usb" -> {
-                if (p.getInt(KEY_USB_VENDOR_ID, -1) >= 0 && p.getInt(KEY_USB_PRODUCT_ID, -1) >= 0) {
-                    PrinterTransport.USB
-                } else {
-                    PrinterTransport.NONE
-                }
+    fun hasBluetoothPrinter(context: Context): Boolean =
+        !getPrinterMac(context).isNullOrBlank()
+
+    fun hasUsbPrinter(context: Context): Boolean =
+        findUsbDevice(context) != null
+
+    fun getTransport(context: Context): PrinterTransport =
+        resolvePrintTransport(context, null)
+
+    fun resolvePrintTransport(context: Context, override: String?): PrinterTransport {
+        val hasBt = hasBluetoothPrinter(context)
+        val hasUsb = hasUsbPrinter(context)
+        when (override?.lowercase()?.trim()) {
+            "usb" -> if (hasUsb) return PrinterTransport.USB
+            "bluetooth" -> if (hasBt) return PrinterTransport.BLUETOOTH
+        }
+        val pref = prefs(context).getString(KEY_PREFERRED_TRANSPORT, null)
+            ?: prefs(context).getString(KEY_TRANSPORT, "auto")
+        when (pref?.lowercase()) {
+            "usb" -> if (hasUsb) return PrinterTransport.USB
+            "bluetooth" -> if (hasBt) return PrinterTransport.BLUETOOTH
+        }
+        return when {
+            hasUsb && !hasBt -> PrinterTransport.USB
+            hasBt && !hasUsb -> PrinterTransport.BLUETOOTH
+            hasUsb && hasBt -> when (prefs(context).getString(KEY_TRANSPORT, "usb")?.lowercase()) {
+                "bluetooth" -> PrinterTransport.BLUETOOTH
+                else -> PrinterTransport.USB
             }
-            "bluetooth" -> {
-                if (!p.getString(KEY_PRINTER_MAC, null).isNullOrBlank()) {
-                    PrinterTransport.BLUETOOTH
-                } else {
-                    PrinterTransport.NONE
-                }
-            }
-            else -> {
-                if (!p.getString(KEY_PRINTER_MAC, null).isNullOrBlank()) {
-                    PrinterTransport.BLUETOOTH
-                } else {
-                    PrinterTransport.NONE
-                }
-            }
+            else -> PrinterTransport.NONE
         }
     }
 
     fun isConfigured(context: Context): Boolean =
-        getTransport(context) != PrinterTransport.NONE
+        hasBluetoothPrinter(context) || hasUsbPrinter(context)
 
     fun getPrinterMac(context: Context): String? =
         prefs(context).getString(KEY_PRINTER_MAC, null)?.takeIf { it.isNotBlank() }
@@ -61,6 +68,7 @@ object PrinterPreferences {
     fun saveBluetoothPrinter(context: Context, mac: String, name: String) {
         prefs(context).edit()
             .putString(KEY_TRANSPORT, "bluetooth")
+            .putString(KEY_PREFERRED_TRANSPORT, "bluetooth")
             .putString(KEY_PRINTER_MAC, mac)
             .putString(KEY_PRINTER_NAME, name)
             .apply()
@@ -69,17 +77,24 @@ object PrinterPreferences {
     fun saveUsbPrinter(context: Context, device: UsbDevice) {
         prefs(context).edit()
             .putString(KEY_TRANSPORT, "usb")
+            .putString(KEY_PREFERRED_TRANSPORT, "usb")
             .putInt(KEY_USB_DEVICE_ID, device.deviceId)
             .putInt(KEY_USB_VENDOR_ID, device.vendorId)
             .putInt(KEY_USB_PRODUCT_ID, device.productId)
             .putString(KEY_USB_DEVICE_NAME, device.deviceName ?: "USB printer")
-            .remove(KEY_PRINTER_MAC)
+            .apply()
+    }
+
+    fun setPreferredTransport(context: Context, transport: String) {
+        prefs(context).edit()
+            .putString(KEY_PREFERRED_TRANSPORT, transport.lowercase())
             .apply()
     }
 
     fun clearPrinter(context: Context) {
         prefs(context).edit()
             .remove(KEY_TRANSPORT)
+            .remove(KEY_PREFERRED_TRANSPORT)
             .remove(KEY_PRINTER_MAC)
             .remove(KEY_PRINTER_NAME)
             .remove(KEY_USB_DEVICE_ID)
