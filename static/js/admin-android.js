@@ -4,6 +4,8 @@
 (function () {
     'use strict';
 
+    var androidUiInitialized = false;
+
     function isPosAndroidApp() {
         if (typeof window.isPosAndroidWebView === 'function') {
             return window.isPosAndroidWebView();
@@ -11,9 +13,17 @@
         return false;
     }
 
-    function clickEl(id) {
-        const el = document.getElementById(id);
-        if (el) el.click();
+    function bindAndroidTap(el, handler) {
+        if (!el || el.dataset.posAndroidBound === '1') return;
+        el.dataset.posAndroidBound = '1';
+        function run(e) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            handler(e);
+        }
+        el.addEventListener('click', run, true);
     }
 
     function navigate(path) {
@@ -29,21 +39,65 @@
         if (userEl && user) userEl.textContent = user.textContent.trim();
     }
 
+    /** Place add-product form directly under the mobile search bar. */
+    function relocateProductFormForAndroid() {
+        const form = document.getElementById('product-form-card');
+        const anchor = document.querySelector('.admin-mobile-search-wrap');
+        if (!form || !anchor || form.dataset.posAndroidRelocated === '1') return;
+        anchor.insertAdjacentElement('afterend', form);
+        form.dataset.posAndroidRelocated = '1';
+    }
+
+    function isProductFormVisible() {
+        const formCard = document.getElementById('product-form-card');
+        if (!formCard) return false;
+        return window.getComputedStyle(formCard).display !== 'none';
+    }
+
+    function toggleAndroidProductForm() {
+        if (typeof window.showProductForm === 'function') {
+            if (isProductFormVisible()) {
+                if (typeof window.clearProductForm === 'function') {
+                    window.clearProductForm();
+                }
+            } else {
+                window.showProductForm();
+                const formCard = document.getElementById('product-form-card');
+                if (formCard) {
+                    setTimeout(function () {
+                        formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 80);
+                }
+            }
+            return;
+        }
+        const hiddenBtn = document.getElementById('btn-show-product-form');
+        if (hiddenBtn) hiddenBtn.click();
+    }
+
+    function toggleAndroidShifts() {
+        if (typeof window.toggleShiftsPanel === 'function') {
+            window.toggleShiftsPanel();
+            return;
+        }
+        const hiddenBtn = document.getElementById('btn-toggle-shifts');
+        if (hiddenBtn) hiddenBtn.click();
+    }
+
     function wireMobileToolbar() {
         const addMobile = document.getElementById('btn-show-product-form-mobile');
         const importMobile = document.getElementById('btn-import-inventory-mobile');
-        if (addMobile) {
-            addMobile.addEventListener('click', function (e) {
-                e.preventDefault();
-                clickEl('btn-show-product-form');
-            });
-        }
-        if (importMobile) {
-            importMobile.addEventListener('click', function (e) {
-                e.preventDefault();
-                clickEl('btn-import-inventory');
-            });
-        }
+
+        bindAndroidTap(addMobile, toggleAndroidProductForm);
+
+        bindAndroidTap(importMobile, function () {
+            if (typeof window.showImportModal === 'function') {
+                window.showImportModal();
+                return;
+            }
+            const btn = document.getElementById('btn-import-inventory');
+            if (btn) btn.click();
+        });
     }
 
     function wireMobileActions() {
@@ -54,40 +108,92 @@
                 fn: function () {
                     if (typeof window.toggleReportPanel === 'function') {
                         window.toggleReportPanel();
-                    } else {
-                        clickEl('btn-toggle-report');
                     }
                 },
             },
             { id: 'admin-action-withdrawals', fn: function () { navigate('/withdrawals/history'); } },
             { id: 'admin-action-analytics', fn: function () { navigate('/analytics'); } },
-            {
-                id: 'admin-action-shifts',
-                fn: function () {
-                    if (typeof window.toggleShiftsPanel === 'function') {
-                        window.toggleShiftsPanel();
-                    } else {
-                        clickEl('btn-toggle-shifts');
-                    }
-                },
-            },
+            { id: 'admin-action-shifts', fn: toggleAndroidShifts },
             { id: 'admin-action-pending', fn: function () { navigate('/pending-collection'); } },
             { id: 'admin-action-billing', fn: function () { navigate('/billing'); } },
         ];
         actions.forEach(function (a) {
             const btn = document.getElementById(a.id);
-            if (btn) {
-                btn.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    a.fn();
-                });
+            bindAndroidTap(btn, a.fn);
+        });
+    }
+
+    function wireShiftsPanelAndroid() {
+        const panel = document.getElementById('shifts-panel');
+        if (!panel || panel.dataset.posAndroidShiftBound === '1') return;
+        panel.dataset.posAndroidShiftBound = '1';
+
+        const closeBtn = document.getElementById('btn-close-shifts');
+        const startBtn = document.getElementById('btn-start-shift');
+        const endBtn = document.getElementById('btn-end-shift');
+        const closeReportBtn = document.getElementById('btn-close-shift-report');
+        const closePwdBtn = document.getElementById('btn-close-shift-password-modal');
+        const verifyPwdBtn = document.getElementById('btn-verify-shift-password');
+        const pwdInput = document.getElementById('shift-admin-password');
+
+        function closeShifts() {
+            const backdrop = document.getElementById('panel-backdrop');
+            panel.style.setProperty('display', 'none', 'important');
+            if (backdrop) backdrop.style.setProperty('display', 'none', 'important');
+        }
+
+        bindAndroidTap(closeBtn, closeShifts);
+        bindAndroidTap(startBtn, function () {
+            if (typeof window.startShift === 'function') window.startShift();
+        });
+        bindAndroidTap(endBtn, function () {
+            if (typeof window.endShift === 'function') window.endShift();
+        });
+        bindAndroidTap(closeReportBtn, function () {
+            const report = document.getElementById('shift-report-panel');
+            const backdrop = document.getElementById('panel-backdrop');
+            if (report) report.style.setProperty('display', 'none', 'important');
+            if (backdrop) backdrop.style.setProperty('display', 'none', 'important');
+        });
+        bindAndroidTap(closePwdBtn, function () {
+            if (typeof window.hideShiftPasswordModal === 'function') {
+                window.hideShiftPasswordModal();
             }
+            const backdrop = document.getElementById('panel-backdrop');
+            if (backdrop) backdrop.style.setProperty('display', 'none', 'important');
+        });
+        bindAndroidTap(verifyPwdBtn, function () {
+            if (typeof window.verifyShiftPassword === 'function') window.verifyShiftPassword();
+        });
+        if (pwdInput && pwdInput.dataset.posAndroidBound !== '1') {
+            pwdInput.dataset.posAndroidBound = '1';
+            pwdInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (typeof window.verifyShiftPassword === 'function') {
+                        window.verifyShiftPassword();
+                    }
+                }
+            });
+        }
+    }
+
+    function wireProductFormAndroid() {
+        const saveBtn = document.getElementById('btn-save-product');
+        const clearBtn = document.getElementById('btn-clear-product');
+        bindAndroidTap(saveBtn, function () {
+            if (typeof window.saveProduct === 'function') window.saveProduct();
+        });
+        bindAndroidTap(clearBtn, function () {
+            if (typeof window.clearProductForm === 'function') window.clearProductForm();
         });
     }
 
     function setupProductSearch() {
         const input = document.getElementById('admin-product-search');
         if (!input) return;
+        if (input.dataset.posAndroidBound === '1') return;
+        input.dataset.posAndroidBound = '1';
         input.addEventListener('input', function () {
             filterMobileProducts(input.value.trim().toLowerCase());
         });
@@ -176,36 +282,44 @@
             }
         }
 
-        if (uploadBtn) {
+        if (uploadBtn && uploadBtn.dataset.posAndroidUploadBound !== '1') {
+            uploadBtn.dataset.posAndroidUploadBound = '1';
             uploadBtn.addEventListener('click', runUpload, true);
-            uploadBtn.addEventListener('touchend', runUpload, true);
         }
-        if (chooseBtn) {
-            chooseBtn.addEventListener('click', function (e) {
-                e.preventDefault();
-                clickEl('inventory-file-input');
-            }, true);
-        }
-        if (fileLabel) {
-            fileLabel.addEventListener('click', function (e) {
-                e.preventDefault();
-                clickEl('inventory-file-input');
-            }, true);
-        }
+        bindAndroidTap(chooseBtn, function () {
+            const input = document.getElementById('inventory-file-input');
+            if (input) input.click();
+        });
+        bindAndroidTap(fileLabel, function () {
+            const input = document.getElementById('inventory-file-input');
+            if (input) input.click();
+        });
     }
 
     function initAdminAndroidUi() {
         if (!document.body.classList.contains('page-admin')) return;
         if (!isPosAndroidApp()) return;
+        if (androidUiInitialized) {
+            syncMobileHeader();
+            const products = window.adminProducts;
+            if (products && products.length) {
+                renderAdminProductsMobile(products);
+            }
+            return;
+        }
+        androidUiInitialized = true;
 
         syncMobileHeader();
+        relocateProductFormForAndroid();
         wireMobileToolbar();
         wireMobileActions();
         wireImportModalAndroid();
+        wireShiftsPanelAndroid();
+        wireProductFormAndroid();
         setupProductSearch();
 
         const products = window.adminProducts;
-        if (products && products.length && typeof renderAdminProductsMobile === 'function') {
+        if (products && products.length) {
             renderAdminProductsMobile(products);
         }
     }
@@ -213,6 +327,8 @@
     window.isPosAndroidApp = isPosAndroidApp;
     window.initAdminAndroidUi = initAdminAndroidUi;
     window.renderAdminProductsMobile = renderAdminProductsMobile;
+    window.toggleAndroidProductForm = toggleAndroidProductForm;
+    window.toggleAndroidShifts = toggleAndroidShifts;
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initAdminAndroidUi);

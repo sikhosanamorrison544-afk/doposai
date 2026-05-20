@@ -286,8 +286,18 @@ body.page-admin.pos-android-app #panel-backdrop {
 
 body.page-admin.pos-android-app #summary-report-panel,
 body.page-admin.pos-android-app #shifts-panel,
+body.page-admin.pos-android-app #shift-report-panel,
+body.page-admin.pos-android-app #shift-password-modal,
 body.page-admin.pos-android-app #import-inventory-modal {
     z-index: 9999 !important;
+}
+
+body.page-admin.pos-android-app #shift-password-modal {
+    z-index: 10001 !important;
+}
+
+body.page-admin.pos-android-app #product-form-card:not([style*="display: block"]):not([style*="display:block"]) {
+    display: none !important;
 }
 
 body.page-admin.pos-android-app .floating-panel {
@@ -314,7 +324,19 @@ body.page-admin.pos-android-app #summary-report-panel input {
 }
 
 body.page-admin.pos-android-app #import-inventory-modal button,
-body.page-admin.pos-android-app #summary-report-panel button {
+body.page-admin.pos-android-app #summary-report-panel button,
+body.page-admin.pos-android-app #shifts-panel button,
+body.page-admin.pos-android-app #shift-password-modal button {
     min-height: 44px;
     font-size: 15px;
+}
+
+body.page-admin.pos-android-app #shifts-panel textarea,
+body.page-admin.pos-android-app #shift-password-modal input {
+    min-height: 44px;
+    font-size: 16px;
+}
+
+body.page-admin.pos-android-app #admin-mobile-shell + #app .product-form-card {
+    margin-top: 0 !important;
 }

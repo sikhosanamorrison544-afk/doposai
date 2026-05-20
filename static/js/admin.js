@@ -1642,6 +1642,7 @@ function hideShiftPasswordModal() {
     }
     // Don't hide backdrop here - it will be managed by openShiftPanel
 }
+window.hideShiftPasswordModal = hideShiftPasswordModal;
 
 async function verifyShiftPassword() {
     const passwordInput = document.getElementById('shift-admin-password');
@@ -1694,11 +1695,18 @@ async function verifyShiftPassword() {
 function openShiftPanel() {
     const panel = document.getElementById('shifts-panel');
     const backdrop = document.getElementById('panel-backdrop');
+    const reportPanel = document.getElementById('summary-report-panel');
+    const importModal = document.getElementById('import-inventory-modal');
+    const formCard = document.getElementById('product-form-card');
     
     if (!panel) {
         console.error('shifts-panel not found');
         return;
     }
+
+    if (reportPanel) reportPanel.style.setProperty('display', 'none', 'important');
+    if (importModal) importModal.style.setProperty('display', 'none', 'important');
+    if (formCard) formCard.style.setProperty('display', 'none', 'important');
     
     panel.style.setProperty('display', 'block', 'important');
     panel.style.setProperty('visibility', 'visible', 'important');
@@ -1723,6 +1731,9 @@ window.closeAllPanels = function() {
     const reportPanel = document.getElementById('summary-report-panel');
     const withdrawalsPanel = document.getElementById('withdrawals-history-panel');
     const importModal = document.getElementById('import-inventory-modal');
+    const shiftsPanel = document.getElementById('shifts-panel');
+    const shiftReportPanel = document.getElementById('shift-report-panel');
+    const shiftPasswordModal = document.getElementById('shift-password-modal');
     const backdrop = document.getElementById('panel-backdrop');
     
     if (settingsPanel) {
@@ -1736,6 +1747,15 @@ window.closeAllPanels = function() {
     }
     if (importModal) {
         importModal.style.setProperty('display', 'none', 'important');
+    }
+    if (shiftsPanel) {
+        shiftsPanel.style.setProperty('display', 'none', 'important');
+    }
+    if (shiftReportPanel) {
+        shiftReportPanel.style.setProperty('display', 'none', 'important');
+    }
+    if (shiftPasswordModal) {
+        shiftPasswordModal.style.setProperty('display', 'none', 'important');
     }
     if (backdrop) {
         backdrop.style.setProperty('display', 'none', 'important');
@@ -3266,6 +3286,9 @@ function showShiftReport(report) {
 // Duplicate removed - using the earlier definition
 
 window.viewShiftReport = viewShiftReport;
+window.verifyShiftPassword = verifyShiftPassword;
+window.startShift = startShift;
+window.endShift = endShift;
 
 // Add event listeners for shift management
 document.addEventListener('DOMContentLoaded', function() {
