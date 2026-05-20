@@ -6626,4 +6626,69 @@ html.theme-light body.theme-light:not(.pos-android-app) button.danger {
     color: #ffffff !important;
 }
 
+/* Light theme login — dark transparent card over video (web/desktop only) */
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen .card {
+    background: rgba(15, 23, 42, 0.55) !important;
+    backdrop-filter: blur(22px) saturate(160%) !important;
+    -webkit-backdrop-filter: blur(22px) saturate(160%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    box-shadow:
+        0 12px 40px rgba(0, 0, 0, 0.38),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen h1,
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen .card label,
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen .card p,
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen .reg-password-hint {
+    color: rgba(255, 255, 255, 0.95) !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen input,
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen .card input {
+    background: rgba(0, 0, 0, 0.28) !important;
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    color: #ffffff !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+}
+
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen input::placeholder {
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen input:focus {
+    background: rgba(0, 0, 0, 0.38) !important;
+    border-color: rgba(255, 255, 255, 0.4) !important;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12) !important;
+}
+
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen #login-button,
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen #register-button,
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen .card button {
+    background: rgba(255, 255, 255, 0.94) !important;
+    border: 1px solid rgba(255, 255, 255, 0.98) !important;
+    color: #0f172a !important;
+    text-shadow: none !important;
+}
+
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen #login-button:hover,
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen #register-button:hover,
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen .card button:hover {
+    background: #ffffff !important;
+    color: #0f172a !important;
+}
+
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen .login-screen-switch a,
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen .login-screen-cta-top a {
+    color: rgba(255, 255, 255, 0.95) !important;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+
+html.theme-light body.theme-light:not(.pos-android-app) #login-screen .error {
+    color: #fecaca !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
 
