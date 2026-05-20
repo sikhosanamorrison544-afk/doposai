@@ -577,7 +577,7 @@ class MainActivity : AppCompatActivity() {
     /** Pull master DB snapshot (products, reports, debts, pages) for offline use. */
     private suspend fun syncEssentialData(token: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            val ok = createSyncRepository().syncMasterDatabase(token).isSuccess
+            val ok = createSyncRepository().syncMasterDatabase(this@MainActivity, token).isSuccess
             if (ok) {
                 SessionStore(this@MainActivity).recordOfflineAnchor()
             }
@@ -1064,6 +1064,8 @@ class MainActivity : AppCompatActivity() {
             }
             val storeName = prefs.getString("store_name", getString(R.string.store_name))
                 ?: getString(R.string.store_name)
+            val storePhone = prefs.getString("store_phone", "") ?: ""
+            val storeLocation = prefs.getString("store_location", "") ?: ""
             val cashier = prefs.getString("username", null)
             val receipt = if (paid + 0.01 >= receiptTotal) {
                 ReceiptPrinter.SaleReceiptRequest(
@@ -1076,6 +1078,8 @@ class MainActivity : AppCompatActivity() {
                     customerName = receiptCustomer,
                     collectionStatus = status,
                     cashierName = cashier,
+                    storePhone = storePhone,
+                    storeLocation = storeLocation,
                 )
             } else {
                 null
@@ -1182,7 +1186,7 @@ class MainActivity : AppCompatActivity() {
     private suspend fun performManualSync(token: String): ManualSyncOutcome {
         val repo = createSyncRepository()
         val db = AppDatabase.getInstance(this)
-        val masterOk = repo.syncMasterDatabase(token).isSuccess
+        val masterOk = repo.syncMasterDatabase(this@MainActivity, token).isSuccess
         if (masterOk) {
             SessionStore(this).recordOfflineAnchor()
         }
@@ -1255,6 +1259,8 @@ class MainActivity : AppCompatActivity() {
             plan = s.plan,
             verifiedMs = System.currentTimeMillis(),
             accessAllowed = s.access_allowed,
+            features = s.features,
+            effectivePlan = s.effective_plan ?: s.plan,
         )
         if (s.effective_status != "trial") return
         withContext(Dispatchers.Main) {
@@ -1310,6 +1316,8 @@ class MainActivity : AppCompatActivity() {
                         plan = s.plan,
                         verifiedMs = System.currentTimeMillis(),
                         accessAllowed = s.access_allowed,
+                        features = s.features,
+                        effectivePlan = s.effective_plan ?: s.plan,
                     )
                     withContext(Dispatchers.Main) {
                         posContainerRef?.let { refreshSubscriptionWarning(it) }

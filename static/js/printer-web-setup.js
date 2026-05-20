@@ -110,7 +110,18 @@
                     setMsg('Printer modules not loaded.', false);
                     return;
                 }
-                const store = { store_name: document.querySelector('.shop-name')?.textContent?.trim() || 'POS' };
+                const store =
+                    window.posReceipt && typeof window.posReceipt.getStoreSettings === 'function'
+                        ? window.posReceipt.getStoreSettings() || {
+                              store_name: document.querySelector('.shop-name')?.textContent?.trim() || 'POS',
+                              store_phone: '',
+                              store_location: '',
+                          }
+                        : {
+                              store_name: document.querySelector('.shop-name')?.textContent?.trim() || 'POS',
+                              store_phone: '',
+                              store_location: '',
+                          };
                 const transport = await window.posWebPrint.resolveTransport();
                 if (!transport) {
                     setMsg('Connect a USB or Bluetooth printer first.', false);

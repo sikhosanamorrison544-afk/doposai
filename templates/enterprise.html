@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Enterprise — {{ store_name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/pos-android.css?v=4">
+    <style>
+        .enterprise-wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+        .enterprise-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+        .enterprise-tabs button { padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.25); color: inherit; cursor: pointer; }
+        .enterprise-tabs button.active { background: rgba(34,197,94,0.35); }
+        .enterprise-panel { display: none; }
+        .enterprise-panel.active { display: block; }
+        .enterprise-card { background: rgba(0,0,0,0.35); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+        table.enterprise-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        table.enterprise-table th, table.enterprise-table td { padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left; }
+        .enterprise-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+        .enterprise-actions input, .enterprise-actions select { padding: 8px; border-radius: 6px; }
+    </style>
+</head>
+<body class="page-enterprise">
+<div class="enterprise-wrap">
+    <header style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+        <h1 style="margin:0;">Enterprise — {{ store_name }}</h1>
+        <nav>
+            <a href="/admin">Admin</a> ·
+            <a href="/accounting">Accounting</a> ·
+            <a href="/">POS</a>
+        </nav>
+    </header>
+
+    <div id="enterprise-dashboard" class="enterprise-card">
+        <h2>Dashboard</h2>
+        <div id="dashboard-stats" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;"></div>
+    </div>
+
+    <nav class="enterprise-tabs" role="tablist">
+        <button type="button" data-tab="suppliers" class="active">Suppliers</button>
+        <button type="button" data-tab="purchasing">Purchasing</button>
+        <button type="button" data-tab="inventory">Inventory</button>
+        <button type="button" data-tab="branches">Branches</button>
+        <button type="button" data-tab="reorder">Reorder</button>
+        <button type="button" data-tab="audit">Audit</button>
+        <button type="button" data-tab="statements">Statements</button>
+    </nav>
+
+    <section id="panel-suppliers" class="enterprise-panel active">
+        <div class="enterprise-card">
+            <h2>Suppliers</h2>
+            <div class="enterprise-actions">
+                <input type="search" id="supplier-search" placeholder="Search suppliers…">
+                <button type="button" id="btn-supplier-add">Add supplier</button>
+            </div>
+            <table class="enterprise-table"><thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Balance</th><th></th></tr></thead><tbody id="suppliers-tbody"></tbody></table>
+        </div>
+        <div id="supplier-form-card" class="enterprise-card" style="display:none;">
+            <h3 id="supplier-form-title">New supplier</h3>
+            <form id="supplier-form">
+                <input type="hidden" id="supplier-id">
+                <p><label>Business name <input id="sup-business-name" required></label></p>
+                <p><label>Contact <input id="sup-contact"></label></p>
+                <p><label>Phone <input id="sup-phone"></label></p>
+                <p><label>WhatsApp <input id="sup-whatsapp"></label></p>
+                <p><label>Email <input id="sup-email" type="email"></label></p>
+                <p><label>City <input id="sup-city"></label></p>
+                <p><label>Notes <textarea id="sup-notes"></textarea></label></p>
+                <button type="submit">Save</button>
+                <button type="button" id="btn-supplier-cancel">Cancel</button>
+            </form>
+        </div>
+    </section>
+
+    <section id="panel-purchasing" class="enterprise-panel">
+        <div class="enterprise-card">
+            <h2>Purchase orders</h2>
+            <div class="enterprise-actions">
+                <button type="button" id="btn-po-new">New PO</button>
+                <button type="button" id="btn-po-refresh">Refresh</button>
+            </div>
+            <table class="enterprise-table"><thead><tr><th>PO #</th><th>Supplier</th><th>Status</th><th>Total</th><th>Actions</th></tr></thead><tbody id="po-tbody"></tbody></table>
+        </div>
+        <div id="po-form-card" class="enterprise-card" style="display:none;">
+            <h3 id="po-form-title">New purchase order</h3>
+            <form id="po-form">
+                <input type="hidden" id="po-edit-id">
+                <p><label>Supplier <select id="po-supplier" required></select></label></p>
+                <p><label>Branch <select id="po-branch"><option value="">— Default —</option></select></label></p>
+                <p><label>Notes <textarea id="po-notes"></textarea></label></p>
+                <h4>Line items</h4>
+                <table class="enterprise-table"><thead><tr><th>Product</th><th>Qty</th><th>Unit cost</th><th></th></tr></thead><tbody id="po-lines-tbody"></tbody></table>
+                <button type="button" id="btn-po-add-line">+ Add line</button>
+                <p style="margin-top:12px;"><button type="submit">Save draft</button> <button type="button" id="btn-po-cancel">Cancel</button></p>
+            </form>
+        </div>
+        <div id="po-detail-card" class="enterprise-card" style="display:none;">
+            <h3 id="po-detail-title">PO detail</h3>
+            <div id="po-detail-body"></div>
+            <div class="enterprise-actions" id="po-detail-actions"></div>
+        </div>
+    </section>
+
+    <section id="panel-inventory" class="enterprise-panel">
+        <div class="enterprise-card">
+            <h2>Stock adjustments</h2>
+            <table class="enterprise-table"><thead><tr><th>Type</th><th>Product</th><th>Qty</th><th>Status</th><th></th></tr></thead><tbody id="adj-tbody"></tbody></table>
+        </div>
+        <div class="enterprise-card">
+            <h2>Stock transfers</h2>
+            <table class="enterprise-table"><thead><tr><th>#</th><th>From</th><th>To</th><th>Status</th></tr></thead><tbody id="transfer-tbody"></tbody></table>
+        </div>
+    </section>
+
+    <section id="panel-branches" class="enterprise-panel">
+        <div class="enterprise-card">
+            <h2>Branches</h2>
+            <table class="enterprise-table"><thead><tr><th>Name</th><th>Code</th><th>Default</th></tr></thead><tbody id="branches-tbody"></tbody></table>
+        </div>
+    </section>
+
+    <section id="panel-reorder" class="enterprise-panel">
+        <div class="enterprise-card">
+            <h2>Reorder suggestions</h2>
+            <table class="enterprise-table"><thead><tr><th>Product</th><th>Stock</th><th>Weekly avg</th><th>Suggested</th></tr></thead><tbody id="reorder-tbody"></tbody></table>
+        </div>
+    </section>
+
+    <section id="panel-statements" class="enterprise-panel">
+        <div class="enterprise-card">
+            <h2>Customer statements</h2>
+            <div class="enterprise-actions">
+                <label>Customer <select id="stmt-customer"><option value="">Select customer…</option></select></label>
+                <button type="button" id="btn-stmt-load">Load</button>
+                <a id="stmt-pdf-link" href="#" target="_blank" style="display:none;">PDF</a>
+                <button type="button" id="btn-stmt-email" style="display:none;">Email statement</button>
+            </div>
+            <div id="stmt-summary" style="margin-bottom:12px;"></div>
+            <table class="enterprise-table"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Detail</th></tr></thead><tbody id="stmt-tbody"></tbody></table>
+        </div>
+    </section>
+
+    <section id="panel-audit" class="enterprise-panel">
+        <div class="enterprise-card">
+            <h2>Audit log</h2>
+            <div class="enterprise-actions">
+                <a id="audit-export" href="/api/enterprise/audit-logs/export.csv" download>Export CSV</a>
+            </div>
+            <table class="enterprise-table"><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Entity</th></tr></thead><tbody id="audit-tbody"></tbody></table>
+        </div>
+    </section>
+</div>
+
+<script src="/static/js/offline-fetch.js?v=1"></script>
+<script src="/static/js/enterprise.js?v=2"></script>
+</body>
+</html>

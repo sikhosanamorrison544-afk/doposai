@@ -13,6 +13,11 @@ from ..firestore_service import append_billing_event, sync_subscription_firestor
 from ..quotation_models import Tenant
 from .models import BillingLog, Subscription, SubscriptionPayment
 from .paynow_client import PaynowClient, get_paynow_client
+from .features import (
+    PLAN_FEATURE_SUMMARIES,
+    resolve_effective_plan,
+    tenant_features,
+)
 from .plans import VALID_PLANS, VALID_STATUSES, get_price
 
 logger = logging.getLogger(__name__)
@@ -109,14 +114,20 @@ def subscription_status_payload(db: Session, tenant: Tenant) -> Dict[str, Any]:
         days_remaining = days_sub
     else:
         days_remaining = None
+    effective_plan = resolve_effective_plan(sub)
+    feats = sorted(tenant_features(db, tenant, sub))
     return {
         "tenant_id": tenant.id,
         "tenant_uid": tenant.tenant_uid,
         "plan": sub.plan,
+        "effective_plan": effective_plan,
         "billing_cycle": sub.billing_cycle,
         "status": sub.status,
         "effective_status": status,
         "access_allowed": allowed,
+        "features": feats,
+        "trial_all_features": effective_plan == "pro" and sub.status == "trial",
+        "plan_feature_summaries": PLAN_FEATURE_SUMMARIES,
         "trial_start": sub.trial_start.isoformat() + "Z" if sub.trial_start else None,
         "trial_end": sub.trial_end.isoformat() + "Z" if sub.trial_end else None,
         "subscription_start": sub.subscription_start.isoformat() + "Z" if sub.subscription_start else None,

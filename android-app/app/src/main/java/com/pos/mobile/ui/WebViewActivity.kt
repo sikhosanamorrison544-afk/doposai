@@ -20,6 +20,7 @@ import com.pos.mobile.BuildConfig
 import com.pos.mobile.R
 import com.pos.mobile.printer.BluetoothPermissionDelegate
 import com.pos.mobile.printer.PrinterPermissionHelper
+import com.pos.mobile.billing.PlanFeatures
 import com.pos.mobile.printer.PrinterSetupDialog
 import com.pos.mobile.printer.bluetoothPermissionDelegate
 import com.pos.mobile.printer.WebViewPrintSupport
@@ -123,6 +124,7 @@ class WebViewActivity : AppCompatActivity() {
                 if (view != null) {
                     WebViewPrintSupport.injectHelper(view)
                     injectAndroidWebUiHints(view)
+                    injectOfflineFetchScript(view)
                 }
                 val pending = injectThenReloadUrl
                 if (pending != null && view != null && loadedUrl == pending) {
@@ -183,6 +185,20 @@ class WebViewActivity : AppCompatActivity() {
         webView.evaluateJavascript(script, null)
     }
 
+    private fun injectOfflineFetchScript(webView: WebView) {
+        val scriptUrl = baseUrl.trimEnd('/') + "/static/js/offline-fetch.js?v=1"
+        val script = """
+            (function() {
+                if (window.__posOfflineFetchLoaded) return;
+                var s = document.createElement('script');
+                s.src = ${org.json.JSONObject.quote(scriptUrl)};
+                s.onload = function() { window.__posOfflineFetchLoaded = true; };
+                document.head.appendChild(s);
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(script, null)
+    }
+
     private fun injectAuthThenReload(webView: WebView, targetUrl: String, token: String?, username: String, role: String) {
         val prefs = getSharedPreferences("pos", MODE_PRIVATE)
         val theme = prefs.getString("theme", "default") ?: "default"
@@ -212,6 +228,11 @@ class WebViewActivity : AppCompatActivity() {
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.pos_pages_menu, menu)
         menuInflater.inflate(R.menu.webview_menu, menu)
+        for (i in 0 until menu.size()) {
+            val item = menu.getItem(i)
+            val feat = PlanFeatures.menuFeatureForItemId(item.itemId) ?: continue
+            item.isVisible = PlanFeatures.has(this, feat)
+        }
         return true
     }
 
@@ -226,6 +247,16 @@ class WebViewActivity : AppCompatActivity() {
                 ?: getString(R.string.store_name)
             PrinterSetupDialog.show(this, lifecycleScope, storeName)
             return true
+        }
+        PlanFeatures.menuFeatureForItemId(item.itemId)?.let { feat ->
+            if (!PlanFeatures.has(this, feat)) {
+                android.widget.Toast.makeText(
+                    this,
+                    getString(R.string.plan_feature_locked),
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
+                return true
+            }
         }
         when (item.itemId) {
             R.id.page_store -> {

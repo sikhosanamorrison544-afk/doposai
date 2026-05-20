@@ -152,15 +152,34 @@
         return true;
     }
 
+    function mergeStore(opts) {
+        const from = (opts && opts.store) || storeSettings || {};
+        const cached = storeSettings || {};
+        return {
+            store_name: (from.store_name || cached.store_name || 'POS').trim(),
+            store_location:
+                from.store_location != null
+                    ? String(from.store_location)
+                    : cached.store_location != null
+                      ? String(cached.store_location)
+                      : '',
+            store_phone:
+                from.store_phone != null
+                    ? String(from.store_phone)
+                    : cached.store_phone != null
+                      ? String(cached.store_phone)
+                      : '',
+        };
+    }
+
     function storeHeaderHtml(store) {
         const s = store || storeSettings || {};
-        let h = '<div class="store">' + escapeHtml(s.store_name || 'POS') + '</div>';
-        if (s.store_location) {
-            h += '<div>' + escapeHtml(s.store_location) + '</div>';
-        }
-        if (s.store_phone) {
-            h += '<div>Tel: ' + escapeHtml(s.store_phone) + '</div>';
-        }
+        const name = (s.store_name || 'POS').trim();
+        const address = (s.store_location != null ? String(s.store_location) : '').trim();
+        const phone = (s.store_phone != null ? String(s.store_phone) : '').trim();
+        let h = '<div class="store" style="text-align:center">' + escapeHtml(name) + '</div>';
+        h += '<div style="text-align:center">' + escapeHtml(address) + '</div>';
+        h += '<div style="text-align:center">Tel: ' + escapeHtml(phone) + '</div>';
         return h;
     }
 
@@ -247,6 +266,7 @@
     }
 
     function printSaleReceipt(opts, printWindow) {
+        opts = Object.assign({}, opts, { store: mergeStore(opts) });
         const title = 'Receipt #' + opts.saleId;
         const body = buildSaleReceiptBody(opts);
         const html = wrapReceiptHtml(title, body);
@@ -263,6 +283,7 @@
     }
 
     function printWithdrawalReceipt(opts, printWindow) {
+        opts = Object.assign({}, opts, { store: mergeStore(opts) });
         let body = storeHeaderHtml(opts.store);
         body += '<hr><div class="meta">';
         body += '<div>Withdrawal #: ' + escapeHtml(opts.withdrawalId) + '</div>';
@@ -297,7 +318,11 @@
             storeSettings = await apiFn('/api/store-settings');
         } catch (e) {
             const el = document.querySelector('.shop-name');
-            storeSettings = { store_name: (el && el.textContent.trim()) || 'POS' };
+            storeSettings = {
+                store_name: (el && el.textContent.trim()) || 'POS',
+                store_phone: '',
+                store_location: '',
+            };
         }
         return storeSettings;
     }

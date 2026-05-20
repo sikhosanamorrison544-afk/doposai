@@ -618,6 +618,58 @@ This is an automated notification from your POS system.
         
         return self.send_email(to_email, subject, body, html_body)
 
+    def send_customer_statement(
+        self,
+        to_email: str,
+        customer_name: str,
+        statement_lines: List[dict],
+        balance: float,
+        store_name: str = "Store",
+        pdf_bytes: Optional[bytes] = None,
+    ) -> bool:
+        """Email customer account statement with optional PDF attachment."""
+        subject = f"Account Statement — {customer_name} — {store_name}"
+        rows_text = "\n".join(
+            f"  {line.get('date', '')}  {line.get('type', '')}  {line.get('amount', '')}  {line.get('detail') or ''}"
+            for line in statement_lines[:40]
+        )
+        body = f"""Hello {customer_name},
+
+Please find your account statement from {store_name}.
+
+Outstanding balance: {balance:.2f}
+
+Recent activity:
+{rows_text}
+
+Thank you for your business.
+"""
+        rows_html = "".join(
+            f"<tr><td>{line.get('date','')}</td><td>{line.get('type','')}</td>"
+            f"<td>{line.get('amount','')}</td><td>{line.get('detail') or ''}</td></tr>"
+            for line in statement_lines[:40]
+        )
+        html_body = f"""
+        <html><body style="font-family:sans-serif;">
+        <h2>Account Statement — {store_name}</h2>
+        <p>Hello <strong>{customer_name}</strong>,</p>
+        <p>Outstanding balance: <strong>{balance:.2f}</strong></p>
+        <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;">
+        <tr style="background:#1e40af;color:#fff;"><th>Date</th><th>Type</th><th>Amount</th><th>Detail</th></tr>
+        {rows_html}
+        </table>
+        </body></html>
+        """
+        filename = f"statement_{customer_name.replace(' ', '_')[:30]}.pdf" if pdf_bytes else None
+        return self.send_email(
+            to_email,
+            subject,
+            body,
+            html_body,
+            pdf_attachment=pdf_bytes,
+            pdf_filename=filename,
+        )
+
 
 # Global email service instance
 email_service = EmailService()

@@ -44,7 +44,7 @@ def filter_customers(db: Session, user: User) -> Query:
 
 
 def filter_sales(db: Session, user: User) -> Query:
-    return filter_by_tenant(db.query(Sale), Sale, user)
+    return filter_sales_by_branch(filter_by_tenant(db.query(Sale), Sale, user), user)
 
 
 def filter_categories(db: Session, user: User) -> Query:
@@ -60,7 +60,7 @@ def filter_users(db: Session, user: User) -> Query:
 
 
 def filter_shifts(db: Session, user: User) -> Query:
-    return filter_by_tenant(db.query(CashierShift), CashierShift, user)
+    return filter_shifts_by_branch(filter_by_tenant(db.query(CashierShift), CashierShift, user), user)
 
 
 def filter_withdrawals(db: Session, user: User) -> Query:
@@ -183,3 +183,38 @@ def tenant_id_for_row(user: User) -> Optional[int]:
 def same_tenant(a: Optional[int], b: Optional[int]) -> bool:
     """True if both legacy (NULL) or same non-null tenant id."""
     return (a is None and b is None) or (a is not None and b is not None and int(a) == int(b))
+
+
+def user_branch_id(user: User) -> Optional[int]:
+    return getattr(user, "branch_id", None)
+
+
+def is_branch_restricted(user: User) -> bool:
+    """Cashiers with an assigned branch see only that branch's operational data."""
+    role = (user.role or "").strip().lower()
+    if role in ("admin", "owner", "supervisor"):
+        return False
+    return user_branch_id(user) is not None
+
+
+def filter_sales_by_branch(query: Query, user: User) -> Query:
+    if not is_branch_restricted(user):
+        return query
+    bid = user_branch_id(user)
+    return query.filter(Sale.branch_id == bid)
+
+
+def filter_shifts_by_branch(query: Query, user: User) -> Query:
+    if not is_branch_restricted(user):
+        return query
+    bid = user_branch_id(user)
+    return query.filter(CashierShift.branch_id == bid)
+
+
+def resolve_branch_id_for_sale(user: User, override: Optional[int] = None) -> Optional[int]:
+    """Admins may pass branch_id; cashiers always use their assigned branch."""
+    if is_branch_restricted(user):
+        return user_branch_id(user)
+    if override is not None:
+        return override
+    return user_branch_id(user)

@@ -5,6 +5,7 @@ import android.webkit.WebView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.pos.mobile.ui.PosAndroidImportBridge
+import com.pos.mobile.ui.PosAndroidOfflineBridge
 import com.pos.mobile.ui.PosAndroidUiBridge
 
 object WebViewPrintSupport {
@@ -25,6 +26,10 @@ object WebViewPrintSupport {
             "PosAndroidUi",
         )
         webView.addJavascriptInterface(importBridge, "PosAndroidImport")
+        webView.addJavascriptInterface(
+            PosAndroidOfflineBridge(activity.applicationContext),
+            "PosAndroidOffline",
+        )
     }
 
     const val INJECT_FLAG = "pos_android_print_injected"

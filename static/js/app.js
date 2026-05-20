@@ -419,7 +419,26 @@ async function api(path, options = {}) {
     });
     if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || res.statusText);
+        let body = null;
+        try {
+            body = text ? JSON.parse(text) : null;
+        } catch (_) {}
+        const err = new Error(
+            body && typeof body.detail === 'string'
+                ? body.detail
+                : body && body.detail && body.detail.detail
+                  ? body.detail.detail
+                  : text || res.statusText,
+        );
+        err.status = res.status;
+        const locked =
+            body && body.code === 'plan_feature_locked'
+                ? body
+                : body && body.detail && typeof body.detail === 'object' && body.detail.code === 'plan_feature_locked'
+                  ? body.detail
+                  : null;
+        err.body = locked || body;
+        throw err;
     }
     if (res.status === 204) return null;
     return res.json();
@@ -479,8 +498,8 @@ async function maybeShowTrialSubscribeModal() {
     const isAdmin = currentUser && currentUser.role === 'admin';
     if (bodyEl) {
         bodyEl.textContent = isAdmin
-            ? 'Your business is on a free trial. Subscribe before it ends to keep uninterrupted access.'
-            : 'Your business is on a free trial. Ask your business admin to subscribe before the trial ends.';
+            ? 'Your 14-day trial includes all Pro features. Subscribe before it ends to keep access on Starter, Business, or Pro.'
+            : 'Your business is on a free trial with full features. Ask your admin to subscribe before the trial ends.';
     }
     if (detailEl) {
         let line = '';
@@ -553,6 +572,15 @@ async function enterPosAfterAuth(data) {
     await loadProducts();
     if (window.posReceipt) {
         posReceipt.loadStoreSettings(api).catch(() => {});
+    }
+    if (window.posPlanFeatures) {
+        try {
+            await posPlanFeatures.loadFromApi(api);
+            posPlanFeatures.applyNavGates();
+        } catch (_) {
+            posPlanFeatures.loadFromStorage();
+            posPlanFeatures.applyNavGates();
+        }
     }
     showScreen('pos-screen');
     void maybeShowTrialSubscribeModal();

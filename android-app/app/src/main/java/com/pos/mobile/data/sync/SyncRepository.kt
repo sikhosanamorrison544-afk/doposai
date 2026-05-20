@@ -1,6 +1,8 @@
 package com.pos.mobile.data.sync
 
+import android.content.Context
 import android.util.Log
+import org.json.JSONObject
 import com.pos.mobile.data.local.dao.*
 import com.pos.mobile.data.local.entity.*
 import com.pos.mobile.data.remote.ApiService
@@ -34,6 +36,9 @@ class SyncRepository(
     private val syncMetadataDao: SyncMetadataDao,
     private val apiCacheDao: ApiCacheDao,
     private val offlineMutationDao: OfflineMutationDao,
+    private val supplierDao: SupplierDao,
+    private val branchDao: BranchDao,
+    private val enterpriseCacheDao: EnterpriseCacheDao,
     private val baseUrl: String,
 ) {
     companion object {
@@ -112,6 +117,24 @@ class SyncRepository(
         }
     }
 
+    /** Cache store name, address, and phone for receipt printing. */
+    suspend fun persistStoreSettings(context: Context, token: String) = withContext(Dispatchers.IO) {
+        try {
+            val url = baseUrl.trimEnd('/') + "/api/store-settings"
+            val res = api.getUrl(url, "Bearer $token")
+            if (!res.isSuccessful) return@withContext
+            val body = res.body()?.string() ?: return@withContext
+            val o = JSONObject(body)
+            context.getSharedPreferences("pos", Context.MODE_PRIVATE).edit()
+                .putString("store_name", o.optString("store_name", "POS"))
+                .putString("store_phone", o.optString("store_phone", ""))
+                .putString("store_location", o.optString("store_location", ""))
+                .apply()
+        } catch (e: Exception) {
+            Log.w(TAG, "persistStoreSettings failed", e)
+        }
+    }
+
     /**
      * Push one unsynced sale to the API. Called by SyncWorker for each pending row in sync_queue.
      */
@@ -165,9 +188,84 @@ class SyncRepository(
     /**
      * Full pull from Render master DB: Room product/customer tables + JSON cache for WebView pages.
      */
-    suspend fun syncMasterDatabase(token: String): Result<MasterSyncResult> = withContext(Dispatchers.IO) {
+    suspend fun pullEnterpriseData(token: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val bearer = "Bearer $token"
+            val base = baseUrl.trimEnd('/')
+            val now = System.currentTimeMillis()
+            val bundleRes = api.getUrl("$base/api/enterprise/offline-bundle", bearer)
+            if (bundleRes.isSuccessful) {
+                val body = bundleRes.body()?.string() ?: "{}"
+                enterpriseCacheDao.put(
+                    EnterpriseCacheEntity("offline_bundle", body, now)
+                )
+                val root = org.json.JSONObject(body)
+                val suppliers = root.optJSONArray("suppliers")
+                if (suppliers != null) {
+                    val entities = mutableListOf<SupplierEntity>()
+                    for (i in 0 until suppliers.length()) {
+                        val o = suppliers.getJSONObject(i)
+                        entities.add(
+                            SupplierEntity(
+                                id = o.getInt("id"),
+                                businessName = o.getString("business_name"),
+                                phone = o.optString("phone", null).takeIf { it.isNotEmpty() },
+                                whatsappNumber = o.optString("whatsapp_number", null).takeIf { it.isNotEmpty() },
+                                balance = o.optDouble("balance", 0.0),
+                                serverSyncedAt = now,
+                            )
+                        )
+                    }
+                    supplierDao.deleteAll()
+                    if (entities.isNotEmpty()) supplierDao.insertAll(entities)
+                }
+                val branches = root.optJSONArray("branches")
+                if (branches != null) {
+                    val entities = mutableListOf<BranchEntity>()
+                    for (i in 0 until branches.length()) {
+                        val o = branches.getJSONObject(i)
+                        entities.add(
+                            BranchEntity(
+                                id = o.getInt("id"),
+                                name = o.getString("name"),
+                                code = o.optString("code", null).takeIf { it.isNotEmpty() },
+                                isDefault = o.optBoolean("is_default", false),
+                                serverSyncedAt = now,
+                            )
+                        )
+                    }
+                    branchDao.deleteAll()
+                    if (entities.isNotEmpty()) branchDao.insertAll(entities)
+                }
+                val pos = root.optJSONArray("purchase_orders")
+                if (pos != null) {
+                    enterpriseCacheDao.put(
+                        EnterpriseCacheEntity("open_purchase_orders", pos.toString(), now)
+                    )
+                }
+            }
+            val suppliersRes = api.getUrl("$base/api/enterprise/suppliers", bearer)
+            if (suppliersRes.isSuccessful) {
+                enterpriseCacheDao.put(
+                    EnterpriseCacheEntity(
+                        "suppliers_list",
+                        suppliersRes.body()?.string() ?: "[]",
+                        now,
+                    )
+                )
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.w(TAG, "pullEnterpriseData partial failure", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun syncMasterDatabase(context: Context, token: String): Result<MasterSyncResult> = withContext(Dispatchers.IO) {
         try {
             pullProductsAndCustomers(token).getOrElse { return@withContext Result.failure(it) }
+            persistStoreSettings(context, token)
+            pullEnterpriseData(token)
             pushOfflineMutations(token)
 
             val bearer = "Bearer $token"
@@ -277,9 +375,11 @@ class SyncRepository(
             val url = base + m.path
             val mediaType = (m.contentType ?: "application/json").substringBefore(';').toMediaType()
             val body = (m.requestBody ?: "{}").toRequestBody(mediaType)
-            val res = when (m.method) {
+            val res = when (m.method.uppercase()) {
                 "POST" -> api.postUrl(url, bearer, body)
                 "PUT" -> api.putUrl(url, bearer, body)
+                "PATCH" -> api.postUrl(url, bearer, body)
+                "DELETE" -> api.deleteUrl(url, bearer)
                 else -> continue
             }
             if (res.isSuccessful) {

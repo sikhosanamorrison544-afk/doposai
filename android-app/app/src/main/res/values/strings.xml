@@ -188,6 +188,7 @@
     <string name="subscription_current">Your subscription</string>
     <string name="subscription_current_plan">Current plan: %1$s · %2$s</string>
     <string name="subscription_admin_only">Subscription billing is managed by a business admin. Ask them to renew.</string>
+    <string name="plan_feature_locked">This feature is not on your plan. Upgrade in Subscription &amp; billing.</string>
     <string name="subscription_cycle_not_set">Billing cycle not set</string>
     <string name="subscription_days_left">%1$d days remaining</string>
     <string name="subscription_no_period_end">No renewal date yet — subscribe to activate billing.</string>

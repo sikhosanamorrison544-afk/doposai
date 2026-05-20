@@ -36,7 +36,7 @@ class SyncWorker(
         val repo = createRepository(applicationContext, baseUrl, api, db)
 
         return try {
-            repo.syncMasterDatabase(token)
+            repo.syncMasterDatabase(applicationContext, token)
 
             val pending = db.syncQueueDao().getByStatus(SyncQueueEntity.STATUS_PENDING)
             var pushed = 0
@@ -75,6 +75,9 @@ class SyncWorker(
             syncMetadataDao = db.syncMetadataDao(),
             apiCacheDao = db.apiCacheDao(),
             offlineMutationDao = db.offlineMutationDao(),
+            supplierDao = db.supplierDao(),
+            branchDao = db.branchDao(),
+            enterpriseCacheDao = db.enterpriseCacheDao(),
             baseUrl = baseUrl,
         )
 

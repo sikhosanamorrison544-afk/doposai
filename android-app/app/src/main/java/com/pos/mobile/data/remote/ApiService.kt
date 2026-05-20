@@ -82,6 +82,12 @@ interface ApiService {
         @Body body: okhttp3.RequestBody,
     ): Response<ResponseBody>
 
+    @HTTP(method = "DELETE", hasBody = false)
+    suspend fun deleteUrl(
+        @Url url: String,
+        @Header("Authorization") token: String,
+    ): Response<ResponseBody>
+
     // Layby
     @GET("api/layby/customers")
     suspend fun getLaybyCustomers(@Header("Authorization") token: String): Response<List<LaybyCustomerDto>>
@@ -407,6 +413,7 @@ data class SubscriptionStatusDto(
     val tenant_id: Int,
     val tenant_uid: String?,
     val plan: String,
+    val effective_plan: String? = null,
     val billing_cycle: String?,
     val status: String,
     val effective_status: String,
@@ -417,6 +424,8 @@ data class SubscriptionStatusDto(
     val days_remaining_trial: Int? = null,
     val days_remaining_subscription: Int? = null,
     val offline_grace_hours: Int = 72,
+    val features: List<String>? = null,
+    val trial_all_features: Boolean? = null,
 )
 
 data class InitiateSubscriptionPaymentDto(

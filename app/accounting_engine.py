@@ -348,6 +348,46 @@ class AccountingEngine:
             logger.error(f"Error posting withdrawal {withdrawal.id} to accounting: {e}", exc_info=True)
             raise
 
+    def post_purchase_receive(
+        self,
+        *,
+        po_id: int,
+        po_number: str,
+        amount: Decimal,
+        created_by: int,
+        entry_date: Optional[datetime] = None,
+    ) -> JournalEntry:
+        """
+        Post inventory received on a purchase order (incremental or full).
+
+        Dr Inventory (1200)
+        Cr Accounts Payable (2000)
+        """
+        if amount <= 0:
+            raise ValueError("Purchase receive amount must be positive")
+        lines = [
+            {
+                "account_code": "1200",
+                "debit": amount,
+                "credit": 0,
+                "description": f"Inventory from {po_number}",
+            },
+            {
+                "account_code": "2000",
+                "debit": 0,
+                "credit": amount,
+                "description": f"AP — {po_number}",
+            },
+        ]
+        return self.create_journal_entry(
+            entry_date=entry_date or datetime.utcnow(),
+            description=f"PO receive {po_number}",
+            lines=lines,
+            reference_type="PURCHASE_ORDER",
+            reference_id=po_id,
+            created_by=created_by,
+        )
+
     def _get_payment_account_code(self, payment_method: str) -> str:
         """Map payment method to account code."""
         mapping = {

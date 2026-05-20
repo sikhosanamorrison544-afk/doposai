@@ -52,8 +52,10 @@
         chunks.push(new Uint8Array([ESC, 0x40]));
         chunks.push(new Uint8Array([ESC, 0x61, 1, ESC, 0x21, 8]));
         chunks.push(enc(storeName + '\n'));
-        if (store.store_location) chunks.push(enc(String(store.store_location).slice(0, width) + '\n'));
-        if (store.store_phone) chunks.push(enc('Tel: ' + String(store.store_phone).slice(0, width - 5) + '\n'));
+        const addr = (store.store_location != null ? String(store.store_location) : '').trim();
+        const phone = (store.store_phone != null ? String(store.store_phone) : '').trim();
+        chunks.push(enc(addr.slice(0, width) + '\n'));
+        chunks.push(enc(('Tel: ' + phone).slice(0, width) + '\n'));
         chunks.push(new Uint8Array([ESC, 0x21, 0, ESC, 0x61, 0]));
         chunks.push(enc('='.repeat(width) + '\n'));
         if (opts.saleId != null) chunks.push(enc('Sale #: ' + opts.saleId + '\n'));
@@ -112,6 +114,10 @@
         chunks.push(new Uint8Array([ESC, 0x40]));
         chunks.push(new Uint8Array([ESC, 0x61, 1, ESC, 0x21, 8]));
         chunks.push(enc(storeName + '\n'));
+        const addr = (store.store_location != null ? String(store.store_location) : '').trim();
+        const phone = (store.store_phone != null ? String(store.store_phone) : '').trim();
+        chunks.push(enc(addr.slice(0, width) + '\n'));
+        chunks.push(enc(('Tel: ' + phone).slice(0, width) + '\n'));
         chunks.push(new Uint8Array([ESC, 0x21, 0, ESC, 0x61, 0]));
         chunks.push(enc('='.repeat(width) + '\n\n'));
         chunks.push(new Uint8Array([ESC, 0x61, 1, ESC, 0x21, 0x18]));

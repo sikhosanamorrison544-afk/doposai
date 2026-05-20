@@ -12,11 +12,31 @@ from decimal import Decimal
 from typing import Iterable, Optional
 
 from .config import PRINTER_DEVICE
+from .receipt_store import normalize_store_receipt_fields
 
 logger = logging.getLogger(__name__)
 
 # Receipt width (40mm = 32 chars, 48mm = 32 chars, 80mm = 48 chars)
 RECEIPT_WIDTH = 48  # 80mm receipt width
+
+
+def _write_store_header_block(
+    write,
+    store_name: str,
+    store_location: Optional[str],
+    store_phone: Optional[str],
+) -> None:
+    """Print store name, address, and phone on every receipt (centered)."""
+    name, address, phone = normalize_store_receipt_fields(
+        store_name, store_phone, store_location
+    )
+    write(b"\x1b\x61\x01")  # center
+    write(b"\x1b\x21\x08")  # bold
+    write(name.upper().encode("ascii", errors="ignore") + b"\n")
+    write(b"\x1b\x21\x00")
+    write(address[:RECEIPT_WIDTH].encode("ascii", errors="ignore") + b"\n")
+    write(f"Tel: {phone}"[:RECEIPT_WIDTH].encode("ascii", errors="ignore") + b"\n")
+    write(b"\x1b\x61\x00")  # left
 
 
 def _safe_open_printer() -> Optional[object]:
@@ -75,23 +95,7 @@ def print_receipt(
         write(b"\x1b\x40")  # ESC @ (initialize)
         write(b"\x1b\x21\x00")  # ESC ! 0 (normal size - 1x1)
 
-        # Store header - normal size, bold and centered (always uppercase)
-        write(b"\x1b\x61\x01")  # ESC a 1 (center align)
-        write(b"\x1b\x21\x08")  # ESC ! 8 (bold on, normal size)
-        store_name_upper = store_name.upper()
-        store_bytes = store_name_upper.encode("ascii", errors="ignore")
-        write(store_bytes + b"\n")
-        write(b"\x1b\x21\x00")  # normal size, bold off
-        
-        # Store location and phone (centered, normal size)
-        if store_location:
-            location_bytes = str(store_location)[:RECEIPT_WIDTH].encode("ascii", errors="ignore")
-            write(location_bytes + b"\n")
-        if store_phone:
-            phone_bytes = f"Tel: {store_phone}"[:RECEIPT_WIDTH].encode("ascii", errors="ignore")
-            write(phone_bytes + b"\n")
-        
-        write(b"\x1b\x61\x00")  # left align
+        _write_store_header_block(write, store_name, store_location, store_phone)
 
         # Separator line
         write(b"=" * RECEIPT_WIDTH + b"\n")
@@ -266,23 +270,7 @@ def print_withdrawal_receipt(
         write(b"\x1b\x40")  # ESC @ (initialize)
         write(b"\x1b\x21\x00")  # ESC ! 0 (normal size - 1x1)
 
-        # Store header - normal size, bold and centered (always uppercase)
-        write(b"\x1b\x61\x01")  # ESC a 1 (center align)
-        write(b"\x1b\x21\x08")  # ESC ! 8 (bold on, normal size)
-        store_name_upper = store_name.upper()
-        store_bytes = store_name_upper.encode("ascii", errors="ignore")
-        write(store_bytes + b"\n")
-        write(b"\x1b\x21\x00")  # normal size, bold off
-        
-        # Store location and phone (centered, normal size)
-        if store_location:
-            location_bytes = str(store_location)[:RECEIPT_WIDTH].encode("ascii", errors="ignore")
-            write(location_bytes + b"\n")
-        if store_phone:
-            phone_bytes = f"Tel: {store_phone}"[:RECEIPT_WIDTH].encode("ascii", errors="ignore")
-            write(phone_bytes + b"\n")
-        
-        write(b"\x1b\x61\x00")  # left align
+        _write_store_header_block(write, store_name, store_location, store_phone)
 
         # Separator line
         write(b"=" * RECEIPT_WIDTH + b"\n")

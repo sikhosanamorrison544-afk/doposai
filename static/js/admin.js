@@ -654,6 +654,9 @@ async function saveStoreSettings() {
             method: 'PUT',
             body: JSON.stringify(payload),
         });
+        if (window.posReceipt && typeof window.posReceipt.setStoreSettings === 'function') {
+            window.posReceipt.setStoreSettings(payload);
+        }
         msg.textContent = 'Settings saved successfully';
     } catch (e) {
         console.error(e);

@@ -38,6 +38,8 @@ object ReceiptPrinter {
         val collectionStatus: String,
         val cashierName: String?,
         val saleId: Int? = null,
+        val storePhone: String? = null,
+        val storeLocation: String? = null,
     )
 
     fun printSale(
@@ -110,6 +112,8 @@ object ReceiptPrinter {
                 collectionStatus = request.collectionStatus,
                 cashierName = request.cashierName,
                 saleId = request.saleId,
+                storePhone = request.storePhone,
+                storeLocation = request.storeLocation,
             )
             val result = ThermalPrintService.print(activity, data)
             withContext(Dispatchers.Main) {
@@ -167,6 +171,8 @@ object ReceiptPrinter {
         val df = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
         val lines = mutableListOf<String>()
         lines.add(request.storeName.uppercase())
+        lines.add((request.storeLocation ?: "").ifBlank { "" })
+        lines.add("Tel: ${request.storePhone ?: ""}")
         lines.add("=" .repeat(32))
         if (request.saleId != null) lines.add("Sale #: ${request.saleId}")
         lines.add("Date: ${df.format(Date())}")

@@ -175,6 +175,8 @@ class SessionStore(private val context: Context, private val prefsName: String =
         plan: String?,
         verifiedMs: Long,
         accessAllowed: Boolean?,
+        features: List<String>? = null,
+        effectivePlan: String? = null,
     ) {
         val endMs = parseIsoToMs(subscriptionEndIso)
         encryptedPrefs()?.edit()?.apply {
@@ -182,8 +184,12 @@ class SessionStore(private val context: Context, private val prefsName: String =
             putLong(KEY_LAST_VERIFIED, verifiedMs)
             if (endMs > 0) putLong(KEY_SUB_END, endMs)
             if (plan != null) putString(KEY_PLAN, plan)
+            if (effectivePlan != null) putString(KEY_EFFECTIVE_PLAN, effectivePlan)
             if (accessAllowed != null) putBoolean(KEY_ACCESS, accessAllowed)
             apply()
+        }
+        if (features != null) {
+            com.pos.mobile.billing.PlanFeatures.save(context, features)
         }
     }
 
@@ -211,6 +217,7 @@ class SessionStore(private val context: Context, private val prefsName: String =
         private const val KEY_SUB = "subscription_status"
         private const val KEY_SUB_END = "subscription_end_ms"
         private const val KEY_PLAN = "subscription_plan"
+        private const val KEY_EFFECTIVE_PLAN = "subscription_effective_plan"
         private const val KEY_ACCESS = "subscription_access_allowed"
         private const val KEY_LAST_VERIFIED = "last_verified_at"
     }

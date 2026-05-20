@@ -19,8 +19,11 @@ import com.pos.mobile.data.local.entity.*
         SyncMetadataEntity::class,
         ApiCacheEntity::class,
         OfflineMutationEntity::class,
+        SupplierEntity::class,
+        BranchEntity::class,
+        EnterpriseCacheEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -34,6 +37,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun syncMetadataDao(): SyncMetadataDao
     abstract fun apiCacheDao(): ApiCacheDao
     abstract fun offlineMutationDao(): OfflineMutationDao
+    abstract fun supplierDao(): SupplierDao
+    abstract fun branchDao(): BranchDao
+    abstract fun enterpriseCacheDao(): EnterpriseCacheDao
 
     companion object {
         private const val DB_NAME = "pos_offline.db"

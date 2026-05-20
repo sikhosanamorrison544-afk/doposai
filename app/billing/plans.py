@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Literal
 
+from .features import PLAN_FEATURE_SUMMARIES, PLAN_FEATURES
+
 PlanId = Literal["starter", "business", "pro"]
 CycleId = Literal["monthly", "yearly"]
 
@@ -62,7 +64,14 @@ def list_plans_public() -> List[Dict[str, Any]]:
     for p in _CATALOG:
         g = grouped.setdefault(
             p.plan,
-            {"id": p.plan, "name": p.plan.capitalize(), "monthly": None, "yearly": None},
+            {
+                "id": p.plan,
+                "name": p.plan.capitalize(),
+                "monthly": None,
+                "yearly": None,
+                "features": sorted(PLAN_FEATURES.get(p.plan, frozenset())),
+                "highlights": PLAN_FEATURE_SUMMARIES.get(p.plan, []),
+            },
         )
         g[p.cycle] = {"amount_usd": p.amount_usd, "label": p.label, "currency": "USD"}
     return list(grouped.values())

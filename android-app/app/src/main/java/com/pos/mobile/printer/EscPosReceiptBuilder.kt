@@ -35,6 +35,8 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
         cashierName: String?,
         saleId: Int? = null,
         footer: String = "Thank you for shopping with us!",
+        storePhone: String? = null,
+        storeLocation: String? = null,
     ): ByteArray {
         buffer.clear()
         initPrinter()
@@ -49,6 +51,7 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
         return buildSaleReceiptFromLines(
             storeName, lines, subtotal, discountTotal, total, payments,
             customerName, collectionStatus, cashierName, saleId, footer,
+            storePhone, storeLocation,
         )
     }
 
@@ -64,10 +67,12 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
         cashierName: String?,
         saleId: Int? = null,
         footer: String = "Thank you for shopping with us!",
+        storePhone: String? = null,
+        storeLocation: String? = null,
     ): ByteArray {
         buffer.clear()
         initPrinter()
-        writeHeader(storeName, null, null)
+        writeHeader(storeName, storeLocation, storePhone)
         writeLine('=')
         writeSaleInfo(saleId, cashierName, customerName, collectionStatus)
         writeLine('-')
@@ -168,7 +173,7 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
     fun buildTestReceipt(storeName: String): ByteArray {
         buffer.clear()
         initPrinter()
-        writeHeader(storeName.ifBlank { "POS" }, null, null)
+        writeHeader(storeName.ifBlank { "POS" }, "", "")
         writeLine('=')
         writeText("Printer test OK\n")
         writeText(SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()))
@@ -191,14 +196,10 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
     private fun writeHeader(storeName: String, storeLocation: String?, storePhone: String?) {
         centerAlign()
         write(byteArrayOf(0x1b, 0x21, 0x08)) // bold
-        writeText("${storeName.uppercase()}\n")
+        writeText("${storeName.ifBlank { "POS" }.uppercase()}\n")
         write(byteArrayOf(0x1b, 0x21, 0x00))
-        if (!storeLocation.isNullOrBlank()) {
-            writeText("${storeLocation.take(width)}\n")
-        }
-        if (!storePhone.isNullOrBlank()) {
-            writeText("Tel: ${storePhone.take(width - 5)}\n")
-        }
+        writeText("${(storeLocation ?: "").take(width)}\n")
+        writeText("Tel: ${(storePhone ?: "").take(width - 5)}\n")
         leftAlign()
     }
 
@@ -244,6 +245,8 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
                 collectionStatus = json.optString("collectionStatus", json.optString("collection_status", "collected")),
                 cashierName = json.optString("cashierName", json.optString("cashier_name", null)),
                 saleId = saleId,
+                storePhone = store?.optString("store_phone"),
+                storeLocation = store?.optString("store_location"),
             )
         }
 

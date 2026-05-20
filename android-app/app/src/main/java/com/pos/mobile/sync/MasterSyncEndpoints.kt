@@ -34,6 +34,10 @@ object MasterSyncEndpoints {
             "/api/accounting/profit-loss?start_date=$from&end_date=$to",
             "/api/accounting/balance-sheet?as_of_date=$to",
             "/api/accounting/vat-report?start_date=$from&end_date=$to",
+            "/api/enterprise/offline-bundle",
+            "/api/enterprise/suppliers",
+            "/api/enterprise/branches",
+            "/api/enterprise/reorder-suggestions?days=30",
         )
     }
 
@@ -49,5 +53,6 @@ object MasterSyncEndpoints {
         "/customer-history",
         "/transaction-payment-history",
         "/quotations",
+        "/enterprise",
     )
 }

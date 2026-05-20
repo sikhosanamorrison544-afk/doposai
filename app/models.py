@@ -32,6 +32,9 @@ class User(Base):
     tenant_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("tenants.id"), nullable=True, index=True
     )
+    branch_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("branches.id"), nullable=True, index=True
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow
@@ -109,6 +112,9 @@ class Sale(Base):
     customer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("customers.id"))
     tenant_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("tenants.id"), nullable=True, index=True
+    )
+    branch_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("branches.id"), nullable=True, index=True
     )
     subtotal: Mapped[Numeric] = mapped_column(Numeric(10, 2))
     discount_total: Mapped[Numeric] = mapped_column(Numeric(10, 2), default=0)
@@ -307,6 +313,9 @@ class CashierShift(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     tenant_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("tenants.id"), nullable=True, index=True
+    )
+    branch_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("branches.id"), nullable=True, index=True
     )
 
     cashier: Mapped[User] = relationship("User", back_populates="shifts")

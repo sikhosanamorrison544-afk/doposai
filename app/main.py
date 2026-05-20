@@ -117,15 +117,22 @@ from starlette.middleware.gzip import GZipMiddleware
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+from .billing.feature_middleware import PlanFeatureMiddleware
+
+app.add_middleware(PlanFeatureMiddleware)
+
 from .billing.routes import billing_router, payments_router, subscriptions_router
 from .platform_routes import router as platform_router
 from .saas_auth_routes import router as saas_auth_router
+from .enterprise.routes import router as enterprise_router
+from . import enterprise_models  # noqa: F401 — register enterprise ORM tables
 
 app.include_router(saas_auth_router)
 app.include_router(subscriptions_router)
 app.include_router(payments_router)
 app.include_router(billing_router)
 app.include_router(platform_router)
+app.include_router(enterprise_router)
 
 # Background task to periodically process offline backup queue
 async def process_backup_queue_periodically():
@@ -941,6 +948,7 @@ class SaleCreate(BaseModel):
     payments: List[PaymentInput]
     notes: Optional[str] = None
     collection_status: str = "collected"  # "collected" or "to_collect"
+    branch_id: Optional[int] = None  # admin override; cashiers use assigned branch
 
 
 class SaleRead(BaseModel):
@@ -996,10 +1004,21 @@ async def create_sale(
     if sale_data.collection_status not in ["collected", "to_collect"]:
         raise HTTPException(status_code=400, detail="collection_status must be 'collected' or 'to_collect'")
 
+    sale_branch_id = tenant_scope.resolve_branch_id_for_sale(
+        current_user, sale_data.branch_id
+    )
+    if sale_branch_id is not None:
+        from .enterprise_models import Branch
+
+        br = tenant_scope.get_scoped(db, Branch, sale_branch_id, current_user)
+        if br is None:
+            raise HTTPException(status_code=400, detail="Invalid branch")
+
     sale = Sale(
         cashier_id=current_user.id,
         customer_id=sale_data.customer_id,
         tenant_id=tenant_scope.tenant_id_for_row(current_user),
+        branch_id=sale_branch_id,
         shift_id=active_shift.id if active_shift else None,
         subtotal=subtotal,
         discount_total=discount_total,
@@ -1407,6 +1426,7 @@ class UserRead(BaseModel):
     username: str
     full_name: Optional[str]
     role: str
+    branch_id: Optional[int] = None
     is_active: bool
     created_at: datetime
 
@@ -1419,6 +1439,7 @@ class UserCreate(BaseModel):
     full_name: Optional[str] = None
     password: str
     role: str = "cashier"
+    branch_id: Optional[int] = None
 
 
 class UserUpdate(BaseModel):
@@ -1426,6 +1447,7 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     password: Optional[str] = None
     role: Optional[str] = None
+    branch_id: Optional[int] = None
     is_active: Optional[bool] = None
 
 
@@ -1453,10 +1475,17 @@ async def create_user(
     if user_data.role not in ["admin", "supervisor", "cashier"]:
         raise HTTPException(status_code=400, detail="Role must be 'admin', 'supervisor', or 'cashier'")
     
+    if user_data.branch_id is not None:
+        from .enterprise_models import Branch
+
+        if tenant_scope.get_scoped(db, Branch, user_data.branch_id, current_user) is None:
+            raise HTTPException(status_code=400, detail="Invalid branch")
+
     db_user = User(
         username=user_data.username,
         full_name=user_data.full_name,
         role=user_data.role,
+        branch_id=user_data.branch_id,
         password_hash=auth.get_password_hash(user_data.password),
         is_active=True,
         tenant_id=tenant_scope.tenant_id_for_row(current_user),
@@ -1496,6 +1525,13 @@ async def update_user(
         if user_data.role not in ["admin", "supervisor", "cashier"]:
             raise HTTPException(status_code=400, detail="Role must be 'admin', 'supervisor', or 'cashier'")
         db_user.role = user_data.role
+
+    if user_data.branch_id is not None:
+        from .enterprise_models import Branch
+
+        if user_data.branch_id and tenant_scope.get_scoped(db, Branch, user_data.branch_id, current_user) is None:
+            raise HTTPException(status_code=400, detail="Invalid branch")
+        db_user.branch_id = user_data.branch_id
     
     if user_data.is_active is not None:
         db_user.is_active = user_data.is_active
@@ -2883,6 +2919,14 @@ async def billing_page(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse("billing.html", {"request": request, "store_name": store_name})
 
 
+@app.get("/enterprise", response_class=HTMLResponse)
+async def enterprise_hub_page(request: Request, db: Session = Depends(get_db)):
+    """Enterprise inventory: suppliers, purchasing, branches, audit."""
+    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
+    store_name = store_settings.store_name.upper() if store_settings else STORE_NAME.upper()
+    return templates.TemplateResponse("enterprise.html", {"request": request, "store_name": store_name})
+
+
 @app.get("/analytics", response_class=HTMLResponse)
 async def analytics_page(request: Request, db: Session = Depends(get_db)):
     """Sales Analytics dashboard page."""
@@ -4007,6 +4051,7 @@ async def start_shift(
         starting_cash=shift_data.starting_cash,
         notes=shift_data.notes,
         tenant_id=tenant_scope.tenant_id_for_row(current_user),
+        branch_id=tenant_scope.resolve_branch_id_for_sale(current_user, None),
     )
     db.add(shift)
     db.commit()

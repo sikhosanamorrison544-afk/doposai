@@ -110,7 +110,16 @@
                 Number(price.amount_usd).toFixed(2) +
                 '</div><p style="font-size:13px;color:#64748b">' +
                 escapeHtml(price.label) +
-                '</p>';
+                '</p>' +
+                (p.highlights && p.highlights.length
+                    ? '<ul style="font-size:12px;color:#475569;margin:10px 0 0;padding-left:18px;text-align:left">' +
+                      p.highlights
+                          .map(function (h) {
+                              return '<li>' + escapeHtml(h) + '</li>';
+                          })
+                          .join('') +
+                      '</ul>'
+                    : '');
             card.onclick = function () {
                 state.selectedPlan = p.id;
                 renderPlans();

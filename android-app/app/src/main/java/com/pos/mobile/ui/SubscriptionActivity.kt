@@ -81,6 +81,8 @@ class SubscriptionActivity : BaseNativeActivity() {
                         plan = s.plan,
                         verifiedMs = System.currentTimeMillis(),
                         accessAllowed = s.access_allowed,
+                        features = s.features,
+                        effectivePlan = s.effective_plan ?: s.plan,
                     )
                     bindStatus(s)
                 }
