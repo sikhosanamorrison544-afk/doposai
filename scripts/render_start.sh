@@ -13,5 +13,9 @@ if [ -n "${DATABASE_URL:-}" ] && echo "$DATABASE_URL" | grep -q '^postgresql'; t
     echo "ERROR: migrate_billing_paynow.py failed"
     exit 1
   }
+  python3 migrate_enterprise.py || {
+    echo "ERROR: migrate_enterprise.py failed"
+    exit 1
+  }
 fi
 exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --proxy-headers --forwarded-allow-ips='*'
