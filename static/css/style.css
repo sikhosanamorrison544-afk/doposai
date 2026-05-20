@@ -4729,7 +4729,7 @@ html body.theme-light #ai-insights-panel #ai-chat-panel * {
     overflow-wrap: break-word !important;
 }
 
-/* Restore login card to its original position in light theme */
+/* Light theme login card: dark glass (position + layout) */
 body.theme-light #login-screen .card {
     position: static !important;
     margin: 24px auto !important;
