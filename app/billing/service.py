@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from ..config import OFFLINE_GRACE_HOURS_DEFAULT, TRIAL_DAYS_DEFAULT
+from ..config import OFFLINE_GRACE_HOURS_DEFAULT, PLATFORM_BRAND_NAME, TRIAL_DAYS_DEFAULT
 from ..firestore_service import append_billing_event, sync_subscription_firestore
 from ..quotation_models import Tenant
 from .models import BillingLog, Subscription, SubscriptionPayment
@@ -237,7 +237,7 @@ def start_pending_payment(
             "A valid account email is required for Paynow. Update your profile email and try again."
         )
 
-    description = f"DoposAI {price.label}"
+    description = f"{PLATFORM_BRAND_NAME} {price.label}"
     if ecocash_phone:
         try:
             result = paynow.initiate_ecocash(

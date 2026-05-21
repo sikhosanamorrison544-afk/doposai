@@ -15,7 +15,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from . import auth
-from .config import WEB_PUBLIC_URL
+from .config import PLATFORM_BRAND_NAME, WEB_PUBLIC_URL
 from .database import get_db
 from .billing import service as billing_service
 from .email_service import EmailService
@@ -308,15 +308,16 @@ def auth_verify(
 def _build_reset_email(reset_url: str, owner_name: Optional[str]) -> tuple[str, str, str]:
     """Build (subject, plain_text, html) for a password-reset email."""
     name = (owner_name or "there").strip()
-    subject = "Reset your doposai password"
+    brand = PLATFORM_BRAND_NAME
+    subject = f"Reset your {brand} password"
     plain = (
         f"Hi {name},\n\n"
-        "We received a request to reset your doposai password.\n\n"
+        f"We received a request to reset your {brand} password.\n\n"
         f"Click the link below to choose a new password. It expires in 24 hours:\n"
         f"{reset_url}\n\n"
         "If you didn't request this, you can ignore this email — your password "
         "won't change.\n\n"
-        "— doposai"
+        f"— {brand}"
     )
     html = f"""\
 <!doctype html>
@@ -326,7 +327,7 @@ def _build_reset_email(reset_url: str, owner_name: Optional[str]) -> tuple[str, 
       <h2 style="margin:0 0 8px;font-size:22px;color:#1a1a2e;">Reset your password</h2>
       <p style="margin:0 0 16px;color:#374151;line-height:1.5;">Hi {name},</p>
       <p style="margin:0 0 20px;color:#374151;line-height:1.5;">
-        We received a request to reset your doposai password. Click the button
+        We received a request to reset your {brand} password. Click the button
         below to choose a new one. The link is valid for <strong>24 hours</strong>.
       </p>
       <p style="margin:24px 0;text-align:center;">
@@ -346,7 +347,7 @@ def _build_reset_email(reset_url: str, owner_name: Optional[str]) -> tuple[str, 
         your password won't change.
       </p>
     </div>
-    <p style="text-align:center;color:#9ca3af;font-size:12px;margin:16px 0 0;">— doposai</p>
+    <p style="text-align:center;color:#9ca3af;font-size:12px;margin:16px 0 0;">— {brand}</p>
   </body>
 </html>"""
     return subject, plain, html

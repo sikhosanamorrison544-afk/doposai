@@ -21,5 +21,10 @@ if [ -n "${DATABASE_URL:-}" ] && echo "$DATABASE_URL" | grep -q '^postgresql'; t
     echo "ERROR: migrate_whatsapp.py failed"
     exit 1
   }
+  # Strip the legacy "J & B MALL" default brand from existing rows.
+  # Idempotent; no-op once the rewrite has happened.
+  python3 migrate_remove_legacy_brand.py || {
+    echo "WARN: migrate_remove_legacy_brand.py failed (non-fatal)"
+  }
 fi
 exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --proxy-headers --forwarded-allow-ips='*'

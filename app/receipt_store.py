@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Optional, Tuple
 
-from .config import STORE_LOCATION, STORE_NAME, STORE_PHONE
+from .config import PLATFORM_BRAND_NAME, STORE_LOCATION, STORE_NAME, STORE_PHONE
 
 
 def normalize_store_receipt_fields(
@@ -15,7 +15,7 @@ def normalize_store_receipt_fields(
     Return (name, address, phone) for receipt headers.
     Address and phone are always strings (may be empty if not configured).
     """
-    name = (store_name or STORE_NAME or "POS").strip()
+    name = (store_name or STORE_NAME or PLATFORM_BRAND_NAME).strip()
     address = (store_location or STORE_LOCATION or "").strip()
     phone = (store_phone or STORE_PHONE or "").strip()
     return name, address, phone

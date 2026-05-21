@@ -709,7 +709,7 @@ async function registerBusiness() {
         document.getElementById('register-form-card').style.display = 'none';
         document.getElementById('login-form-card').style.display = '';
         const titleEl = document.getElementById('login-screen-title');
-        if (titleEl) titleEl.textContent = 'POS Login';
+        if (titleEl) titleEl.textContent = titleEl.dataset.defaultTitle || titleEl.textContent;
         await enterPosAfterAuth(data);
     } catch (e) {
         errorEl.textContent = 'Registration failed';
@@ -1216,7 +1216,7 @@ function setupEvents() {
             registerFormCard.style.display = 'none';
             loginFormCard.style.display = '';
             document.getElementById('register-error').textContent = '';
-            if (loginTitleEl) loginTitleEl.textContent = 'POS Login';
+            if (loginTitleEl) loginTitleEl.textContent = loginTitleEl.dataset.defaultTitle || loginTitleEl.textContent;
         });
     }
 
@@ -1330,7 +1330,7 @@ function setupEvents() {
         const lt = document.getElementById('login-screen-title');
         if (regCard) regCard.style.display = 'none';
         if (logCard) logCard.style.display = '';
-        if (lt) lt.textContent = 'POS Login';
+        if (lt) lt.textContent = lt.dataset.defaultTitle || lt.textContent;
         showScreen('login-screen');
     });
     

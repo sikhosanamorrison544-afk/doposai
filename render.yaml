@@ -28,6 +28,10 @@ services:
         value: production
       - key: WEB_PUBLIC_URL
         value: https://doposai.com
+      # Platform-wide brand shown on the login screen, in password-reset
+      # emails, and on Paynow billing line items.
+      - key: PLATFORM_BRAND_NAME
+        value: All In One POS
       - key: API_PUBLIC_URL
         value: https://api.doposai.com
       - key: CORS_ALLOW_ORIGINS

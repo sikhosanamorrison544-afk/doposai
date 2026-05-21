@@ -126,7 +126,7 @@ class SyncRepository(
             val body = res.body()?.string() ?: return@withContext
             val o = JSONObject(body)
             context.getSharedPreferences("pos", Context.MODE_PRIVATE).edit()
-                .putString("store_name", o.optString("store_name", "POS"))
+                .putString("store_name", o.optString("store_name", "All In One POS"))
                 .putString("store_phone", o.optString("store_phone", ""))
                 .putString("store_location", o.optString("store_location", ""))
                 .apply()

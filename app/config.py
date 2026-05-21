@@ -71,7 +71,20 @@ PRINTER_DEVICE = "/dev/usb/lp0"
 
 PWD_HASH_SCHEME = "pbkdf2_sha256"
 
-STORE_NAME = (os.environ.get("STORE_NAME", "").strip() or "POS")
+# PLATFORM_BRAND_NAME is the platform-wide brand (e.g. shown on the public
+# login screen, in password-reset emails, on billing line items). It is
+# DISTINCT from per-tenant store names, which are stored in StoreSettings
+# and used inside the tenant's own UI/receipts. Falls back to STORE_NAME
+# below so older deployments that only set STORE_NAME still get a sane
+# default.
+PLATFORM_BRAND_NAME = (
+    os.environ.get("PLATFORM_BRAND_NAME", "").strip() or "All In One POS"
+)
+
+# STORE_NAME is the per-tenant fallback used when a tenant has not set its
+# own StoreSettings.store_name yet (fresh signups, etc). We default it to
+# the platform brand so unbranded views never show "POS".
+STORE_NAME = (os.environ.get("STORE_NAME", "").strip() or PLATFORM_BRAND_NAME)
 STORE_PHONE = os.environ.get("STORE_PHONE", "").strip()
 STORE_LOCATION = os.environ.get("STORE_LOCATION", "").strip()
 
