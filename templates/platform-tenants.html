@@ -49,6 +49,38 @@
         .platform-table th { background: rgba(0,0,0,0.04); font-weight: 600; white-space: nowrap; }
         .platform-table tr:last-child td { border-bottom: none; }
         .platform-msg { padding: 16px; border-radius: 8px; background: rgba(239,68,68,0.12); color: #991b1b; margin-bottom: 16px; }
+        .row-action-btn { padding: 6px 10px; background: #1a1a1a; color: #fff; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .row-action-btn:hover { background: #333; }
+        .row-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Reset-password modal */
+        .reset-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 16px; }
+        .reset-modal-backdrop.visible { display: flex; }
+        .reset-modal { background: #ffffff; color: #1a1a1a; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.45); max-width: 460px; width: 100%; padding: 24px; }
+        .reset-modal h2 { margin: 0 0 6px; font-size: 18px; }
+        .reset-modal .ctx { color: rgba(26,26,26,0.7); font-size: 13px; margin: 0 0 14px; line-height: 1.4; }
+        .reset-modal label { display: block; font-size: 12px; font-weight: 600; margin: 12px 0 4px; color: rgba(26,26,26,0.85); }
+        .reset-modal select,
+        .reset-modal input[type="text"],
+        .reset-modal input[type="password"] {
+            width: 100%; box-sizing: border-box;
+            padding: 9px 11px; border-radius: 8px;
+            border: 1px solid rgba(0,0,0,0.18);
+            font-size: 14px; background: #ffffff; color: #1a1a1a;
+        }
+        .reset-modal select:focus,
+        .reset-modal input:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,0.18); }
+        .reset-modal .hint { font-size: 12px; color: rgba(26,26,26,0.6); margin: 4px 0 0; }
+        .reset-modal .actions { margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; }
+        .reset-modal .actions button { padding: 10px 16px; border-radius: 8px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; }
+        .reset-modal .actions .cancel { background: rgba(0,0,0,0.08); color: #1a1a1a; }
+        .reset-modal .actions .cancel:hover { background: rgba(0,0,0,0.14); }
+        .reset-modal .actions .confirm { background: #dc2626; color: #fff; }
+        .reset-modal .actions .confirm:hover { background: #b91c1c; }
+        .reset-modal .actions .confirm:disabled { opacity: 0.6; cursor: not-allowed; }
+        .reset-modal .modal-msg { margin-top: 14px; font-size: 13px; line-height: 1.45; min-height: 1.2em; }
+        .reset-modal .modal-msg.error { color: #b91c1c; }
+        .reset-modal .modal-msg.success { color: #047857; }
     </style>
 </head>
 <body>
@@ -89,6 +121,7 @@
                         <th>Trial ends</th>
                         <th>Users</th>
                         <th>Admin logins</th>
+                        <th>Actions</th>
                     </tr>
                     </thead>
                     <tbody id="platform-tenants-body"></tbody>
@@ -97,7 +130,37 @@
         </main>
     </div>
 </div>
-<script src="/static/js/platform-tenants.js"></script>
+
+<div id="reset-pw-modal-backdrop" class="reset-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="reset-pw-modal-title">
+    <div class="reset-modal">
+        <h2 id="reset-pw-modal-title">Reset user password</h2>
+        <p class="ctx">
+            Business: <strong id="reset-pw-modal-business"></strong>
+        </p>
+
+        <label for="reset-pw-modal-username">Account login</label>
+        <select id="reset-pw-modal-username"></select>
+
+        <label for="reset-pw-modal-username-free">…or type a username/email manually</label>
+        <input type="text" id="reset-pw-modal-username-free" autocomplete="off" spellcheck="false" placeholder="leave blank to use the selection above">
+
+        <label for="reset-pw-modal-newpw">New password</label>
+        <input type="password" id="reset-pw-modal-newpw" autocomplete="new-password" spellcheck="false">
+        <p class="hint">At least 8 characters, with letters and numbers. The user's existing sessions will be force-revoked.</p>
+
+        <label for="reset-pw-modal-confirm">Confirm new password</label>
+        <input type="password" id="reset-pw-modal-confirm" autocomplete="new-password" spellcheck="false">
+
+        <div class="modal-msg" id="reset-pw-modal-msg" role="status" aria-live="polite"></div>
+
+        <div class="actions">
+            <button type="button" class="cancel" id="reset-pw-modal-cancel">Cancel</button>
+            <button type="button" class="confirm" id="reset-pw-modal-confirm-btn">Reset password</button>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/platform-tenants.js?v=2"></script>
 <script src="/static/js/store-branding.js?v=1"></script>
 </body>
 </html>

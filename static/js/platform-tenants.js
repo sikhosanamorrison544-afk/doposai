@@ -51,11 +51,19 @@
         return res.ok;
     }
 
-    async function platformFetchJson(url) {
+    async function platformFetchJson(url, opts) {
         const token = localStorage.getItem('pos_token');
-        const headers = { Accept: 'application/json' };
-        if (token) headers['Authorization'] = 'Bearer ' + token;
-        const res = await fetch(url, { headers });
+        const init = Object.assign({ headers: {} }, opts || {});
+        init.headers = Object.assign(
+            { Accept: 'application/json' },
+            init.headers || {},
+        );
+        if (token) init.headers['Authorization'] = 'Bearer ' + token;
+        if (init.body && typeof init.body !== 'string') {
+            init.headers['Content-Type'] = 'application/json';
+            init.body = JSON.stringify(init.body);
+        }
+        const res = await fetch(url, init);
         const text = await res.text();
         if (res.status === 401) {
             localStorage.removeItem('pos_token');
@@ -74,6 +82,158 @@
         return text ? JSON.parse(text) : null;
     }
 
+    function parseAdminUsernames(s) {
+        if (!s || s === '—') return [];
+        return String(s)
+            .split(',')
+            .map((u) => u.trim())
+            .filter((u) => u && u !== '—');
+    }
+
+    // ── Reset-password modal ──────────────────────────────────────────────
+    function getResetModal() {
+        return {
+            backdrop: document.getElementById('reset-pw-modal-backdrop'),
+            business: document.getElementById('reset-pw-modal-business'),
+            select: document.getElementById('reset-pw-modal-username'),
+            free: document.getElementById('reset-pw-modal-username-free'),
+            newpw: document.getElementById('reset-pw-modal-newpw'),
+            confirm: document.getElementById('reset-pw-modal-confirm'),
+            msg: document.getElementById('reset-pw-modal-msg'),
+            confirmBtn: document.getElementById('reset-pw-modal-confirm-btn'),
+            cancelBtn: document.getElementById('reset-pw-modal-cancel'),
+        };
+    }
+
+    function setModalMessage(text, kind) {
+        const m = getResetModal();
+        if (!m.msg) return;
+        m.msg.textContent = text || '';
+        m.msg.classList.remove('error', 'success');
+        if (kind) m.msg.classList.add(kind);
+    }
+
+    function closeResetModal() {
+        const m = getResetModal();
+        if (!m.backdrop) return;
+        m.backdrop.classList.remove('visible');
+        if (m.newpw) m.newpw.value = '';
+        if (m.confirm) m.confirm.value = '';
+        if (m.free) m.free.value = '';
+        setModalMessage('');
+        if (m.confirmBtn) {
+            m.confirmBtn.disabled = false;
+            m.confirmBtn.textContent = 'Reset password';
+        }
+    }
+
+    function openResetModal(row) {
+        const m = getResetModal();
+        if (!m.backdrop) return;
+        const usernames = parseAdminUsernames(row.admin_usernames);
+        m.business.textContent =
+            row.business_name + (row.email ? ' · ' + row.email : '');
+
+        m.select.innerHTML = '';
+        if (usernames.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = '— no admin logins on file —';
+            opt.disabled = true;
+            opt.selected = true;
+            m.select.appendChild(opt);
+            m.select.disabled = true;
+        } else {
+            m.select.disabled = false;
+            usernames.forEach((u, idx) => {
+                const opt = document.createElement('option');
+                opt.value = u;
+                opt.textContent = u;
+                if (idx === 0) opt.selected = true;
+                m.select.appendChild(opt);
+            });
+        }
+
+        setModalMessage('');
+        m.newpw.value = '';
+        m.confirm.value = '';
+        m.free.value = '';
+        m.confirmBtn.disabled = false;
+        m.confirmBtn.textContent = 'Reset password';
+        m.backdrop.classList.add('visible');
+        setTimeout(() => m.newpw && m.newpw.focus(), 0);
+    }
+
+    function validateResetForm() {
+        const m = getResetModal();
+        const free = (m.free.value || '').trim();
+        const usernameOrEmail = free || (m.select.value || '').trim();
+        if (!usernameOrEmail) {
+            return { error: 'Pick an admin login or type a username/email.' };
+        }
+        const pw = m.newpw.value || '';
+        if (pw.length < 8) {
+            return { error: 'Password must be at least 8 characters.' };
+        }
+        if (!/[A-Za-z]/.test(pw) || !/\d/.test(pw)) {
+            return { error: 'Password must contain both letters and numbers.' };
+        }
+        if (pw !== m.confirm.value) {
+            return { error: 'Passwords do not match.' };
+        }
+        // Decide which field to send: emails go to `email`, anything else to `username`.
+        const payload = { new_password: pw };
+        if (usernameOrEmail.includes('@')) payload.email = usernameOrEmail;
+        else payload.username = usernameOrEmail;
+        return { payload };
+    }
+
+    async function submitResetForm() {
+        const m = getResetModal();
+        setModalMessage('');
+        const v = validateResetForm();
+        if (v.error) {
+            setModalMessage(v.error, 'error');
+            return;
+        }
+        m.confirmBtn.disabled = true;
+        m.confirmBtn.textContent = 'Resetting…';
+        try {
+            const res = await platformFetchJson(
+                '/api/platform/reset-user-password',
+                { method: 'POST', body: v.payload },
+            );
+            const who = res && res.username ? res.username : 'user';
+            setModalMessage(
+                `Done. ${who}'s password was reset. ` +
+                    `${res && res.refresh_tokens_revoked || 0} old session(s) revoked.`,
+                'success',
+            );
+            m.confirmBtn.textContent = 'Done';
+            setTimeout(closeResetModal, 1800);
+        } catch (e) {
+            if (e && e.message === 'Unauthorized') return;
+            setModalMessage(e.message || 'Reset failed.', 'error');
+            m.confirmBtn.disabled = false;
+            m.confirmBtn.textContent = 'Reset password';
+        }
+    }
+
+    function wireResetModal() {
+        const m = getResetModal();
+        if (!m.backdrop) return;
+        if (m.cancelBtn) m.cancelBtn.addEventListener('click', closeResetModal);
+        if (m.confirmBtn) m.confirmBtn.addEventListener('click', submitResetForm);
+        m.backdrop.addEventListener('click', (e) => {
+            if (e.target === m.backdrop) closeResetModal();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && m.backdrop.classList.contains('visible')) {
+                closeResetModal();
+            }
+        });
+    }
+
     function formatDate(iso) {
         if (!iso) return '—';
         try {
@@ -82,6 +242,11 @@
             return iso;
         }
     }
+
+    // Most recent /api/platform/tenants response, keyed by tenant id, so the
+    // per-row "Reset password" handler can look up the tenant without
+    // re-parsing the DOM (and without trusting attributes for sensitive data).
+    const _tenantsById = new Map();
 
     async function loadTenants() {
         const errEl = document.getElementById('platform-error');
@@ -96,12 +261,14 @@
         try {
             const rows = await platformFetchJson('/api/platform/tenants');
             loadingEl.style.display = 'none';
+            _tenantsById.clear();
             if (!Array.isArray(rows) || rows.length === 0) {
                 body.innerHTML =
-                    '<tr><td colspan="7" style="text-align:center;padding:24px;">No registered businesses yet.</td></tr>';
+                    '<tr><td colspan="8" style="text-align:center;padding:24px;">No registered businesses yet.</td></tr>';
                 tableWrap.style.display = 'block';
                 return;
             }
+            rows.forEach((r) => _tenantsById.set(String(r.id), r));
             body.innerHTML = rows
                 .map((r) => {
                     const contact = [r.email, r.phone].filter(Boolean).join(' · ') || '—';
@@ -110,6 +277,10 @@
                             ? `${escapeHtml(r.business_name)} <span style="opacity:0.7">(${escapeHtml(r.store_display_name)})</span>`
                             : escapeHtml(r.business_name);
                     const active = r.is_active ? 'Active' : 'Inactive';
+                    const hasAdmins = parseAdminUsernames(r.admin_usernames).length > 0;
+                    const actionBtn = hasAdmins
+                        ? `<button class="row-action-btn js-reset-pw" data-tenant-id="${escapeHtml(String(r.id))}">Reset password…</button>`
+                        : `<button class="row-action-btn" disabled title="No admin login on file">Reset password…</button>`;
                     return `<tr>
                     <td>${storeLine}</td>
                     <td>${escapeHtml(r.owner_name) || '—'}</td>
@@ -118,10 +289,19 @@
                     <td>${formatDate(r.trial_ends_at)}</td>
                     <td>${r.user_count}</td>
                     <td style="max-width:220px;word-break:break-word;">${escapeHtml(r.admin_usernames)}</td>
+                    <td>${actionBtn}</td>
                 </tr>`;
                 })
                 .join('');
             tableWrap.style.display = 'block';
+
+            body.querySelectorAll('button.js-reset-pw').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const id = btn.getAttribute('data-tenant-id');
+                    const row = _tenantsById.get(id);
+                    if (row) openResetModal(row);
+                });
+            });
         } catch (e) {
             loadingEl.style.display = 'none';
             if (e && e.message === 'Unauthorized') return;
@@ -156,6 +336,7 @@
             return;
         }
 
+        wireResetModal();
         await loadTenants();
     });
 })();
