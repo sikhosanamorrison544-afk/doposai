@@ -52,3 +52,20 @@ services:
         value: "14"
       - key: OFFLINE_GRACE_HOURS
         value: "72"
+
+      # WhatsApp Cloud API (single platform-owned number; per-tenant routing
+      # happens by keyword inside the welcome menu — no per-tenant numbers).
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: WHATSAPP_API_VERSION
+        value: "v21.0"
+      - key: WHATSAPP_SESSION_TIMEOUT_HOURS
+        value: "24"
+      - key: WHATSAPP_BRAND_NAME
+        value: "Photron Business Hub"

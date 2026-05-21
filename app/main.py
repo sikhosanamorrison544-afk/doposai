@@ -126,6 +126,11 @@ from .platform_routes import router as platform_router
 from .saas_auth_routes import router as saas_auth_router
 from .enterprise.routes import router as enterprise_router
 from . import enterprise_models  # noqa: F401 — register enterprise ORM tables
+from .whatsapp.routes import (
+    api_router as whatsapp_api_router,
+    webhook_router as whatsapp_webhook_router,
+)
+from .whatsapp import models as _whatsapp_models  # noqa: F401 — register ORM tables
 
 app.include_router(saas_auth_router)
 app.include_router(subscriptions_router)
@@ -133,6 +138,8 @@ app.include_router(payments_router)
 app.include_router(billing_router)
 app.include_router(platform_router)
 app.include_router(enterprise_router)
+app.include_router(whatsapp_webhook_router)
+app.include_router(whatsapp_api_router)
 
 # Background task to periodically process offline backup queue
 async def process_backup_queue_periodically():
@@ -246,6 +253,11 @@ async def shutdown_event():
         logging.info("Scheduler service stopped")
     except Exception as e:
         logging.error(f"Error stopping scheduler service: {e}", exc_info=True)
+    try:
+        from .whatsapp.meta_client import shutdown as wa_shutdown
+        await wa_shutdown()
+    except Exception as e:
+        logging.error(f"Error closing WhatsApp HTTP client: {e}", exc_info=True)
 
 # Handle favicon requests before mounting static files
 @app.get("/favicon.ico", include_in_schema=False)

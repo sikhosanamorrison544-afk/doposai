@@ -30,6 +30,17 @@ class Tenant(Base):
         DateTime, nullable=True
     )
     firestore_doc_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+
+    business_type: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    business_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    logo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    whatsapp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    whatsapp_keyword: Mapped[Optional[str]] = mapped_column(
+        String(32), nullable=True, unique=True, index=True
+    )
+    whatsapp_welcome_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
