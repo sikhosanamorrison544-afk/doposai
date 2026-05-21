@@ -15,8 +15,10 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from . import auth
+from .config import WEB_PUBLIC_URL
 from .database import get_db
 from .billing import service as billing_service
+from .email_service import EmailService
 from .firestore_service import fetch_tenant_subscription, upsert_tenant_security_record
 from .models import StoreSettings, User
 from .quotation_models import Tenant
@@ -303,12 +305,77 @@ def auth_verify(
     )
 
 
+def _build_reset_email(reset_url: str, owner_name: Optional[str]) -> tuple[str, str, str]:
+    """Build (subject, plain_text, html) for a password-reset email."""
+    name = (owner_name or "there").strip()
+    subject = "Reset your doposai password"
+    plain = (
+        f"Hi {name},\n\n"
+        "We received a request to reset your doposai password.\n\n"
+        f"Click the link below to choose a new password. It expires in 24 hours:\n"
+        f"{reset_url}\n\n"
+        "If you didn't request this, you can ignore this email — your password "
+        "won't change.\n\n"
+        "— doposai"
+    )
+    html = f"""\
+<!doctype html>
+<html>
+  <body style="margin:0;padding:24px;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1a2e;">
+    <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;padding:32px 28px;box-shadow:0 2px 6px rgba(0,0,0,0.05);">
+      <h2 style="margin:0 0 8px;font-size:22px;color:#1a1a2e;">Reset your password</h2>
+      <p style="margin:0 0 16px;color:#374151;line-height:1.5;">Hi {name},</p>
+      <p style="margin:0 0 20px;color:#374151;line-height:1.5;">
+        We received a request to reset your doposai password. Click the button
+        below to choose a new one. The link is valid for <strong>24 hours</strong>.
+      </p>
+      <p style="margin:24px 0;text-align:center;">
+        <a href="{reset_url}"
+           style="display:inline-block;background:#0a0a0a;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;">
+          Choose a new password
+        </a>
+      </p>
+      <p style="margin:0 0 8px;color:#6b7280;font-size:13px;line-height:1.5;">
+        Or paste this URL into your browser:
+      </p>
+      <p style="margin:0 0 24px;word-break:break-all;font-size:13px;">
+        <a href="{reset_url}" style="color:#2563eb;">{reset_url}</a>
+      </p>
+      <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.5;">
+        If you didn't request this, you can safely ignore this email —
+        your password won't change.
+      </p>
+    </div>
+    <p style="text-align:center;color:#9ca3af;font-size:12px;margin:16px 0 0;">— doposai</p>
+  </body>
+</html>"""
+    return subject, plain, html
+
+
 @router.post("/forgot-password")
 def auth_forgot_password(request: Request, body: ForgotPasswordBody, db: Session = Depends(get_db)):
+    """Issue a one-time reset token and email it to the account holder.
+
+    Always returns the same generic 200 response, regardless of whether
+    the email exists or whether SMTP succeeded, so callers can't enumerate
+    valid emails. The token (and any send failure) is logged server-side
+    for operator visibility.
+    """
     _rate_limit(request, "forgot", max_calls=10, window_sec=600)
-    user = auth.get_user_by_email(db, body.email.strip().lower())
+
+    generic = {
+        "ok": True,
+        "message": "If that email exists, reset instructions were sent.",
+    }
+
+    email_norm = body.email.strip().lower()
+    user = auth.get_user_by_email(db, email_norm)
     if not user:
-        return {"ok": True, "message": "If that email exists, reset instructions were sent."}
+        # Spend roughly the same time as the email-issue branch so we don't
+        # leak existence via timing — cheap because hash_token is fast.
+        auth.hash_token(secrets.token_urlsafe(32))
+        return generic
+
     raw = secrets.token_urlsafe(32)
     db.add(
         PasswordResetToken(
@@ -318,8 +385,45 @@ def auth_forgot_password(request: Request, body: ForgotPasswordBody, db: Session
         )
     )
     db.commit()
-    logger.info("Password reset issued for user_id=%s (token not returned in API response)", user.id)
-    return {"ok": True, "message": "If that email exists, reset instructions were sent."}
+
+    reset_url = f"{WEB_PUBLIC_URL}/reset-password?token={raw}"
+
+    email_svc = EmailService()
+    if email_svc.is_configured() and user.email:
+        try:
+            subject, plain, html = _build_reset_email(reset_url, user.full_name)
+            sent = email_svc.send_email(
+                to_email=user.email,
+                subject=subject,
+                body=plain,
+                html_body=html,
+            )
+            if sent:
+                logger.info("Password reset email sent user_id=%s", user.id)
+            else:
+                logger.error(
+                    "Password reset token issued for user_id=%s but email send FAILED. "
+                    "Operator can use the reset URL: %s",
+                    user.id,
+                    reset_url,
+                )
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "Password reset email crashed for user_id=%s. URL: %s",
+                user.id,
+                reset_url,
+            )
+    else:
+        # SMTP not configured — token is still valid; the operator can copy
+        # the URL out of the logs to share with the user manually.
+        logger.warning(
+            "Password reset token issued for user_id=%s but SMTP is not "
+            "configured. Operator must share this URL with the user manually: %s",
+            user.id,
+            reset_url,
+        )
+
+    return generic
 
 
 @router.post("/reset-password")

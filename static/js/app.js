@@ -1219,6 +1219,78 @@ function setupEvents() {
             if (loginTitleEl) loginTitleEl.textContent = 'POS Login';
         });
     }
+
+    const linkForgot = document.getElementById('link-forgot-password');
+    const forgotPanel = document.getElementById('forgot-password-panel');
+    const forgotEmail = document.getElementById('forgot-email');
+    const forgotSubmit = document.getElementById('forgot-submit');
+    const forgotCancel = document.getElementById('forgot-cancel');
+    const forgotMessage = document.getElementById('forgot-message');
+
+    function setForgotMessage(text, isError) {
+        if (!forgotMessage) return;
+        forgotMessage.textContent = text || '';
+        forgotMessage.style.color = isError ? '#fecaca' : 'rgba(255,255,255,0.9)';
+    }
+    function closeForgot() {
+        if (forgotPanel) forgotPanel.style.display = 'none';
+        setForgotMessage('');
+        if (forgotEmail) forgotEmail.value = '';
+        if (forgotSubmit) {
+            forgotSubmit.disabled = false;
+            forgotSubmit.textContent = 'Send reset link';
+        }
+    }
+    if (linkForgot && forgotPanel) {
+        linkForgot.addEventListener('click', function (e) {
+            e.preventDefault();
+            const willOpen = forgotPanel.style.display === 'none';
+            forgotPanel.style.display = willOpen ? '' : 'none';
+            if (willOpen && forgotEmail) {
+                const loginUser = document.getElementById('login-username');
+                if (loginUser && loginUser.value.includes('@')) {
+                    forgotEmail.value = loginUser.value.trim();
+                }
+                setTimeout(() => forgotEmail.focus(), 0);
+            }
+        });
+    }
+    if (forgotCancel) forgotCancel.addEventListener('click', closeForgot);
+    if (forgotSubmit) {
+        forgotSubmit.addEventListener('click', async function () {
+            const email = (forgotEmail && forgotEmail.value || '').trim();
+            if (!email.includes('@') || email.length < 5) {
+                setForgotMessage('Please enter a valid email address.', true);
+                return;
+            }
+            forgotSubmit.disabled = true;
+            forgotSubmit.textContent = 'Sending…';
+            setForgotMessage('');
+            try {
+                const res = await fetch('/auth/forgot-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email }),
+                });
+                if (res.ok) {
+                    setForgotMessage(
+                        'If that email is registered, a reset link is on its way. ' +
+                        'Check your inbox (and spam folder).'
+                    );
+                    forgotSubmit.textContent = 'Sent';
+                } else {
+                    setForgotMessage('Could not send reset link. Please try again later.', true);
+                    forgotSubmit.disabled = false;
+                    forgotSubmit.textContent = 'Send reset link';
+                }
+            } catch (e) {
+                console.error('forgot-password error', e);
+                setForgotMessage('Network error. Check your connection and try again.', true);
+                forgotSubmit.disabled = false;
+                forgotSubmit.textContent = 'Send reset link';
+            }
+        });
+    }
     
     // Note: Enter key handlers for username and password fields are attached
     // in the HTML head's DOMContentLoaded handler for earlier initialization

@@ -53,6 +53,23 @@ services:
       - key: OFFLINE_GRACE_HOURS
         value: "72"
 
+      # SMTP — required for password-reset emails (/auth/forgot-password).
+      # Without these the reset endpoint still issues a valid token but only
+      # logs the URL server-side; the user gets a generic "check your inbox"
+      # response with no actual email.
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USE_TLS
+        value: "true"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false
+
       # WhatsApp Cloud API (single platform-owned number; per-tenant routing
       # happens by keyword inside the welcome menu — no per-tenant numbers).
       - key: WHATSAPP_VERIFY_TOKEN

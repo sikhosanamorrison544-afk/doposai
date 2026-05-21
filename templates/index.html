@@ -165,6 +165,18 @@
                 <input type="password" id="login-password" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-form-type="other" data-1p-ignore="true">
                 <button id="login-button" type="button">Login</button>
                 <div id="login-error" class="error"></div>
+                <p class="login-screen-switch" style="margin-top:8px;">
+                    <a href="#" id="link-forgot-password">Forgot password?</a>
+                </p>
+
+                <div id="forgot-password-panel" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.18);">
+                    <label for="forgot-email" style="display:block;margin-bottom:6px;">Account email</label>
+                    <input type="email" id="forgot-email" autocomplete="off" spellcheck="false" placeholder="you@example.com">
+                    <button type="button" id="forgot-submit" style="margin-top:10px;">Send reset link</button>
+                    <button type="button" id="forgot-cancel" class="small" style="margin-top:10px;margin-left:8px;">Cancel</button>
+                    <div id="forgot-message" class="info" role="status" aria-live="polite" style="margin-top:10px;min-height:1em;"></div>
+                </div>
+
                 <p class="login-screen-switch"><a href="#" id="link-show-register">Create / register your business</a></p>
             </div>
             <div id="register-form-card" class="card" style="display:none;">

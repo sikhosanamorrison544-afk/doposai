@@ -376,6 +376,24 @@ async def quotations_page(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse("quotations.html", {"request": request, "store_name": store_name})
 
 
+@app.get("/reset-password", response_class=HTMLResponse)
+async def reset_password_page(request: Request, db: Session = Depends(get_db)):
+    """Public reset-password page; reads ?token=... from query string.
+
+    The token is NOT validated here — that happens server-side when the user
+    submits the form. We just render the page; bad tokens get a clear error.
+    """
+    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
+    if store_settings:
+        store_name = store_settings.store_name.upper()
+    else:
+        store_name = STORE_NAME.upper()
+    return templates.TemplateResponse(
+        "reset-password.html",
+        {"request": request, "store_name": store_name},
+    )
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
