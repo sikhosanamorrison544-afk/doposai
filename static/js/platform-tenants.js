@@ -237,10 +237,65 @@
     function formatDate(iso) {
         if (!iso) return '—';
         try {
-            return new Date(iso).toLocaleString();
+            return new Date(iso).toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+            });
         } catch (_) {
             return iso;
         }
+    }
+
+    function statusBadgeClass(status) {
+        const s = (status || '').toLowerCase();
+        if (s === 'trial') return 'pt-badge--trial';
+        if (s === 'active' || s === 'paid') return 'pt-badge--active';
+        if (s.includes('expired') || s === 'suspended' || s === 'canceled') return 'pt-badge--expired';
+        return 'pt-badge--other';
+    }
+
+    function renderStatusCell(r) {
+        const status = escapeHtml(r.subscription_status || '—');
+        const badgeCls = statusBadgeClass(r.subscription_status);
+        const dotCls = r.is_active ? 'pt-active-dot--yes' : 'pt-active-dot--no';
+        const activeLabel = r.is_active ? 'Active' : 'Inactive';
+        return (
+            '<span class="pt-badge ' + badgeCls + '">' + status + '</span>' +
+            '<br><span style="margin-top:4px;display:inline-block;font-size:12px;color:rgba(26,26,26,0.65);">' +
+            '<span class="pt-active-dot ' + dotCls + '" aria-hidden="true"></span>' +
+            escapeHtml(activeLabel) +
+            '</span>'
+        );
+    }
+
+    function renderBusinessCell(r) {
+        const name = escapeHtml(r.business_name);
+        if (r.store_display_name && r.store_display_name !== r.business_name) {
+            return name + '<span class="platform-subname">' + escapeHtml(r.store_display_name) + '</span>';
+        }
+        return name;
+    }
+
+    function updateStats(rows) {
+        const statsEl = document.getElementById('platform-stats');
+        const totalEl = document.getElementById('stat-total');
+        const activeEl = document.getElementById('stat-active');
+        const usersEl = document.getElementById('stat-users');
+        if (!statsEl || !totalEl) return;
+
+        if (!Array.isArray(rows) || rows.length === 0) {
+            statsEl.style.display = 'none';
+            return;
+        }
+
+        const activeCount = rows.filter((r) => r.is_active).length;
+        const userTotal = rows.reduce((sum, r) => sum + (Number(r.user_count) || 0), 0);
+
+        totalEl.textContent = String(rows.length);
+        if (activeEl) activeEl.textContent = String(activeCount);
+        if (usersEl) usersEl.textContent = String(userTotal);
+        statsEl.style.display = 'grid';
     }
 
     // Most recent /api/platform/tenants response, keyed by tenant id, so the
@@ -253,44 +308,51 @@
         const loadingEl = document.getElementById('platform-loading');
         const tableWrap = document.getElementById('platform-table-container');
         const body = document.getElementById('platform-tenants-body');
+        const refreshBtn = document.getElementById('platform-refresh-btn');
 
         errEl.style.display = 'none';
-        loadingEl.style.display = 'block';
+        loadingEl.style.display = 'flex';
         tableWrap.style.display = 'none';
+        if (refreshBtn) refreshBtn.disabled = true;
 
         try {
             const rows = await platformFetchJson('/api/platform/tenants');
             loadingEl.style.display = 'none';
             _tenantsById.clear();
+            updateStats(rows);
+
             if (!Array.isArray(rows) || rows.length === 0) {
                 body.innerHTML =
-                    '<tr><td colspan="8" style="text-align:center;padding:24px;">No registered businesses yet.</td></tr>';
+                    '<tr><td colspan="8">' +
+                    '<div class="platform-empty">' +
+                    '<strong>No businesses registered yet</strong>' +
+                    'When a store signs up on this platform, it will appear here.' +
+                    '</div></td></tr>';
                 tableWrap.style.display = 'block';
                 return;
             }
+
             rows.forEach((r) => _tenantsById.set(String(r.id), r));
             body.innerHTML = rows
                 .map((r) => {
                     const contact = [r.email, r.phone].filter(Boolean).join(' · ') || '—';
-                    const storeLine =
-                        r.store_display_name && r.store_display_name !== r.business_name
-                            ? `${escapeHtml(r.business_name)} <span style="opacity:0.7">(${escapeHtml(r.store_display_name)})</span>`
-                            : escapeHtml(r.business_name);
-                    const active = r.is_active ? 'Active' : 'Inactive';
                     const hasAdmins = parseAdminUsernames(r.admin_usernames).length > 0;
                     const actionBtn = hasAdmins
-                        ? `<button class="row-action-btn js-reset-pw" data-tenant-id="${escapeHtml(String(r.id))}">Reset password…</button>`
-                        : `<button class="row-action-btn" disabled title="No admin login on file">Reset password…</button>`;
-                    return `<tr>
-                    <td>${storeLine}</td>
-                    <td>${escapeHtml(r.owner_name) || '—'}</td>
-                    <td>${escapeHtml(contact)}</td>
-                    <td>${escapeHtml(r.subscription_status)} (${active})</td>
-                    <td>${formatDate(r.trial_ends_at)}</td>
-                    <td>${r.user_count}</td>
-                    <td style="max-width:220px;word-break:break-word;">${escapeHtml(r.admin_usernames)}</td>
-                    <td>${actionBtn}</td>
-                </tr>`;
+                        ? '<button type="button" class="row-action-btn js-reset-pw" data-tenant-id="' +
+                          escapeHtml(String(r.id)) + '">Reset password</button>'
+                        : '<button type="button" class="row-action-btn" disabled title="No admin login on file">Reset password</button>';
+                    return (
+                        '<tr>' +
+                        '<td class="col-business">' + renderBusinessCell(r) + '</td>' +
+                        '<td>' + (escapeHtml(r.owner_name) || '—') + '</td>' +
+                        '<td class="col-contact">' + escapeHtml(contact) + '</td>' +
+                        '<td>' + renderStatusCell(r) + '</td>' +
+                        '<td class="col-date">' + formatDate(r.trial_ends_at) + '</td>' +
+                        '<td class="col-num">' + escapeHtml(String(r.user_count)) + '</td>' +
+                        '<td class="col-admins">' + escapeHtml(r.admin_usernames) + '</td>' +
+                        '<td class="col-actions">' + actionBtn + '</td>' +
+                        '</tr>'
+                    );
                 })
                 .join('');
             tableWrap.style.display = 'block';
@@ -304,11 +366,14 @@
             });
         } catch (e) {
             loadingEl.style.display = 'none';
+            updateStats([]);
             if (e && e.message === 'Unauthorized') return;
             errEl.textContent =
                 e.message ||
                 'Could not load businesses. If you are the platform owner, set PLATFORM_OWNER_EMAILS on the server to include your account email.';
             errEl.style.display = 'block';
+        } finally {
+            if (refreshBtn) refreshBtn.disabled = false;
         }
     }
 
@@ -337,6 +402,12 @@
         }
 
         wireResetModal();
+
+        const refreshBtn = document.getElementById('platform-refresh-btn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => loadTenants());
+        }
+
         await loadTenants();
     });
 })();

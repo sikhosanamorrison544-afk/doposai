@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>All businesses — Platform admin</title>
+    <title>Platform tenants — {{ store_name }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script>
         (function () {
@@ -36,51 +36,537 @@
     </script>
     <link rel="stylesheet" href="/static/css/style.css">
     <style>
-        .platform-gate-wrap { display: none; max-width: 520px; margin: 48px auto; padding: 24px; background: rgba(255,255,255,0.96); border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.12); }
-        .platform-gate-wrap h1 { color: #1a1a1a; font-size: 1.35rem; margin: 0 0 12px 0; }
-        .platform-gate-wrap .sub { color: rgba(26,26,26,0.8); font-size: 14px; line-height: 1.5; margin: 0 0 16px 0; }
-        .platform-gate-wrap a.primary { display: inline-block; padding: 12px 20px; background: #1a1a1a; color: #fff !important; border-radius: 8px; font-weight: 600; text-decoration: none; }
-        .platform-page { max-width: 1200px; margin: 0 auto; padding: 16px; }
-        .platform-page h1 { color: #1a1a1a; font-size: 1.35rem; margin: 0 0 8px 0; }
-        .platform-page .sub { color: rgba(26,26,26,0.75); font-size: 14px; margin-bottom: 16px; }
-        .platform-table-wrap { overflow-x: auto; background: rgba(255,255,255,0.95); border-radius: 12px; border: 1px solid rgba(0,0,0,0.1); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-        .platform-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .platform-table th, .platform-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.08); color: #1a1a1a; }
-        .platform-table th { background: rgba(0,0,0,0.04); font-weight: 600; white-space: nowrap; }
-        .platform-table tr:last-child td { border-bottom: none; }
-        .platform-msg { padding: 16px; border-radius: 8px; background: rgba(239,68,68,0.12); color: #991b1b; margin-bottom: 16px; }
-        .row-action-btn { padding: 6px 10px; background: #1a1a1a; color: #fff; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
-        .row-action-btn:hover { background: #333; }
-        .row-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        /* ── Layout shell ───────────────────────────────────────────── */
+        .platform-shell {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
 
-        /* Reset-password modal */
-        .reset-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 16px; }
+        .platform-top-bar {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.94);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+            box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
+            position: sticky;
+            top: 0;
+            z-index: 20;
+        }
+        html.theme-light .platform-top-bar {
+            background: rgba(255, 255, 255, 0.22);
+            backdrop-filter: blur(18px) saturate(180%);
+            -webkit-backdrop-filter: blur(18px) saturate(180%);
+        }
+
+        .platform-top-bar__left {
+            justify-self: start;
+            font-size: 13px;
+            font-weight: 600;
+            color: rgba(26, 26, 26, 0.75);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .platform-top-bar__brand {
+            justify-self: center;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #1a1a2e;
+            white-space: nowrap;
+        }
+
+        .platform-top-bar__nav {
+            justify-self: end;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .platform-nav-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 108px;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            color: #1a1a2e;
+            background: rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            transition: background 0.15s ease, border-color 0.15s ease;
+        }
+        .platform-nav-btn:hover {
+            background: rgba(0, 0, 0, 0.1);
+            border-color: rgba(0, 0, 0, 0.14);
+            color: #1a1a2e;
+        }
+
+        /* ── Main content ───────────────────────────────────────────── */
+        .platform-main {
+            flex: 1;
+            max-width: 1280px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 24px 20px 40px;
+            box-sizing: border-box;
+        }
+
+        .platform-hero {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px 24px;
+            margin-bottom: 20px;
+        }
+
+        .platform-hero__text h1 {
+            margin: 0 0 6px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1a1a2e;
+            line-height: 1.25;
+        }
+
+        .platform-hero__text p {
+            margin: 0;
+            max-width: 560px;
+            font-size: 14px;
+            line-height: 1.55;
+            color: rgba(26, 26, 26, 0.68);
+        }
+
+        .platform-hero__actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .platform-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 40px;
+            padding: 0 18px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+        }
+        .platform-btn--secondary {
+            color: #1a1a2e;
+            background: rgba(255, 255, 255, 0.92);
+            border-color: rgba(0, 0, 0, 0.12);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+        }
+        .platform-btn--secondary:hover {
+            background: #ffffff;
+            border-color: rgba(0, 0, 0, 0.18);
+        }
+        .platform-btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        /* Stats strip */
+        .platform-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .platform-stat {
+            background: rgba(255, 255, 255, 0.94);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 10px;
+            padding: 14px 16px;
+            text-align: center;
+            box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .platform-stat__value {
+            display: block;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1a1a2e;
+            line-height: 1.1;
+        }
+
+        .platform-stat__label {
+            display: block;
+            margin-top: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: rgba(26, 26, 26, 0.55);
+        }
+
+        /* Alerts & loading */
+        .platform-msg {
+            padding: 14px 16px;
+            border-radius: 10px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.22);
+            color: #991b1b;
+            font-size: 14px;
+            line-height: 1.45;
+            margin-bottom: 16px;
+        }
+
+        .platform-loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 48px 24px;
+            color: rgba(26, 26, 26, 0.65);
+            font-size: 14px;
+        }
+
+        .platform-spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid rgba(0, 0, 0, 0.1);
+            border-top-color: #1a1a2e;
+            border-radius: 50%;
+            animation: platform-spin 0.7s linear infinite;
+        }
+        @keyframes platform-spin { to { transform: rotate(360deg); } }
+
+        .platform-empty {
+            text-align: center;
+            padding: 48px 24px;
+            color: rgba(26, 26, 26, 0.6);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .platform-empty strong {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 15px;
+            color: #1a1a2e;
+        }
+
+        /* ── Table card ─────────────────────────────────────────────── */
+        .platform-table-card {
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07);
+            overflow: hidden;
+        }
+
+        .platform-table-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .platform-table {
+            width: 100%;
+            min-width: 920px;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .platform-table thead th {
+            padding: 12px 14px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: rgba(26, 26, 26, 0.55);
+            background: rgba(0, 0, 0, 0.035);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+            white-space: nowrap;
+        }
+
+        .platform-table tbody td {
+            padding: 13px 14px;
+            vertical-align: middle;
+            color: #1a1a2e;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+            line-height: 1.4;
+        }
+
+        .platform-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .platform-table tbody tr:hover td {
+            background: rgba(0, 0, 0, 0.02);
+        }
+
+        .platform-table .col-business { min-width: 160px; font-weight: 600; }
+        .platform-table .col-contact { min-width: 180px; max-width: 220px; word-break: break-word; }
+        .platform-table .col-admins { min-width: 120px; max-width: 180px; word-break: break-word; font-family: ui-monospace, monospace; font-size: 12px; }
+        .platform-table .col-num { text-align: center; width: 72px; }
+        .platform-table .col-date { white-space: nowrap; font-size: 12px; color: rgba(26, 26, 26, 0.75); }
+        .platform-table .col-actions {
+            text-align: center;
+            width: 140px;
+            white-space: nowrap;
+        }
+
+        .platform-table thead th.col-num,
+        .platform-table thead th.col-actions {
+            text-align: center;
+        }
+
+        .platform-subname {
+            display: block;
+            margin-top: 2px;
+            font-size: 12px;
+            font-weight: 400;
+            color: rgba(26, 26, 26, 0.55);
+        }
+
+        /* Status badges */
+        .pt-badge {
+            display: inline-block;
+            padding: 3px 9px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+        }
+        .pt-badge--trial { background: rgba(59, 130, 246, 0.14); color: #1d4ed8; }
+        .pt-badge--active { background: rgba(34, 197, 94, 0.14); color: #15803d; }
+        .pt-badge--inactive { background: rgba(107, 114, 128, 0.14); color: #4b5563; }
+        .pt-badge--expired { background: rgba(239, 68, 68, 0.12); color: #b91c1c; }
+        .pt-badge--other { background: rgba(0, 0, 0, 0.07); color: #374151; }
+
+        .pt-active-dot {
+            display: inline-block;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+        .pt-active-dot--yes { background: #22c55e; }
+        .pt-active-dot--no { background: #9ca3af; }
+
+        .row-action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 118px;
+            padding: 7px 12px;
+            background: #1a1a2e;
+            color: #fff;
+            border: none;
+            border-radius: 7px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s ease, transform 0.1s ease;
+        }
+        .row-action-btn:hover:not(:disabled) { background: #2d3748; }
+        .row-action-btn:active:not(:disabled) { transform: scale(0.98); }
+        .row-action-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            background: rgba(0, 0, 0, 0.25);
+        }
+
+        /* ── Sign-in gate ───────────────────────────────────────────── */
+        .platform-gate-wrap {
+            display: none;
+            max-width: 440px;
+            margin: 64px auto;
+            padding: 32px 28px;
+            background: rgba(255, 255, 255, 0.97);
+            border-radius: 14px;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            text-align: center;
+        }
+        .platform-gate-wrap h1 {
+            margin: 0 0 10px;
+            font-size: 1.35rem;
+            color: #1a1a2e;
+        }
+        .platform-gate-wrap .sub {
+            color: rgba(26, 26, 26, 0.72);
+            font-size: 14px;
+            line-height: 1.55;
+            margin: 0 0 20px;
+        }
+        .platform-gate-wrap a.primary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 160px;
+            padding: 12px 24px;
+            background: #1a1a2e;
+            color: #fff !important;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .platform-gate-wrap a.primary:hover { background: #2d3748; }
+
+        /* ── Reset-password modal ───────────────────────────────────── */
+        .reset-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.52);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
         .reset-modal-backdrop.visible { display: flex; }
-        .reset-modal { background: #ffffff; color: #1a1a1a; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.45); max-width: 460px; width: 100%; padding: 24px; }
-        .reset-modal h2 { margin: 0 0 6px; font-size: 18px; }
-        .reset-modal .ctx { color: rgba(26,26,26,0.7); font-size: 13px; margin: 0 0 14px; line-height: 1.4; }
-        .reset-modal label { display: block; font-size: 12px; font-weight: 600; margin: 12px 0 4px; color: rgba(26,26,26,0.85); }
+
+        .reset-modal {
+            background: #fff;
+            color: #1a1a2e;
+            border-radius: 14px;
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
+            max-width: 440px;
+            width: 100%;
+            padding: 28px 26px 24px;
+        }
+
+        .reset-modal h2 {
+            margin: 0 0 4px;
+            font-size: 18px;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .reset-modal .ctx {
+            margin: 0 0 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+            font-size: 13px;
+            line-height: 1.45;
+            color: rgba(26, 26, 26, 0.7);
+            text-align: center;
+        }
+
+        .reset-modal label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            margin: 14px 0 5px;
+            color: rgba(26, 26, 26, 0.85);
+        }
+
         .reset-modal select,
         .reset-modal input[type="text"],
         .reset-modal input[type="password"] {
-            width: 100%; box-sizing: border-box;
-            padding: 9px 11px; border-radius: 8px;
-            border: 1px solid rgba(0,0,0,0.18);
-            font-size: 14px; background: #ffffff; color: #1a1a1a;
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 0, 0, 0.16);
+            font-size: 14px;
+            background: #fff;
+            color: #1a1a2e;
         }
+
         .reset-modal select:focus,
-        .reset-modal input:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,0.18); }
-        .reset-modal .hint { font-size: 12px; color: rgba(26,26,26,0.6); margin: 4px 0 0; }
-        .reset-modal .actions { margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; }
-        .reset-modal .actions button { padding: 10px 16px; border-radius: 8px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; }
-        .reset-modal .actions .cancel { background: rgba(0,0,0,0.08); color: #1a1a1a; }
-        .reset-modal .actions .cancel:hover { background: rgba(0,0,0,0.14); }
-        .reset-modal .actions .confirm { background: #dc2626; color: #fff; }
+        .reset-modal input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.16);
+        }
+
+        .reset-modal .hint {
+            font-size: 12px;
+            color: rgba(26, 26, 26, 0.55);
+            margin: 5px 0 0;
+            line-height: 1.4;
+        }
+
+        .reset-modal .modal-msg {
+            margin-top: 14px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.45;
+            min-height: 1em;
+            text-align: center;
+        }
+        .reset-modal .modal-msg:empty { display: none; }
+        .reset-modal .modal-msg.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #b91c1c;
+        }
+        .reset-modal .modal-msg.success {
+            background: rgba(34, 197, 94, 0.1);
+            color: #15803d;
+        }
+
+        .reset-modal .actions {
+            margin-top: 22px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .reset-modal .actions button {
+            min-height: 42px;
+            padding: 0 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .reset-modal .actions .cancel {
+            background: rgba(0, 0, 0, 0.07);
+            color: #1a1a2e;
+        }
+        .reset-modal .actions .cancel:hover { background: rgba(0, 0, 0, 0.12); }
+
+        .reset-modal .actions .confirm {
+            background: #dc2626;
+            color: #fff;
+        }
         .reset-modal .actions .confirm:hover { background: #b91c1c; }
-        .reset-modal .actions .confirm:disabled { opacity: 0.6; cursor: not-allowed; }
-        .reset-modal .modal-msg { margin-top: 14px; font-size: 13px; line-height: 1.45; min-height: 1.2em; }
-        .reset-modal .modal-msg.error { color: #b91c1c; }
-        .reset-modal .modal-msg.success { color: #047857; }
+        .reset-modal .actions .confirm:disabled { opacity: 0.55; cursor: not-allowed; }
+
+        @media (max-width: 640px) {
+            .platform-top-bar {
+                grid-template-columns: 1fr;
+                text-align: center;
+                padding: 12px 16px;
+            }
+            .platform-top-bar__left,
+            .platform-top-bar__brand,
+            .platform-top-bar__nav {
+                justify-self: center;
+            }
+            .platform-top-bar__nav { flex-wrap: wrap; justify-content: center; }
+            .platform-main { padding: 16px 12px 32px; }
+            .platform-hero { flex-direction: column; align-items: stretch; }
+            .platform-hero__actions { justify-content: stretch; }
+            .platform-hero__actions .platform-btn { flex: 1; }
+            .reset-modal .actions { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -89,46 +575,75 @@
 <div id="platform-gate" class="platform-gate-wrap" style="display:none;">
     <h1>Sign in required</h1>
     <p class="platform-gate-msg sub"></p>
-    <p class="sub" style="font-size:13px;color:rgba(26,26,26,0.65);margin-bottom:20px;">
-        Logins are saved per website address. If you use <strong>doposai.com</strong> and <strong>api.doposai.com</strong> as two sites, sign in on the same one you use for the POS.
+    <p class="sub" style="font-size:13px;color:rgba(26,26,26,0.6);">
+        Logins are saved per website address. Sign in on the same domain you use for the POS.
     </p>
     <a class="primary" id="platform-gate-login" href="/">Go to sign in</a>
 </div>
 
-<div id="platform-app" style="display:none;">
-    <div id="app" class="screen active">
-        <header class="top-bar">
-            <span id="platform-user-info" style="color:#1a1a1a;"></span>
-            <div class="shop-name">{{ store_name }}</div>
-            <div class="top-bar-right">
-                <a href="/admin" class="small" style="text-decoration:none;display:inline-block;padding:8px 12px;background:rgba(0,0,0,0.08);border-radius:8px;color:#1a1a1a;font-weight:600;">Store admin</a>
-                <a href="/" class="small" style="text-decoration:none;display:inline-block;margin-left:8px;padding:8px 12px;background:rgba(0,0,0,0.08);border-radius:8px;color:#1a1a1a;font-weight:600;">POS</a>
+<div id="platform-app" class="platform-shell" style="display:none;">
+    <header class="platform-top-bar">
+        <span id="platform-user-info" class="platform-top-bar__left"></span>
+        <div class="platform-top-bar__brand shop-name">{{ store_name }}</div>
+        <nav class="platform-top-bar__nav" aria-label="Platform navigation">
+            <a href="/admin" class="platform-nav-btn">Store admin</a>
+            <a href="/" class="platform-nav-btn">POS</a>
+        </nav>
+    </header>
+
+    <main class="platform-main">
+        <div class="platform-hero">
+            <div class="platform-hero__text">
+                <h1>All businesses</h1>
+                <p>Every registered tenant on this platform. Use this page for support — sign-in emails and admin logins are listed per row.</p>
             </div>
-        </header>
-        <main class="platform-page">
-            <h1>All businesses on this system</h1>
-            <p class="sub">Each row is a registered tenant (a store using your POS). Sign-in emails and admin logins are shown for support.</p>
-            <div id="platform-error" class="platform-msg" style="display:none;"></div>
-            <div id="platform-loading" style="color:#1a1a1a;padding:12px;">Loading…</div>
-            <div id="platform-table-container" class="platform-table-wrap" style="display:none;">
+            <div class="platform-hero__actions">
+                <button type="button" id="platform-refresh-btn" class="platform-btn platform-btn--secondary">Refresh list</button>
+            </div>
+        </div>
+
+        <div class="platform-stats" id="platform-stats" style="display:none;">
+            <div class="platform-stat">
+                <span class="platform-stat__value" id="stat-total">—</span>
+                <span class="platform-stat__label">Total businesses</span>
+            </div>
+            <div class="platform-stat">
+                <span class="platform-stat__value" id="stat-active">—</span>
+                <span class="platform-stat__label">Active</span>
+            </div>
+            <div class="platform-stat">
+                <span class="platform-stat__value" id="stat-users">—</span>
+                <span class="platform-stat__label">Total users</span>
+            </div>
+        </div>
+
+        <div id="platform-error" class="platform-msg" style="display:none;" role="alert"></div>
+
+        <div id="platform-loading" class="platform-loading" style="display:none;">
+            <div class="platform-spinner" aria-hidden="true"></div>
+            <span>Loading businesses…</span>
+        </div>
+
+        <div id="platform-table-container" class="platform-table-card" style="display:none;">
+            <div class="platform-table-scroll">
                 <table class="platform-table">
                     <thead>
                     <tr>
-                        <th>Business</th>
+                        <th class="col-business">Business</th>
                         <th>Owner</th>
-                        <th>Contact</th>
+                        <th class="col-contact">Contact</th>
                         <th>Status</th>
-                        <th>Trial ends</th>
-                        <th>Users</th>
-                        <th>Admin logins</th>
-                        <th>Actions</th>
+                        <th class="col-date">Trial ends</th>
+                        <th class="col-num">Users</th>
+                        <th class="col-admins">Admin logins</th>
+                        <th class="col-actions">Actions</th>
                     </tr>
                     </thead>
                     <tbody id="platform-tenants-body"></tbody>
                 </table>
             </div>
-        </main>
-    </div>
+        </div>
+    </main>
 </div>
 
 <div id="reset-pw-modal-backdrop" class="reset-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="reset-pw-modal-title">
@@ -141,12 +656,12 @@
         <label for="reset-pw-modal-username">Account login</label>
         <select id="reset-pw-modal-username"></select>
 
-        <label for="reset-pw-modal-username-free">…or type a username/email manually</label>
-        <input type="text" id="reset-pw-modal-username-free" autocomplete="off" spellcheck="false" placeholder="leave blank to use the selection above">
+        <label for="reset-pw-modal-username-free">Or type username / email</label>
+        <input type="text" id="reset-pw-modal-username-free" autocomplete="off" spellcheck="false" placeholder="Leave blank to use selection above">
 
         <label for="reset-pw-modal-newpw">New password</label>
         <input type="password" id="reset-pw-modal-newpw" autocomplete="new-password" spellcheck="false">
-        <p class="hint">At least 8 characters, with letters and numbers. The user's existing sessions will be force-revoked.</p>
+        <p class="hint">At least 8 characters with letters and numbers. Existing sessions will be revoked.</p>
 
         <label for="reset-pw-modal-confirm">Confirm new password</label>
         <input type="password" id="reset-pw-modal-confirm" autocomplete="new-password" spellcheck="false">
@@ -160,7 +675,7 @@
     </div>
 </div>
 
-<script src="/static/js/platform-tenants.js?v=2"></script>
+<script src="/static/js/platform-tenants.js?v=3"></script>
 <script src="/static/js/store-branding.js?v=1"></script>
 </body>
 </html>
