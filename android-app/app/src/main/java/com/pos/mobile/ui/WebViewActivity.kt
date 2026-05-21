@@ -3,8 +3,10 @@ package com.pos.mobile.ui
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.webkit.CookieManager
@@ -12,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
+import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
@@ -108,7 +111,12 @@ class WebViewActivity : AppCompatActivity() {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
-            cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+            // LOAD_DEFAULT respects HTTP Cache-Control. The previous value
+            // LOAD_CACHE_ELSE_NETWORK pinned the very first response forever,
+            // so server-side changes (like the platform-owner banner gating
+            // shipped in ce5ea99) silently never reached the user. Stick to
+            // the default and let the server decide what's cacheable.
+            cacheMode = WebSettings.LOAD_DEFAULT
             databaseEnabled = true
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             useWideViewPort = true
@@ -118,6 +126,12 @@ class WebViewActivity : AppCompatActivity() {
                 userAgentString = "$baseUa DoPosPOS-Android/1"
             }
         }
+        // Belt-and-braces: on the very first launch after upgrading to a new
+        // versionCode, scrub every cached HTML/JS/CSS the WebView has held
+        // onto from the previous build. This is the only reliable way to
+        // make existing 1.0.x installs pick up server-side gating fixes
+        // without telling each customer to wipe their app data manually.
+        purgeWebViewCacheIfUpgraded(webView, prefs)
         WebViewPrintSupport.attach(this, webView, importBridge)
         val authClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, loadedUrl: String?) {
@@ -401,6 +415,41 @@ class WebViewActivity : AppCompatActivity() {
                 scope = lifecycleScope,
                 storeName = storeName,
             )
+        }
+    }
+
+    /**
+     * Wipe the WebView's HTTP cache + localStorage / IndexedDB the first time
+     * a build with a higher [BuildConfig.VERSION_CODE] runs after an upgrade.
+     *
+     * Why: server-side gating fixes (e.g. the platform-owner banner being
+     * hidden for non-owners as of commit ce5ea99) ship as new HTML/JS that
+     * older WebView caches happily ignore. Without this purge, users who
+     * upgrade an existing install would still see the OLD admin page until
+     * they manually cleared the app's data.
+     */
+    private fun purgeWebViewCacheIfUpgraded(view: WebView, prefs: SharedPreferences) {
+        val key = "webview_cache_purged_at_version"
+        val lastPurgedFor = prefs.getInt(key, -1)
+        val current = BuildConfig.VERSION_CODE
+        if (lastPurgedFor == current) return
+
+        try {
+            view.clearCache(true)
+            view.clearHistory()
+            view.clearFormData()
+            WebStorage.getInstance().deleteAllData()
+            CookieManager.getInstance().removeAllCookies(null)
+            CookieManager.getInstance().flush()
+            Log.i(
+                "WebViewActivity",
+                "Purged WebView cache for upgrade ($lastPurgedFor -> $current)",
+            )
+        } catch (e: Exception) {
+            // Caching is a hint, not load-bearing — log and carry on.
+            Log.w("WebViewActivity", "WebView cache purge failed", e)
+        } finally {
+            prefs.edit().putInt(key, current).apply()
         }
     }
 }
