@@ -398,10 +398,58 @@
 
     async function loadBranches() {
         const rows = await api('/branches');
+        cachedBranches = rows;
         const tbody = document.getElementById('branches-tbody');
         if (!tbody) return;
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="4" style="opacity:0.7;">No branches yet — click <strong>Add branch</strong> above.</td></tr>';
+            return;
+        }
         tbody.innerHTML = rows.map((b) => `
-            <tr><td>${esc(b.name)}</td><td>${esc(b.code)}</td><td>${b.is_default ? 'Yes' : ''}</td></tr>`).join('');
+            <tr>
+                <td>${esc(b.name)}</td>
+                <td>${esc(b.code || '—')}</td>
+                <td>${esc(b.phone || '—')}</td>
+                <td>${b.is_default ? 'Yes' : ''}</td>
+            </tr>`).join('');
+    }
+
+    function showBranchForm() {
+        const card = document.getElementById('branch-form-card');
+        const msg = document.getElementById('branch-form-msg');
+        if (!card) return;
+        document.getElementById('branch-name').value = '';
+        document.getElementById('branch-code').value = '';
+        document.getElementById('branch-address').value = '';
+        document.getElementById('branch-phone').value = '';
+        document.getElementById('branch-is-default').checked = cachedBranches.length === 0;
+        if (msg) msg.textContent = '';
+        card.style.display = 'block';
+        document.getElementById('branch-name')?.focus();
+    }
+
+    async function saveBranch(ev) {
+        ev.preventDefault();
+        const msg = document.getElementById('branch-form-msg');
+        const name = document.getElementById('branch-name').value.trim();
+        if (!name) {
+            if (msg) msg.textContent = 'Branch name is required.';
+            return;
+        }
+        const payload = {
+            name: name,
+            code: document.getElementById('branch-code').value.trim() || null,
+            address: document.getElementById('branch-address').value.trim() || null,
+            phone: document.getElementById('branch-phone').value.trim() || null,
+            is_default: document.getElementById('branch-is-default').checked,
+        };
+        try {
+            await api('/branches', { method: 'POST', body: JSON.stringify(payload) });
+            document.getElementById('branch-form-card').style.display = 'none';
+            await loadBranches();
+        } catch (e) {
+            if (msg) msg.textContent = e.message || 'Could not save branch.';
+        }
     }
 
     async function loadReorder() {
@@ -448,5 +496,10 @@
         document.getElementById('po-form')?.addEventListener('submit', savePo);
         document.getElementById('btn-stmt-load')?.addEventListener('click', loadStatement);
         document.getElementById('btn-stmt-email')?.addEventListener('click', emailStatement);
+        document.getElementById('btn-branch-add')?.addEventListener('click', showBranchForm);
+        document.getElementById('btn-branch-cancel')?.addEventListener('click', () => {
+            document.getElementById('branch-form-card').style.display = 'none';
+        });
+        document.getElementById('branch-form')?.addEventListener('submit', saveBranch);
     });
 })();

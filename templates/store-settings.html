@@ -200,6 +200,15 @@
                                     <option value="admin">Admin</option>
                                 </select>
                             </div>
+                            <div id="cashier-branch-wrap" style="display:none;">
+                                <label for="cashier-branch">Branch</label>
+                                <select id="cashier-branch" name="cashier-branch">
+                                    <option value="">— All branches (admin) —</option>
+                                </select>
+                                <p class="settings-hint" style="margin:4px 0 0;font-size:12px;opacity:0.75;">
+                                    Cashiers assigned to a branch only see sales and shifts for that location.
+                                </p>
+                            </div>
                         </div>
                         <div class="settings-actions settings-actions-row">
                             <button id="btn-add-cashier" class="primary small">Add User</button>
@@ -215,6 +224,7 @@
                                         <th>Username</th>
                                         <th>Full Name</th>
                                         <th>Role</th>
+                                        <th id="cashiers-branch-header" style="display:none;">Branch</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
@@ -473,7 +483,7 @@
 <script src="/static/js/receipt-native.js?v=2"></script>
 <script src="/static/js/receipt.js?v=4"></script>
 <script src="/static/js/printer-web-setup.js?v=1"></script>
-<script src="/static/js/admin.js?v=2"></script>
+<script src="/static/js/admin.js?v=3"></script>
 <script>
     // Switch between settings pages
     window.switchSettingsPage = function(pageNum) {

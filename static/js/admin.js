@@ -887,20 +887,58 @@ if (document.readyState === 'loading') {
 async function loadCashiers() {
     try {
         adminCashiers = await adminApi('/api/users');
+        if (window.posPlanFeatures && posPlanFeatures.hasFeature('enterprise')) {
+            await loadAdminBranches();
+        }
         renderCashiers();
     } catch (e) {
         console.error('Failed to load cashiers:', e);
         document.getElementById('cashiers-body').innerHTML = 
-            '<tr><td colspan="5" style="text-align:center;padding:16px;color:rgba(255,255,255,0.5);">Failed to load cashiers</td></tr>';
+            '<tr><td colspan="6" style="text-align:center;padding:16px;color:rgba(255,255,255,0.5);">Failed to load cashiers</td></tr>';
     }
+}
+
+let adminBranches = [];
+
+async function loadAdminBranches() {
+    const wrap = document.getElementById('cashier-branch-wrap');
+    const header = document.getElementById('cashiers-branch-header');
+    const select = document.getElementById('cashier-branch');
+    if (!select) return;
+    try {
+        adminBranches = await adminApi('/api/enterprise/branches');
+        if (wrap) wrap.style.display = '';
+        if (header) header.style.display = '';
+        const current = select.value;
+        select.innerHTML =
+            '<option value="">— All branches (admin) —</option>' +
+            adminBranches.map((b) =>
+                `<option value="${b.id}">${escapeHtml(b.name)}${b.code ? ' (' + escapeHtml(b.code) + ')' : ''}</option>`
+            ).join('');
+        if (current) select.value = current;
+    } catch (e) {
+        console.warn('Could not load branches for user form', e);
+        adminBranches = [];
+    }
+}
+
+function branchLabel(branchId) {
+    if (branchId == null || branchId === '') return '—';
+    const b = adminBranches.find((x) => x.id === branchId);
+    return b ? escapeHtml(b.name) : `#${branchId}`;
 }
 
 function renderCashiers() {
     const body = document.getElementById('cashiers-body');
     if (!body) return;
+
+    const showBranch = window.posPlanFeatures && posPlanFeatures.hasFeature('enterprise') && adminBranches.length >= 0;
+    const branchHeader = document.getElementById('cashiers-branch-header');
+    if (branchHeader) branchHeader.style.display = showBranch && adminBranches.length ? '' : 'none';
+    const colSpan = showBranch && adminBranches.length ? 6 : 5;
     
     if (adminCashiers.length === 0) {
-        body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:16px;color:rgba(255,255,255,0.5);">No cashiers found</td></tr>';
+        body.innerHTML = `<tr><td colspan="${colSpan}" style="text-align:center;padding:16px;color:rgba(255,255,255,0.5);">No cashiers found</td></tr>`;
         return;
     }
     
@@ -913,6 +951,7 @@ function renderCashiers() {
                     ${escapeHtml(c.role)}
                 </span>
             </td>
+            ${showBranch && adminBranches.length ? `<td style="padding:8px;">${branchLabel(c.branch_id)}</td>` : ''}
             <td style="padding:8px;">
                 <span style="padding:2px 8px;border-radius:4px;background:${c.is_active ? 'rgba(34,197,94,0.3)' : 'rgba(107,114,128,0.3)'};">
                     ${c.is_active ? 'Active' : 'Inactive'}
@@ -945,6 +984,8 @@ function startEditCashier(id) {
     document.getElementById('cashier-fullname').value = c.full_name || '';
     document.getElementById('cashier-password').value = '';
     document.getElementById('cashier-role').value = c.role;
+    const branchSel = document.getElementById('cashier-branch');
+    if (branchSel) branchSel.value = c.branch_id != null ? String(c.branch_id) : '';
     document.getElementById('cashier-message').textContent = `Editing cashier: ${c.username}`;
 }
 
@@ -954,6 +995,8 @@ function clearCashierForm() {
     document.getElementById('cashier-fullname').value = '';
     document.getElementById('cashier-password').value = '';
     document.getElementById('cashier-role').value = 'cashier';
+    const branchSel = document.getElementById('cashier-branch');
+    if (branchSel) branchSel.value = '';
     document.getElementById('cashier-message').textContent = '';
 }
 
@@ -964,6 +1007,9 @@ async function saveCashier() {
     const fullname = document.getElementById('cashier-fullname').value.trim() || null;
     const password = document.getElementById('cashier-password').value;
     const role = document.getElementById('cashier-role').value;
+    const branchEl = document.getElementById('cashier-branch');
+    const branchRaw = branchEl ? branchEl.value : '';
+    const branch_id = branchRaw ? Number(branchRaw) : null;
     
     if (!username) {
         msg.textContent = 'Username is required';
@@ -983,6 +1029,9 @@ async function saveCashier() {
                 full_name: fullname,
                 role: role,
             };
+            if (branchEl && window.posPlanFeatures && posPlanFeatures.hasFeature('enterprise')) {
+                updateData.branch_id = branch_id;
+            }
             if (password) {
                 updateData.password = password;
             }
@@ -993,14 +1042,18 @@ async function saveCashier() {
             msg.textContent = 'User updated successfully';
         } else {
             // Create new
+            const createData = {
+                username: username,
+                full_name: fullname,
+                password: password,
+                role: role,
+            };
+            if (branchEl && window.posPlanFeatures && posPlanFeatures.hasFeature('enterprise')) {
+                createData.branch_id = branch_id;
+            }
             await adminApi('/api/users', {
                 method: 'POST',
-                body: JSON.stringify({
-                    username: username,
-                    full_name: fullname,
-                    password: password,
-                    role: role,
-                }),
+                body: JSON.stringify(createData),
             });
             msg.textContent = 'User added successfully';
         }

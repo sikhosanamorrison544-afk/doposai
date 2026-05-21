@@ -115,7 +115,40 @@
     <section id="panel-branches" class="enterprise-panel">
         <div class="enterprise-card">
             <h2>Branches</h2>
-            <table class="enterprise-table"><thead><tr><th>Name</th><th>Code</th><th>Default</th></tr></thead><tbody id="branches-tbody"></tbody></table>
+            <p style="margin:0 0 12px;opacity:0.85;font-size:14px;line-height:1.5;">
+                Create a branch for each shop location. Assign cashiers to a branch in
+                <a href="/store-settings">Store Settings → Users</a> so their sales and shifts
+                are scoped to that location.
+            </p>
+            <div class="enterprise-actions">
+                <button type="button" id="btn-branch-add">Add branch</button>
+            </div>
+            <table class="enterprise-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Code</th>
+                        <th>Phone</th>
+                        <th>Default</th>
+                    </tr>
+                </thead>
+                <tbody id="branches-tbody"></tbody>
+            </table>
+        </div>
+        <div id="branch-form-card" class="enterprise-card" style="display:none;">
+            <h3 id="branch-form-title">New branch</h3>
+            <form id="branch-form">
+                <p><label>Branch name <input id="branch-name" required placeholder="e.g. Main store, Warehouse"></label></p>
+                <p><label>Code (optional) <input id="branch-code" placeholder="e.g. HQ, BR01"></label></p>
+                <p><label>Address <input id="branch-address" placeholder="Street, city"></label></p>
+                <p><label>Phone <input id="branch-phone" inputmode="tel"></label></p>
+                <p><label><input type="checkbox" id="branch-is-default"> Set as default branch</label></p>
+                <p style="margin-top:12px;">
+                    <button type="submit">Save branch</button>
+                    <button type="button" id="btn-branch-cancel">Cancel</button>
+                </p>
+                <div id="branch-form-msg" class="info" style="margin-top:8px;"></div>
+            </form>
         </div>
     </section>
 
@@ -152,7 +185,8 @@
 </div>
 
 <script src="/static/js/offline-fetch.js?v=1"></script>
-<script src="/static/js/enterprise.js?v=2"></script>
+<script src="/static/js/plan-features.js?v=1"></script>
+<script src="/static/js/enterprise.js?v=3"></script>
 <script src="/static/js/store-branding.js?v=1"></script>
 </body>
 </html>

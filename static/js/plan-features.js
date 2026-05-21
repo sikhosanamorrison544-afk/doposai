@@ -66,9 +66,10 @@
             'btn-analytics': 'analytics',
             'admin-action-analytics': 'analytics',
             'btn-accounting': 'accounting',
+            'btn-enterprise': 'enterprise',
+            'admin-action-enterprise': 'enterprise',
             'btn-toggle-shifts': 'shifts',
             'admin-action-shifts': 'shifts',
-            'admin-action-enterprise': 'enterprise',
             'btn-sync-withdrawals-backup': 'backup_sync',
             'btn-import-inventory': 'product_import',
         };
