@@ -67,6 +67,8 @@ from .models import (
     StoreSettings,
     User,
     Withdrawal,
+    Refund,
+    RefundItem,
 )
 
 from . import tenant_scope
@@ -1194,6 +1196,205 @@ async def create_sale(
     background_tasks.add_task(check_low_stock_background, sale.id)
 
     return sale
+
+
+# ==================== REFUNDS ====================
+
+
+class RefundItemInput(BaseModel):
+    sale_item_id: int
+    quantity: int = Field(ge=1)
+
+
+class RefundCreate(BaseModel):
+    sale_id: int
+    reason: str = Field(min_length=1, max_length=500)
+    refund_method: str
+    notes: Optional[str] = None
+    full_refund: bool = False
+    items: List[RefundItemInput] = Field(default_factory=list)
+
+
+class RefundItemRead(BaseModel):
+    id: int
+    sale_item_id: int
+    product_id: int
+    product_name: str
+    quantity: int
+    unit_price: Decimal
+    line_total: Decimal
+
+    class Config:
+        from_attributes = True
+
+
+class RefundRead(BaseModel):
+    id: int
+    sale_id: int
+    refund_number: str
+    status: str
+    refund_type: str
+    amount: Decimal
+    reason: str
+    refund_method: str
+    requested_by_id: int
+    requested_by_name: str
+    approved_by_id: Optional[int]
+    approved_by_name: Optional[str]
+    rejected_by_id: Optional[int]
+    rejection_reason: Optional[str]
+    created_at: datetime
+    approved_at: Optional[datetime]
+    rejected_at: Optional[datetime]
+    notes: Optional[str]
+    items: List[RefundItemRead] = Field(default_factory=list)
+
+    class Config:
+        from_attributes = True
+
+
+class RefundRejectBody(BaseModel):
+    rejection_reason: Optional[str] = None
+
+
+def _refund_to_read(db: Session, refund: Refund, user: User) -> RefundRead:
+    from .refund_service import refunded_quantities_for_sale  # noqa: F401
+
+    req = tenant_scope.get_scoped(db, User, refund.requested_by_id, user)
+    appr = tenant_scope.get_scoped(db, User, refund.approved_by_id, user) if refund.approved_by_id else None
+    items_out = []
+    for ri in refund.items:
+        product = tenant_scope.get_scoped(db, Product, ri.product_id, user)
+        items_out.append(
+            RefundItemRead(
+                id=ri.id,
+                sale_item_id=ri.sale_item_id,
+                product_id=ri.product_id,
+                product_name=product.name if product else f"Product #{ri.product_id}",
+                quantity=ri.quantity,
+                unit_price=ri.unit_price,
+                line_total=ri.line_total,
+            )
+        )
+    return RefundRead(
+        id=refund.id,
+        sale_id=refund.sale_id,
+        refund_number=refund.refund_number,
+        status=refund.status,
+        refund_type=refund.refund_type,
+        amount=refund.amount,
+        reason=refund.reason,
+        refund_method=refund.refund_method,
+        requested_by_id=refund.requested_by_id,
+        requested_by_name=(req.full_name or req.username) if req else "Unknown",
+        approved_by_id=refund.approved_by_id,
+        approved_by_name=(appr.full_name or appr.username) if appr else None,
+        rejected_by_id=refund.rejected_by_id,
+        rejection_reason=refund.rejection_reason,
+        created_at=refund.created_at,
+        approved_at=refund.approved_at,
+        rejected_at=refund.rejected_at,
+        notes=refund.notes,
+        items=items_out,
+    )
+
+
+@app.get("/api/sales/{sale_id}/refund-summary")
+async def get_sale_refund_summary(
+    sale_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(dep_perm(Perm.REQUEST_REFUNDS)),
+):
+    """Remaining refundable quantities per line for a sale."""
+    from .refund_service import sale_refund_summary
+
+    sale = tenant_scope.require_sale(db, sale_id, current_user)
+    return sale_refund_summary(db, sale, current_user)
+
+
+@app.post("/api/refunds", response_model=RefundRead)
+async def create_refund_request(
+    body: RefundCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(dep_perm(Perm.REQUEST_REFUNDS)),
+):
+    from .refund_service import RefundLineInput, create_refund
+
+    line_inputs = [RefundLineInput(i.sale_item_id, i.quantity) for i in body.items] if body.items else None
+    refund = create_refund(
+        db,
+        current_user,
+        sale_id=body.sale_id,
+        reason=body.reason,
+        refund_method=body.refund_method,
+        notes=body.notes,
+        full_refund=body.full_refund,
+        items=line_inputs,
+    )
+    return _refund_to_read(db, refund, current_user)
+
+
+@app.get("/api/refunds", response_model=List[RefundRead])
+async def list_refunds(
+    status: Optional[str] = Query(None),
+    skip: int = 0,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth.get_current_active_user),
+):
+    from .permissions import has_permission
+
+    if not has_permission(current_user, Perm.VIEW_REFUNDS) and not has_permission(
+        current_user, Perm.REQUEST_REFUNDS
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    query = tenant_scope.filter_refunds(db, current_user)
+    if not has_permission(current_user, Perm.VIEW_REFUNDS):
+        query = query.filter(Refund.requested_by_id == current_user.id)
+    if status:
+        query = query.filter(Refund.status == status.strip().lower())
+    refunds = query.order_by(Refund.created_at.desc()).offset(skip).limit(limit).all()
+    return [_refund_to_read(db, r, current_user) for r in refunds]
+
+
+@app.get("/api/refunds/{refund_id}", response_model=RefundRead)
+async def get_refund(
+    refund_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth.get_current_active_user),
+):
+    from .permissions import has_permission
+
+    refund = tenant_scope.require_refund(db, refund_id, current_user)
+    if not has_permission(current_user, Perm.VIEW_REFUNDS) and refund.requested_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    return _refund_to_read(db, refund, current_user)
+
+
+@app.post("/api/refunds/{refund_id}/approve", response_model=RefundRead)
+async def approve_refund_route(
+    refund_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(dep_perm(Perm.APPROVE_REFUNDS)),
+):
+    from .refund_service import approve_refund
+
+    refund = approve_refund(db, current_user, refund_id)
+    return _refund_to_read(db, refund, current_user)
+
+
+@app.post("/api/refunds/{refund_id}/reject", response_model=RefundRead)
+async def reject_refund_route(
+    refund_id: int,
+    body: RefundRejectBody = Body(default=RefundRejectBody()),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(dep_perm(Perm.APPROVE_REFUNDS)),
+):
+    from .refund_service import reject_refund
+
+    refund = reject_refund(db, current_user, refund_id, body.rejection_reason)
+    return _refund_to_read(db, refund, current_user)
 
 
 @app.put("/api/sales/{sale_id}/mark-collected", response_model=SaleRead)
@@ -2972,6 +3173,17 @@ async def withdrawal_history_page(request: Request, db: Session = Depends(get_db
     else:
         store_name = STORE_NAME.upper()
     return templates.TemplateResponse("withdrawal_history.html", {"request": request, "store_name": store_name})
+
+
+@app.get("/refunds", response_class=HTMLResponse)
+async def refunds_page(request: Request, db: Session = Depends(get_db)):
+    """Refund management — request, track, and approve refunds."""
+    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
+    if store_settings:
+        store_name = store_settings.store_name.upper()
+    else:
+        store_name = STORE_NAME.upper()
+    return templates.TemplateResponse("refunds.html", {"request": request, "store_name": store_name})
 
 
 @app.get("/billing", response_class=HTMLResponse)

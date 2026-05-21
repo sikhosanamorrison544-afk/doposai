@@ -58,6 +58,14 @@
         return isSupervisorOrAdmin(user);
     }
 
+    function canRequestRefunds(user) {
+        return isAdmin(user) || isSupervisor(user) || isCashier(user);
+    }
+
+    function canApproveRefunds(user) {
+        return isSupervisorOrAdmin(user);
+    }
+
     function roleDescription(role) {
         var r = (role || '').toLowerCase();
         if (r === 'owner') r = 'admin';
@@ -69,6 +77,7 @@
         var billingBtn = document.getElementById('btn-billing');
         var btnPending = document.getElementById('btn-pending-collection');
         var btnWithdraw = document.getElementById('btn-withdraw');
+        var btnRefunds = document.getElementById('btn-refunds');
 
         if (adminBtn) adminBtn.style.display = canAccessAdmin(user) ? 'inline-block' : 'none';
         if (billingBtn) billingBtn.style.display = canAccessAdmin(user) ? 'inline-block' : 'none';
@@ -77,6 +86,9 @@
         }
         if (btnWithdraw) {
             btnWithdraw.style.display = canProcessWithdrawals(user) ? 'flex' : 'none';
+        }
+        if (btnRefunds) {
+            btnRefunds.style.display = canRequestRefunds(user) ? 'inline-block' : 'none';
         }
     }
 
@@ -93,6 +105,8 @@
         canManagePendingCollection: canManagePendingCollection,
         canViewReports: canViewReports,
         canManageShifts: canManageShifts,
+        canRequestRefunds: canRequestRefunds,
+        canApproveRefunds: canApproveRefunds,
         roleDescription: roleDescription,
         applyPosRoleGates: applyPosRoleGates,
     };

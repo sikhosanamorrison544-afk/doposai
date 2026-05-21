@@ -62,6 +62,7 @@
     <nav class="admin-mobile-actions" aria-label="Admin shortcuts">
         <button type="button" class="admin-mobile-action" id="admin-action-settings"><span class="icon">⚙️</span>Settings</button>
         <button type="button" class="admin-mobile-action" id="admin-action-report"><span class="icon">📊</span>Report</button>
+        <button type="button" class="admin-mobile-action" id="admin-action-refunds" onclick="window.location.href='/refunds'"><span class="icon">↩️</span>Refunds</button>
         <button type="button" class="admin-mobile-action" id="admin-action-withdrawals"><span class="icon">💵</span>Cash out</button>
         <button type="button" class="admin-mobile-action" id="admin-action-analytics"><span class="icon">📈</span>Analytics</button>
         <button type="button" class="admin-mobile-action" id="admin-action-shifts"><span class="icon">🕐</span>Shifts</button>
@@ -98,6 +99,9 @@
                 </button>
                 <button type="button" id="btn-toggle-withdrawals" class="floating-icon" title="Withdrawal History" style="background: rgba(239, 68, 68, 0.8);" onclick="window.location.href='/withdrawals/history'; return false;" onmousedown="event.stopPropagation();">
                     💵
+                </button>
+                <button type="button" id="btn-refunds" class="floating-icon" title="Refund Management" style="background: rgba(234, 88, 12, 0.85);" onclick="window.location.href='/refunds'; return false;" onmousedown="event.stopPropagation();">
+                    ↩️
                 </button>
                 <button type="button" id="btn-analytics" class="floating-icon" title="Sales Analytics" style="background: rgba(59, 130, 246, 0.8);" onclick="window.location.href='/analytics'; return false;" onmousedown="event.stopPropagation();">
                     📈

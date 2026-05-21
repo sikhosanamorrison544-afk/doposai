@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Refund Management - {{ store_name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function() {
+            'use strict';
+            try {
+                const savedTheme = localStorage.getItem('pos-theme') || 'default';
+                const validTheme = ['default', 'light', 'classic'].includes(savedTheme) ? savedTheme : 'default';
+                const themeClass = validTheme !== 'default' ? 'theme-' + validTheme : '';
+                if (themeClass) document.documentElement.className = (document.documentElement.className + ' ' + themeClass).trim();
+            } catch (e) {}
+        })();
+    </script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/pos-android.css?v=3">
+    <style>
+        main.pos-layout { overflow-y: auto !important; height: calc(100vh - 60px) !important; }
+        .refund-card { background: rgba(17, 24, 39, 0.35); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        .refund-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .refund-stat { text-align: center; padding: 14px; border-radius: 8px; background: rgba(17,24,39,0.45); border: 1px solid rgba(255,255,255,0.12); }
+        .refund-stat .val { font-size: 22px; font-weight: bold; }
+        .status-pending { color: #f59e0b; }
+        .status-approved { color: #22c55e; }
+        .status-rejected { color: #ef4444; }
+        #sale-items-table input[type=number] { width: 70px; padding: 4px; }
+    </style>
+</head>
+<body class="page-refunds">
+<div id="app" class="screen active">
+    <header class="top-bar">
+        <span id="refunds-user-info"></span>
+        <div class="shop-name">{{ store_name }}</div>
+        <div class="top-bar-right">
+            <button id="btn-back-pos" class="small" type="button">Back to POS</button>
+            <button id="btn-refunds-logout" class="danger small" type="button">Logout</button>
+        </div>
+    </header>
+    <main class="pos-layout">
+        <section style="flex:1;width:100%;padding:20px;box-sizing:border-box;">
+            <h2 style="margin:0 0 16px;">Refund Management</h2>
+            <p style="margin:0 0 20px;opacity:0.85;font-size:14px;line-height:1.5;">
+                Look up a sale, request a full or partial refund, and track approval status.
+                Supervisors and admins can approve or reject pending requests.
+            </p>
+
+            <div class="refund-summary-grid">
+                <div class="refund-stat"><div>Total</div><div class="val" id="stat-total">0</div></div>
+                <div class="refund-stat"><div>Pending</div><div class="val status-pending" id="stat-pending">0</div></div>
+                <div class="refund-stat"><div>Approved</div><div class="val status-approved" id="stat-approved">0</div></div>
+                <div class="refund-stat"><div>Approved amount</div><div class="val" id="stat-approved-amt">$0.00</div></div>
+            </div>
+
+            <details class="refund-card" id="create-refund-panel" open>
+                <summary style="cursor:pointer;font-weight:600;font-size:16px;">New refund request</summary>
+                <div style="margin-top:14px;display:grid;gap:12px;">
+                    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+                        <div>
+                            <label for="refund-sale-id">Sale ID</label>
+                            <input type="number" id="refund-sale-id" min="1" placeholder="e.g. 42" style="width:120px;">
+                        </div>
+                        <button type="button" id="btn-load-sale" class="primary small">Load sale</button>
+                    </div>
+                    <div id="sale-preview" style="display:none;"></div>
+                    <div id="sale-items-wrap" style="display:none;">
+                        <table class="enterprise-table" id="sale-items-table" style="width:100%;margin-top:8px;">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Sold</th>
+                                    <th>Already refunded</th>
+                                    <th>Refund qty</th>
+                                    <th>Line total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sale-items-body"></tbody>
+                        </table>
+                        <p style="margin:8px 0 0;font-size:13px;opacity:0.8;">
+                            <label><input type="checkbox" id="refund-full"> Full refund (all remaining items)</label>
+                        </p>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+                        <div>
+                            <label for="refund-reason">Reason</label>
+                            <input type="text" id="refund-reason" placeholder="e.g. Defective item, wrong product" maxlength="500">
+                        </div>
+                        <div>
+                            <label for="refund-method">Refund method</label>
+                            <select id="refund-method">
+                                <option value="cash">Cash</option>
+                                <option value="mobile_money">Mobile money</option>
+                                <option value="card">Card</option>
+                                <option value="credit">Store credit</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="refund-notes">Notes (optional)</label>
+                        <input type="text" id="refund-notes" placeholder="Additional details">
+                    </div>
+                    <div>
+                        <button type="button" id="btn-submit-refund" class="primary small" disabled>Submit refund request</button>
+                    </div>
+                    <div id="create-refund-msg" class="info" style="display:none;"></div>
+                </div>
+            </details>
+
+            <div class="refund-card">
+                <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px;">
+                    <h3 style="margin:0;flex:1;">Refund history</h3>
+                    <select id="filter-status">
+                        <option value="">All statuses</option>
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                    </select>
+                    <input type="text" id="refund-search" placeholder="Search #, sale, reason…" style="min-width:180px;">
+                    <button type="button" id="btn-refresh-refunds" class="small">Refresh</button>
+                </div>
+                <div style="overflow:auto;max-height:calc(100vh - 520px);min-height:280px;">
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead>
+                            <tr>
+                                <th style="padding:10px;text-align:left;">Date</th>
+                                <th style="padding:10px;text-align:left;">Refund #</th>
+                                <th style="padding:10px;text-align:left;">Sale</th>
+                                <th style="padding:10px;text-align:right;">Amount</th>
+                                <th style="padding:10px;text-align:left;">Status</th>
+                                <th style="padding:10px;text-align:left;">Requested by</th>
+                                <th style="padding:10px;text-align:left;">Reason</th>
+                                <th style="padding:10px;text-align:left;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="refunds-body"></tbody>
+                    </table>
+                </div>
+                <div id="refunds-message" class="info" style="margin-top:12px;display:none;"></div>
+            </div>
+        </section>
+    </main>
+</div>
+<script src="/static/js/role-permissions.js?v=1"></script>
+<script src="/static/js/refunds.js?v=1"></script>
+<script src="/static/js/store-branding.js?v=1"></script>
+</body>
+</html>

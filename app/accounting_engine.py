@@ -14,7 +14,7 @@ from .accounting_models import (
     ChartOfAccount, JournalEntry, JournalEntryLine, AccountingPeriod,
     ExpenseAccountMapping, FixedAsset, AssetDepreciationSchedule
 )
-from .models import Sale, SaleItem, Payment, Product, Withdrawal
+from .models import Sale, SaleItem, Payment, Product, Withdrawal, Refund
 
 logger = logging.getLogger(__name__)
 
@@ -346,6 +346,91 @@ class AccountingEngine:
 
         except Exception as e:
             logger.error(f"Error posting withdrawal {withdrawal.id} to accounting: {e}", exc_info=True)
+            raise
+
+    def post_refund(self, refund: Refund) -> JournalEntry:
+        """
+        Post an approved refund — reverse of sale for the refunded amount/items.
+
+        Journal Entries:
+        - Cr. Cash/Bank/Mobile Money (money returned to customer)
+        - Dr. Sales Revenue
+        - Dr. Output VAT (if applicable)
+        - Dr. Inventory
+        - Cr. COGS
+        """
+        try:
+            if hasattr(refund, "items") and refund.items:
+                refund_items = refund.items
+            else:
+                from .models import RefundItem
+
+                refund_items = self.db.query(RefundItem).filter(RefundItem.refund_id == refund.id).all()
+
+            refund_total = Decimal(str(refund.amount))
+            VAT_RATE = Decimal("0.15")
+            vat_exclusive = refund_total / (1 + VAT_RATE)
+            vat_amount = refund_total - vat_exclusive
+
+            lines = [
+                {
+                    "account_code": self._get_payment_account_code(refund.refund_method),
+                    "debit": 0,
+                    "credit": refund_total,
+                    "description": f"Refund via {refund.refund_method}",
+                },
+                {
+                    "account_code": "4000",
+                    "debit": vat_exclusive,
+                    "credit": 0,
+                    "description": f"Revenue reversal {refund.refund_number}",
+                },
+            ]
+            if vat_amount > 0:
+                lines.append(
+                    {
+                        "account_code": "2200",
+                        "debit": vat_amount,
+                        "credit": 0,
+                        "description": f"VAT reversal on {refund.refund_number}",
+                    }
+                )
+
+            total_cogs = Decimal("0")
+            for item in refund_items:
+                product = self.db.get(Product, item.product_id)
+                if product:
+                    total_cogs += Decimal(str(product.cost_price)) * Decimal(str(item.quantity))
+
+            if total_cogs > 0:
+                lines.append(
+                    {
+                        "account_code": "1200",
+                        "debit": total_cogs,
+                        "credit": 0,
+                        "description": f"Inventory restored {refund.refund_number}",
+                    }
+                )
+                lines.append(
+                    {
+                        "account_code": "5000",
+                        "debit": 0,
+                        "credit": total_cogs,
+                        "description": f"COGS reversal {refund.refund_number}",
+                    }
+                )
+
+            description = f"Refund {refund.refund_number} — Sale #{refund.sale_id}"
+            return self.create_journal_entry(
+                entry_date=refund.approved_at or refund.created_at,
+                description=description,
+                lines=lines,
+                reference_type="REFUND",
+                reference_id=refund.id,
+                created_by=refund.approved_by_id or refund.requested_by_id,
+            )
+        except Exception as e:
+            logger.error(f"Error posting refund {refund.id} to accounting: {e}", exc_info=True)
             raise
 
     def post_purchase_receive(

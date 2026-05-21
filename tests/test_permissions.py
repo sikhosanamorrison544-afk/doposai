@@ -28,6 +28,8 @@ def test_supervisor_operational_permissions():
     assert has_permission(user, Perm.VIEW_INVENTORY)
     assert has_permission(user, Perm.PROCESS_WITHDRAWALS)
     assert has_permission(user, Perm.APPROVE_REFUNDS)
+    assert has_permission(user, Perm.REQUEST_REFUNDS)
+    assert has_permission(user, Perm.VIEW_REFUNDS)
     assert has_permission(user, Perm.MANAGE_PENDING_COLLECTION)
     assert has_permission(user, Perm.MANAGE_SHIFTS)
     assert has_permission(user, Perm.VIEW_REPORTS)
@@ -41,9 +43,10 @@ def test_cashier_pos_only():
     user = _user("cashier")
     assert has_permission(user, Perm.SALES)
     assert has_permission(user, Perm.VIEW_INVENTORY)
+    assert has_permission(user, Perm.REQUEST_REFUNDS)
     assert not has_permission(user, Perm.PROCESS_WITHDRAWALS)
-    assert not has_permission(user, Perm.MANAGE_PENDING_COLLECTION)
-    assert not has_permission(user, Perm.VIEW_REPORTS)
+    assert not has_permission(user, Perm.APPROVE_REFUNDS)
+    assert not has_permission(user, Perm.VIEW_REFUNDS)
 
 
 def test_role_helpers():

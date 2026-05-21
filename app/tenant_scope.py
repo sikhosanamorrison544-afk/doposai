@@ -14,6 +14,7 @@ from .models import (
     LaybyTransaction,
     Notification,
     Product,
+    Refund,
     Sale,
     StoreSettings,
     User,
@@ -65,6 +66,10 @@ def filter_shifts(db: Session, user: User) -> Query:
 
 def filter_withdrawals(db: Session, user: User) -> Query:
     return filter_by_tenant(db.query(Withdrawal), Withdrawal, user)
+
+
+def filter_refunds(db: Session, user: User) -> Query:
+    return filter_by_tenant(db.query(Refund), Refund, user)
 
 
 def filter_layby_customers(db: Session, user: User) -> Query:
@@ -174,6 +179,13 @@ def require_withdrawal(db: Session, withdrawal_id: int, user: User) -> Withdrawa
     if w is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Withdrawal not found")
     return w
+
+
+def require_refund(db: Session, refund_id: int, user: User) -> Refund:
+    r = get_scoped(db, Refund, refund_id, user)
+    if r is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Refund not found")
+    return r
 
 
 def tenant_id_for_row(user: User) -> Optional[int]:

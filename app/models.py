@@ -128,6 +128,7 @@ class Sale(Base):
     shift: Mapped[Optional["CashierShift"]] = relationship("CashierShift", back_populates="sales")
     items: Mapped[list["SaleItem"]] = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")
     payments: Mapped[list["Payment"]] = relationship("Payment", back_populates="sale", cascade="all, delete-orphan")
+    refunds: Mapped[list["Refund"]] = relationship("Refund", back_populates="sale")
 
 
 class SaleItem(Base):
@@ -269,6 +270,55 @@ class Withdrawal(Base):
     )
 
     cashier: Mapped[User] = relationship("User")
+
+
+class Refund(Base):
+    __tablename__ = "refunds"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    sale_id: Mapped[int] = mapped_column(ForeignKey("sales.id"), index=True)
+    refund_number: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)  # pending, approved, rejected
+    refund_type: Mapped[str] = mapped_column(String(20), default="partial")  # full, partial
+    amount: Mapped[Numeric] = mapped_column(Numeric(10, 2))
+    reason: Mapped[str] = mapped_column(String(500))
+    refund_method: Mapped[str] = mapped_column(String(30))  # cash, mobile_money, card, credit
+    requested_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    approved_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    rejected_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    rejected_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    rejection_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    tenant_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("tenants.id"), nullable=True, index=True
+    )
+
+    sale: Mapped["Sale"] = relationship("Sale", back_populates="refunds")
+    requested_by: Mapped[User] = relationship("User", foreign_keys=[requested_by_id])
+    approved_by: Mapped[Optional[User]] = relationship("User", foreign_keys=[approved_by_id])
+    rejected_by: Mapped[Optional[User]] = relationship("User", foreign_keys=[rejected_by_id])
+    items: Mapped[list["RefundItem"]] = relationship(
+        "RefundItem", back_populates="refund", cascade="all, delete-orphan"
+    )
+
+
+class RefundItem(Base):
+    __tablename__ = "refund_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    refund_id: Mapped[int] = mapped_column(ForeignKey("refunds.id"), index=True)
+    sale_item_id: Mapped[int] = mapped_column(ForeignKey("sale_items.id"), index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
+    quantity: Mapped[int] = mapped_column(Integer)
+    unit_price: Mapped[Numeric] = mapped_column(Numeric(10, 2))
+    discount: Mapped[Numeric] = mapped_column(Numeric(10, 2), default=0)
+    line_total: Mapped[Numeric] = mapped_column(Numeric(10, 2))
+
+    refund: Mapped[Refund] = relationship("Refund", back_populates="items")
+    sale_item: Mapped["SaleItem"] = relationship("SaleItem")
+    product: Mapped[Product] = relationship("Product")
 
 
 class Notification(Base):

@@ -34,6 +34,8 @@ class Perm(str, Enum):
     PROCESS_WITHDRAWALS = "process_withdrawals"
     VIEW_WITHDRAWALS = "view_withdrawals"
     APPROVE_REFUNDS = "approve_refunds"
+    REQUEST_REFUNDS = "request_refunds"
+    VIEW_REFUNDS = "view_refunds"
     MANAGE_PENDING_COLLECTION = "manage_pending_collection"
     MANAGE_SHIFTS = "manage_shifts"
 
@@ -51,6 +53,8 @@ _ROLE_PERMS: dict[str, Set[Perm]] = {
         Perm.VIEW_INVENTORY,
         Perm.PROCESS_WITHDRAWALS,
         Perm.VIEW_WITHDRAWALS,
+        Perm.REQUEST_REFUNDS,
+        Perm.VIEW_REFUNDS,
         Perm.APPROVE_REFUNDS,
         Perm.MANAGE_PENDING_COLLECTION,
         Perm.VIEW_REPORTS,
@@ -59,6 +63,7 @@ _ROLE_PERMS: dict[str, Set[Perm]] = {
     "cashier": {
         Perm.SALES,
         Perm.VIEW_INVENTORY,
+        Perm.REQUEST_REFUNDS,
     },
 }
 
