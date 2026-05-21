@@ -2022,22 +2022,24 @@ body.theme-default .floating-panel {
     border: 1px solid rgba(255, 255, 255, 0.3) !important;
 }
 
-/* Payment panel frosted glass for default theme */
+/* Payment panel frosted glass for default theme.
+   Use a dark tint so the white labels/values render with strong contrast. */
 body.theme-default .payment-panel {
-    background: rgba(255, 255, 255, 0.15) !important;
+    background: rgba(17, 24, 39, 0.62) !important;
     backdrop-filter: blur(15px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(15px) saturate(180%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.3) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35) !important;
 }
 
-/* Payment panel totals section - also frosted glass */
+/* Inner totals block sits on top of the panel — a touch lighter than the
+   parent so it still reads as a distinct sub-panel against the dark glass. */
 body.theme-default .payment-panel .totals {
-    background: rgba(255, 255, 255, 0.2) !important;
+    background: rgba(17, 24, 39, 0.48) !important;
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.25) !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22) !important;
 }
 
 body.theme-default .top-bar {
