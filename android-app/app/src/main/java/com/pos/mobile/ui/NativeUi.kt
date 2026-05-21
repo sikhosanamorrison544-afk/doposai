@@ -5,6 +5,7 @@ import android.view.View
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.appbar.MaterialToolbar
 import com.pos.mobile.R
 import java.text.NumberFormat
@@ -57,5 +58,27 @@ abstract class BaseNativeActivity : AppCompatActivity() {
     override fun onSupportNavigateUp(): Boolean {
         onBackPressedDispatcher.onBackPressed()
         return true
+    }
+
+    /** Resume a deferred Bluetooth print after the user grants runtime permission. */
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == com.pos.mobile.printer.PrinterPermissionHelper.REQUEST_CODE) {
+            val prefs = getSharedPreferences("pos", MODE_PRIVATE)
+            val storeName = prefs.getString("store_name", getString(R.string.store_name))
+                ?: getString(R.string.store_name)
+            val granted = com.pos.mobile.printer.PrinterPermissionHelper
+                .legacyResultsGranted(permissions, grantResults)
+            com.pos.mobile.printer.PrinterSetupDialog.handleBluetoothPermissionResult(
+                activity = this,
+                granted = granted,
+                scope = lifecycleScope,
+                storeName = storeName,
+            )
+        }
     }
 }

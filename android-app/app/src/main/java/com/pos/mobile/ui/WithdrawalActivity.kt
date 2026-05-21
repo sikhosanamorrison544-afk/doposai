@@ -24,6 +24,7 @@ class WithdrawalActivity : BaseNativeActivity() {
     private lateinit var otherLayout: TextInputLayout
     private lateinit var salarySection: View
     private lateinit var messageTv: TextView
+    private lateinit var processBtn: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,6 +34,7 @@ class WithdrawalActivity : BaseNativeActivity() {
         otherLayout = findViewById(R.id.withdrawal_other_layout)
         salarySection = findViewById(R.id.withdrawal_salary_section)
         messageTv = findViewById(R.id.withdrawal_message)
+        processBtn = findViewById(R.id.btn_process_withdrawal)
 
         val reasons = listOf(
             getString(R.string.withdrawal_select_reason),
@@ -53,7 +55,7 @@ class WithdrawalActivity : BaseNativeActivity() {
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
-        findViewById<Button>(R.id.btn_process_withdrawal).setOnClickListener { processWithdrawal() }
+        processBtn.setOnClickListener { processWithdrawal() }
         findViewById<Button>(R.id.btn_withdrawal_history).setOnClickListener {
             startActivity(Intent(this, WebViewActivity::class.java).apply {
                 putExtra(WebViewActivity.EXTRA_PATH, "/withdrawals/history")
@@ -101,7 +103,19 @@ class WithdrawalActivity : BaseNativeActivity() {
         }
 
         lifecycleScope.launch {
-            val bearer = PosAuth.bearer(this@WithdrawalActivity) ?: return@launch
+            val bearer = PosAuth.bearer(this@WithdrawalActivity)
+            if (bearer.isNullOrBlank()) {
+                NativeUi.bindMessage(messageTv, getString(R.string.withdrawal_session_expired))
+                return@launch
+            }
+
+            processBtn.isEnabled = false
+            NativeUi.bindMessage(
+                messageTv,
+                getString(R.string.withdrawal_processing),
+                isError = false,
+            )
+
             try {
                 val resp = withContext(Dispatchers.IO) {
                     PosAuth.api(this@WithdrawalActivity).createWithdrawal(
@@ -115,7 +129,9 @@ class WithdrawalActivity : BaseNativeActivity() {
                     )
                 }
                 if (!resp.isSuccessful) {
-                    NativeUi.bindMessage(messageTv, resp.message() ?: "Withdrawal failed")
+                    val detail = PosAuth.httpErrorDetail(resp) ?: "Withdrawal failed"
+                    NativeUi.bindMessage(messageTv, detail)
+                    NativeUi.showError(this@WithdrawalActivity, detail)
                     return@launch
                 }
                 val body = resp.body()
@@ -132,7 +148,11 @@ class WithdrawalActivity : BaseNativeActivity() {
                 findViewById<TextInputEditText>(R.id.withdrawal_amount).text?.clear()
                 reasonSpinner.setSelection(0)
             } catch (e: Exception) {
-                NativeUi.bindMessage(messageTv, e.message ?: "Withdrawal failed")
+                val detail = e.message ?: "Withdrawal failed"
+                NativeUi.bindMessage(messageTv, detail)
+                NativeUi.showError(this@WithdrawalActivity, detail)
+            } finally {
+                processBtn.isEnabled = true
             }
         }
     }

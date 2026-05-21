@@ -161,6 +161,8 @@
     <string name="withdrawal_employee_required">Enter employee name</string>
     <string name="withdrawal_period_required">Enter salary period</string>
     <string name="withdrawal_success">Withdrawal recorded. Receipt: %1$s</string>
+    <string name="withdrawal_processing">Processing withdrawal…</string>
+    <string name="withdrawal_session_expired">Session expired. Sign in again.</string>
     <string name="salary_employee_name">Employee name</string>
     <string name="salary_period">Salary period</string>
     <string name="notes_optional">Notes (optional)</string>

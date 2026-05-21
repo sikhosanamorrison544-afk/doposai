@@ -264,7 +264,59 @@ object ReceiptPrinter {
                 return
             }
         }
-        showError(activity, activity.getString(R.string.printer_none_selected))
+        // No thermal printer configured — fall back to the system print dialog
+        // (same path sale receipts use) so the user still gets a receipt.
+        printWithdrawalSystem(activity, request)
+    }
+
+    private fun printWithdrawalSystem(activity: Activity, request: WithdrawalReceiptRequest) {
+        if (activity.isFinishing || activity.isDestroyed) return
+        activity.runOnUiThread {
+            if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+            try {
+                val lines = buildWithdrawalTextLines(request)
+                val printManager = activity.getSystemService(Context.PRINT_SERVICE) as? PrintManager
+                    ?: run {
+                        showError(activity, activity.getString(R.string.printer_none_selected))
+                        return@runOnUiThread
+                    }
+                val adapter = ReceiptPrintDocumentAdapter(
+                    activity.applicationContext,
+                    "Withdrawal receipt",
+                    lines,
+                )
+                printManager.print(
+                    "Withdrawal receipt",
+                    adapter,
+                    PrintAttributes.Builder().build(),
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Withdrawal system print failed", e)
+                showError(activity, e.message ?: "Print failed")
+            }
+        }
+    }
+
+    private fun buildWithdrawalTextLines(request: WithdrawalReceiptRequest): List<String> {
+        val df = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+        val lines = mutableListOf<String>()
+        lines.add(request.storeName.uppercase())
+        if (!request.storeLocation.isNullOrBlank()) lines.add(request.storeLocation)
+        if (!request.storePhone.isNullOrBlank()) lines.add("Tel: ${request.storePhone}")
+        lines.add("=".repeat(32))
+        lines.add("WITHDRAWAL")
+        lines.add("-".repeat(32))
+        if (!request.receiptNumber.isNullOrBlank()) lines.add("Receipt #: ${request.receiptNumber}")
+        if (request.withdrawalId != null) lines.add("ID: ${request.withdrawalId}")
+        lines.add("Date: ${df.format(Date())}")
+        if (!request.cashierName.isNullOrBlank()) lines.add("Cashier: ${request.cashierName}")
+        lines.add("-".repeat(32))
+        lines.add("AMOUNT: ${"%.2f".format(Locale.US, request.amount)}")
+        lines.add("Reason: ${request.reason}")
+        if (!request.notes.isNullOrBlank()) lines.add("Notes: ${request.notes}")
+        lines.add("=".repeat(32))
+        lines.add("Withdrawal receipt")
+        return lines
     }
 
     private suspend fun printWithdrawalThermal(activity: Activity, request: WithdrawalReceiptRequest) {
