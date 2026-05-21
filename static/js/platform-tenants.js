@@ -307,7 +307,7 @@
             if (e && e.message === 'Unauthorized') return;
             errEl.textContent =
                 e.message ||
-                'Could not load businesses. If you are the platform owner, set PLATFORM_OWNER_USERNAMES on the server to include your admin username.';
+                'Could not load businesses. If you are the platform owner, set PLATFORM_OWNER_EMAILS on the server to include your account email.';
             errEl.style.display = 'block';
         }
     }
