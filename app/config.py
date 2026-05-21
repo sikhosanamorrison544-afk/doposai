@@ -93,7 +93,12 @@ def _parse_platform_owner_usernames() -> frozenset[str]:
     """
     Comma-separated usernames (case-insensitive) allowed to use /platform/tenants
     and GET /api/platform/tenants. Must be admin accounts. Set env e.g.:
-    PLATFORM_OWNER_USERNAMES=admin,yourusername
+    PLATFORM_OWNER_USERNAMES=morrison,owner
+
+    WARNING — usernames are NOT globally unique across tenants. Every tenant's
+    first user defaults to ``admin``, so setting this to ``admin`` grants
+    platform-owner access to every tenant's primary admin. For SaaS
+    deployments prefer PLATFORM_OWNER_EMAILS below, which IS globally unique.
     """
     raw = os.environ.get("PLATFORM_OWNER_USERNAMES", "").strip()
     if not raw:
@@ -101,5 +106,19 @@ def _parse_platform_owner_usernames() -> frozenset[str]:
     return frozenset(p.strip().lower() for p in raw.split(",") if p.strip())
 
 
+def _parse_platform_owner_emails() -> frozenset[str]:
+    """
+    Comma-separated emails (case-insensitive) allowed to use /platform/tenants.
+    Recommended over PLATFORM_OWNER_USERNAMES for SaaS because emails are
+    globally unique across tenants. Example:
+        PLATFORM_OWNER_EMAILS=you@example.com,cofounder@example.com
+    """
+    raw = os.environ.get("PLATFORM_OWNER_EMAILS", "").strip()
+    if not raw:
+        return frozenset()
+    return frozenset(p.strip().lower() for p in raw.split(",") if p.strip())
+
+
 # Parsed once at import; restart app after changing env.
 PLATFORM_OWNER_USERNAMES: frozenset[str] = _parse_platform_owner_usernames()
+PLATFORM_OWNER_EMAILS: frozenset[str] = _parse_platform_owner_emails()

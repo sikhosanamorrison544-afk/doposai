@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import os
 
-# Set the env var BEFORE importing app.main so PLATFORM_OWNER_USERNAMES
-# is parsed with our test owner. The module caches it at import time.
+# Set the env vars BEFORE importing app.main so PLATFORM_OWNER_* are
+# parsed with our test owner. The module caches them at import time.
 os.environ.setdefault("PLATFORM_OWNER_USERNAMES", "owner_test")
+os.environ.setdefault("PLATFORM_OWNER_EMAILS", "email-owner@example.com")
 
 import pytest
 from fastapi.testclient import TestClient

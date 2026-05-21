@@ -42,8 +42,17 @@ services:
           property: connectionString
       - key: JWT_SECRET_KEY
         generateValue: true
-      # Comma-separated admin usernames allowed to open /platform/tenants (all SaaS businesses).
-      # Example: PLATFORM_OWNER_USERNAMES=morrison,admin
+      # Platform-owner allowlist for /platform/tenants (all SaaS businesses).
+      #
+      # PREFERRED: comma-separated EMAIL addresses. Emails are globally
+      # unique across tenants. Example:
+      #   PLATFORM_OWNER_EMAILS=you@example.com,cofounder@example.com
+      - key: PLATFORM_OWNER_EMAILS
+        sync: false
+      # LEGACY/optional: comma-separated USERNAMES. AVOID setting this to
+      # ``admin`` — every tenant signs up with that username, so the banner
+      # would leak to every customer. Only use for ops accounts whose
+      # usernames are globally unique on your deployment.
       - key: PLATFORM_OWNER_USERNAMES
         sync: false
       - key: PAYNOW_INTEGRATION_ID

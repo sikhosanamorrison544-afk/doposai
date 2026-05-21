@@ -13,7 +13,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from . import auth
-from .config import PLATFORM_OWNER_USERNAMES
+from .config import PLATFORM_OWNER_EMAILS, PLATFORM_OWNER_USERNAMES
 from .database import get_db
 from .http_rate_limit import rate_limit_hit as _rate_limit
 from .models import StoreSettings, User
@@ -26,20 +26,45 @@ router = APIRouter(prefix="/api/platform", tags=["platform"])
 
 
 def is_platform_owner_user(user: User) -> bool:
+    """Return True if ``user`` is on the platform-owner allowlist.
+
+    Matches either:
+      * email is in ``PLATFORM_OWNER_EMAILS`` (recommended — globally unique), OR
+      * username is in ``PLATFORM_OWNER_USERNAMES``.
+
+    Note: username matching is INHERENTLY unsafe in multi-tenant SaaS
+    because every tenant's first user defaults to ``admin``. Setting
+    ``PLATFORM_OWNER_USERNAMES=admin`` would grant the banner to every
+    tenant's primary admin. Use email gating in production.
+    """
     if not user.is_active or user.role != "admin":
         return False
-    if not PLATFORM_OWNER_USERNAMES:
+    if not PLATFORM_OWNER_USERNAMES and not PLATFORM_OWNER_EMAILS:
         return False
-    return user.username.strip().lower() in PLATFORM_OWNER_USERNAMES
+    user_email = (user.email or "").strip().lower()
+    if PLATFORM_OWNER_EMAILS and user_email and user_email in PLATFORM_OWNER_EMAILS:
+        return True
+    user_username = (user.username or "").strip().lower()
+    if (
+        PLATFORM_OWNER_USERNAMES
+        and user_username
+        and user_username in PLATFORM_OWNER_USERNAMES
+    ):
+        return True
+    return False
 
 
 def require_platform_owner(
     user: User = Depends(auth.get_current_active_user),
 ) -> User:
-    if not PLATFORM_OWNER_USERNAMES:
+    if not PLATFORM_OWNER_USERNAMES and not PLATFORM_OWNER_EMAILS:
         raise HTTPException(
             status_code=403,
-            detail="Platform owner access is not configured. Set PLATFORM_OWNER_USERNAMES on the server.",
+            detail=(
+                "Platform owner access is not configured. Set "
+                "PLATFORM_OWNER_EMAILS (preferred) or PLATFORM_OWNER_USERNAMES "
+                "on the server."
+            ),
         )
     if not is_platform_owner_user(user):
         raise HTTPException(status_code=403, detail="Platform owner access denied.")
