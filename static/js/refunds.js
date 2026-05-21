@@ -322,4 +322,14 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
 
     await loadRefunds();
+
+    const params = new URLSearchParams(window.location.search);
+    const saleIdParam = params.get('sale_id');
+    if (saleIdParam) {
+        const input = document.getElementById('refund-sale-id');
+        if (input) input.value = saleIdParam;
+        const panel = document.getElementById('create-refund-panel');
+        if (panel && typeof panel.open !== 'undefined') panel.open = true;
+        await loadSaleForRefund();
+    }
 });

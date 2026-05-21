@@ -408,6 +408,12 @@
     
     <button id="btn-complete-sale" class="primary big">Complete Sale &amp; Print Receipt</button>
     <div id="pos-message" class="info"></div>
+    <div id="pos-refund-shortcut" style="display:none;margin-top:10px;">
+        <button type="button" id="btn-refund-last-sale" class="small" style="background:rgba(234,88,12,0.9);color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;">
+            ↩ Refund this sale
+        </button>
+        <span id="pos-refund-sale-label" style="margin-left:8px;font-size:13px;opacity:0.85;"></span>
+    </div>
     
     <!-- Layby Toggle Button -->
     <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.2);">
@@ -509,7 +515,7 @@
 <script src="/static/js/receipt.js?v=4"></script>
 <script src="/static/js/plan-features.js?v=1"></script>
 <script src="/static/js/role-permissions.js?v=1"></script>
-<script src="/static/js/app.js?v=10"></script>
+<script src="/static/js/app.js?v=11"></script>
 <script src="/static/js/background3d.js?v=5"></script>
 <script src="/static/js/store-branding.js?v=1"></script>
 </body>

@@ -973,9 +973,42 @@ function searchByName(query) {
     }
 }
 
+let lastCompletedSaleId = null;
+
+function showRefundSaleShortcut(saleId) {
+    lastCompletedSaleId = saleId;
+    try {
+        sessionStorage.setItem('pos_last_sale_id', String(saleId));
+    } catch (_) {}
+
+    const wrap = document.getElementById('pos-refund-shortcut');
+    const btn = document.getElementById('btn-refund-last-sale');
+    const label = document.getElementById('pos-refund-sale-label');
+    if (!wrap || !btn) return;
+
+    const canRefund = window.PosRoles && currentUser && PosRoles.canRequestRefunds(currentUser);
+    if (!canRefund) {
+        wrap.style.display = 'none';
+        return;
+    }
+
+    btn.onclick = function (e) {
+        e.preventDefault();
+        window.location.href = '/refunds?sale_id=' + encodeURIComponent(String(saleId));
+    };
+    if (label) label.textContent = '(Sale #' + saleId + ')';
+    wrap.style.display = 'block';
+}
+
+function hideRefundSaleShortcut() {
+    const wrap = document.getElementById('pos-refund-shortcut');
+    if (wrap) wrap.style.display = 'none';
+}
+
 async function completeSale() {
     const msgEl = document.getElementById('pos-message');
     msgEl.textContent = '';
+    hideRefundSaleShortcut();
     if (cart.length === 0) {
         msgEl.textContent = 'Cart is empty';
         return;
@@ -1092,6 +1125,7 @@ async function completeSale() {
         });
         msgEl.textContent = `Sale #${sale.id} completed`;
         msgEl.style.color = ''; // Reset color on success
+        showRefundSaleShortcut(sale.id);
         if (window.posReceipt) {
             posReceipt.printSaleReceipt({
                 saleId: sale.id,
@@ -1120,6 +1154,7 @@ async function completeSale() {
         await loadProducts();
     } catch (e) {
         console.error('Sale error:', e);
+        hideRefundSaleShortcut();
         if (printWin && !printWin.closed) {
             printWin.close();
         }
