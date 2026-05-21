@@ -70,6 +70,14 @@ from .models import (
 )
 
 from . import tenant_scope
+from .permissions import (
+    Perm,
+    ROLE_DESCRIPTIONS,
+    dep_perm,
+    has_permission,
+    permissions_as_strings,
+    require_permission,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -433,6 +441,29 @@ async def login_for_access_token(
         payload["tid"] = user.tenant_id
     access_token = auth.create_access_token(data=payload)
     return Token(access_token=access_token, username=user.username, role=user.role)
+
+
+class UserMeRead(BaseModel):
+    username: str
+    role: str
+    permissions: List[str]
+    role_description: str
+
+
+@app.get("/api/auth/me", response_model=UserMeRead)
+async def read_current_user_me(
+    current_user: User = Depends(auth.get_current_active_user),
+):
+    """Current user role and permission list for UI gating."""
+    role = (current_user.role or "cashier").strip().lower()
+    if role == "owner":
+        role = "admin"
+    return UserMeRead(
+        username=current_user.username,
+        role=role,
+        permissions=permissions_as_strings(current_user),
+        role_description=ROLE_DESCRIPTIONS.get(role, ""),
+    )
 
 
 class ProductCreate(BaseModel):
@@ -1172,6 +1203,7 @@ async def mark_sale_collected(
     current_user: User = Depends(auth.get_current_active_user),
 ):
     """Mark a sale as collected - moves items from reserved to actual stock deduction."""
+    require_permission(current_user, Perm.MANAGE_PENDING_COLLECTION)
     sale = tenant_scope.require_sale(db, sale_id, current_user)
     
     if sale.collection_status == "collected":
@@ -1195,6 +1227,7 @@ async def get_pending_collection_sales(
     current_user: User = Depends(auth.get_current_active_user),
 ):
     """Get all sales with items pending collection (to_collect status)."""
+    require_permission(current_user, Perm.MANAGE_PENDING_COLLECTION)
     pending_sales = (
         tenant_scope.filter_sales(db, current_user)
         .filter(Sale.collection_status == "to_collect")
@@ -1795,7 +1828,7 @@ async def report_summary(
     from_date: date,
     to_date: date,
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth.get_current_admin_user),
+    current_user: User = Depends(dep_perm(Perm.VIEW_REPORTS)),
 ):
     sales_q = db.query(
         func.count(Sale.id),
@@ -1922,7 +1955,7 @@ class ZeroSalesProduct(BaseModel):
 async def get_top_selling_product(
     days: int = Query(default=30, ge=1, le=365, description="Number of days to analyze"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth.get_current_active_user),
+    current_user: User = Depends(dep_perm(Perm.VIEW_REPORTS)),
 ):
     """Get the top-selling product by quantity sold in the specified period."""
     cutoff_date = datetime.utcnow() - timedelta(days=days)
@@ -1968,7 +2001,7 @@ async def get_top_selling_product(
 async def get_least_selling_product(
     days: int = Query(default=30, ge=1, le=365, description="Number of days to analyze"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth.get_current_active_user),
+    current_user: User = Depends(dep_perm(Perm.VIEW_REPORTS)),
 ):
     """Get the least-selling product by quantity sold in the specified period (among products with sales)."""
     cutoff_date = datetime.utcnow() - timedelta(days=days)
@@ -2015,7 +2048,7 @@ async def get_revenue_per_product(
     days: int = Query(default=30, ge=1, le=365, description="Number of days to analyze"),
     limit: int = Query(default=50, ge=1, le=500, description="Maximum number of products to return"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth.get_current_active_user),
+    current_user: User = Depends(dep_perm(Perm.VIEW_REPORTS)),
 ):
     """Get revenue statistics per product, sorted by revenue descending."""
     cutoff_date = datetime.utcnow() - timedelta(days=days)
@@ -2064,7 +2097,7 @@ async def get_revenue_per_product(
 async def get_zero_sales_products(
     days: int = Query(default=30, ge=1, le=365, description="Number of days to check"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth.get_current_active_user),
+    current_user: User = Depends(dep_perm(Perm.VIEW_REPORTS)),
 ):
     """Get products with zero sales in the last N days."""
     cutoff_date = datetime.utcnow() - timedelta(days=days)
@@ -2121,7 +2154,7 @@ async def get_zero_sales_products(
 async def get_analytics_dashboard(
     days: int = Query(default=30, ge=1, le=365, description="Number of days to analyze"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth.get_current_active_user),
+    current_user: User = Depends(dep_perm(Perm.VIEW_REPORTS)),
 ):
     """Get comprehensive analytics dashboard data."""
     cutoff_date = datetime.utcnow() - timedelta(days=days)
@@ -3698,13 +3731,8 @@ async def create_withdrawal(
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
 ):
-    """Create a withdrawal record and print receipt. Only supervisors and admins can withdraw."""
-    # Only supervisors and admins can withdraw money
-    if current_user.role not in ["supervisor", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only supervisors and admins can withdraw money"
-        )
+    """Create a withdrawal record and print receipt. Supervisors and admins only."""
+    require_permission(current_user, Perm.PROCESS_WITHDRAWALS)
     import random
     import string
     
@@ -3870,7 +3898,7 @@ async def list_withdrawals(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth.get_current_active_user),
+    current_user: User = Depends(dep_perm(Perm.VIEW_WITHDRAWALS)),
 ):
     """List all withdrawals."""
     withdrawals = (
@@ -3900,7 +3928,7 @@ async def list_withdrawals(
 async def get_withdrawal(
     withdrawal_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth.get_current_active_user),
+    current_user: User = Depends(dep_perm(Perm.VIEW_WITHDRAWALS)),
 ):
     """Get a specific withdrawal."""
     withdrawal = tenant_scope.require_withdrawal(db, withdrawal_id, current_user)
@@ -4153,7 +4181,7 @@ async def end_shift(
     """End a cashier shift and generate report."""
     shift = tenant_scope.require_shift(db, shift_id, current_user)
     
-    if shift.cashier_id != current_user.id and current_user.role != "admin":
+    if shift.cashier_id != current_user.id and not has_permission(current_user, Perm.MANAGE_SHIFTS):
         raise HTTPException(status_code=403, detail="You can only end your own shifts")
     
     if shift.end_time:
@@ -4282,10 +4310,10 @@ async def list_shifts(
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
 ):
-    """List all shifts. Admins can see all, cashiers see only their own."""
+    """List all shifts. Users with manage_shifts see all; others see only their own."""
     query = tenant_scope.filter_shifts(db, current_user)
     
-    if current_user.role != "admin":
+    if not has_permission(current_user, Perm.MANAGE_SHIFTS):
         query = query.filter(CashierShift.cashier_id == current_user.id)
     elif cashier_id:
         query = query.filter(CashierShift.cashier_id == cashier_id)
@@ -4328,7 +4356,7 @@ async def get_shift(
     """Get a specific shift."""
     shift = tenant_scope.require_shift(db, shift_id, current_user)
     
-    if shift.cashier_id != current_user.id and current_user.role != "admin":
+    if shift.cashier_id != current_user.id and not has_permission(current_user, Perm.MANAGE_SHIFTS):
         raise HTTPException(status_code=403, detail="You can only view your own shifts")
     
     cashier = tenant_scope.get_scoped(db, User, shift.cashier_id, current_user)
@@ -4363,7 +4391,7 @@ async def get_shift_report(
     """Get detailed report for a shift."""
     shift = tenant_scope.require_shift(db, shift_id, current_user)
     
-    if shift.cashier_id != current_user.id and current_user.role != "admin":
+    if shift.cashier_id != current_user.id and not has_permission(current_user, Perm.MANAGE_SHIFTS):
         raise HTTPException(status_code=403, detail="You can only view your own shift reports")
     
     # Generate report

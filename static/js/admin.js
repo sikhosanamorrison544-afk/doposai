@@ -947,7 +947,7 @@ function renderCashiers() {
             <td style="padding:8px;">${escapeHtml(c.username)}</td>
             <td style="padding:8px;">${escapeHtml(c.full_name || '-')}</td>
             <td style="padding:8px;">
-                <span style="padding:2px 8px;border-radius:4px;background:${c.role === 'admin' ? 'rgba(239,68,68,0.3)' : 'rgba(79,70,229,0.3)'};">
+                <span style="padding:2px 8px;border-radius:4px;background:${roleBadgeStyle(c.role)};">
                     ${escapeHtml(c.role)}
                 </span>
             </td>
@@ -970,6 +970,28 @@ function renderCashiers() {
     `).join('');
 }
 
+function roleBadgeStyle(role) {
+    if (role === 'admin') return 'rgba(239,68,68,0.3)';
+    if (role === 'supervisor') return 'rgba(251,191,36,0.35)';
+    return 'rgba(79,70,229,0.3)';
+}
+
+function updateCashierRoleHint() {
+    const sel = document.getElementById('cashier-role');
+    const hint = document.getElementById('cashier-role-hint');
+    if (!sel || !hint) return;
+    hint.textContent = window.PosRoles
+        ? PosRoles.roleDescription(sel.value)
+        : '';
+}
+
+function initCashierRoleHint() {
+    const sel = document.getElementById('cashier-role');
+    if (!sel) return;
+    sel.addEventListener('change', updateCashierRoleHint);
+    updateCashierRoleHint();
+}
+
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
@@ -984,6 +1006,7 @@ function startEditCashier(id) {
     document.getElementById('cashier-fullname').value = c.full_name || '';
     document.getElementById('cashier-password').value = '';
     document.getElementById('cashier-role').value = c.role;
+    updateCashierRoleHint();
     const branchSel = document.getElementById('cashier-branch');
     if (branchSel) branchSel.value = c.branch_id != null ? String(c.branch_id) : '';
     document.getElementById('cashier-message').textContent = `Editing cashier: ${c.username}`;
@@ -995,6 +1018,7 @@ function clearCashierForm() {
     document.getElementById('cashier-fullname').value = '';
     document.getElementById('cashier-password').value = '';
     document.getElementById('cashier-role').value = 'cashier';
+    updateCashierRoleHint();
     const branchSel = document.getElementById('cashier-branch');
     if (branchSel) branchSel.value = '';
     document.getElementById('cashier-message').textContent = '';
@@ -2263,6 +2287,7 @@ function setupAdminEvents() {
     if (btnClearCashier) {
         btnClearCashier.addEventListener('click', clearCashierForm);
     }
+    initCashierRoleHint();
     
     // Product form show/hide - handle button click and text toggle
     const btnShowProductForm = document.getElementById('btn-show-product-form');

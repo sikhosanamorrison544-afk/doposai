@@ -110,11 +110,18 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
 async def get_current_admin_user(
     current_user: User = Depends(get_current_active_user),
 ) -> User:
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions",
-        )
+    from .permissions import is_admin_level, require_admin_level
+
+    require_admin_level(current_user)
+    return current_user
+
+
+async def get_current_supervisor_or_admin_user(
+    current_user: User = Depends(get_current_active_user),
+) -> User:
+    from .permissions import require_supervisor_or_above
+
+    require_supervisor_or_above(current_user)
     return current_user
 
 

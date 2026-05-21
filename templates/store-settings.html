@@ -178,6 +178,14 @@
             <div class="settings-page" id="settings-page-2" style="display:none !important;">
                 <details class="settings-section" open>
                     <summary class="settings-section-summary">👥 User Management</summary>
+                    <div class="settings-wide" style="margin-bottom:14px;padding:12px 14px;border-radius:8px;background:rgba(255,255,255,0.04);font-size:13px;line-height:1.55;">
+                        <strong>Roles</strong>
+                        <ul style="margin:8px 0 0;padding-left:18px;">
+                            <li><strong>Admin</strong> — full access (inventory, settings, users, billing, enterprise, reports).</li>
+                            <li><strong>Supervisor</strong> — withdrawals, refunds, pending collections, shifts, and reports.</li>
+                            <li><strong>Cashier</strong> — sell at POS and view stock only.</li>
+                        </ul>
+                    </div>
                     <div class="settings-wide">
                         <div class="grid-2">
                             <div>
@@ -199,6 +207,9 @@
                                     <option value="supervisor">Supervisor</option>
                                     <option value="admin">Admin</option>
                                 </select>
+                                <p id="cashier-role-hint" class="settings-hint" style="margin:6px 0 0;font-size:12px;opacity:0.8;line-height:1.45;">
+                                    Cashier — point of sale only; ring up sales and view stock.
+                                </p>
                             </div>
                             <div id="cashier-branch-wrap" style="display:none;">
                                 <label for="cashier-branch">Branch</label>
@@ -483,7 +494,9 @@
 <script src="/static/js/receipt-native.js?v=2"></script>
 <script src="/static/js/receipt.js?v=4"></script>
 <script src="/static/js/printer-web-setup.js?v=1"></script>
-<script src="/static/js/admin.js?v=3"></script>
+<script src="/static/js/plan-features.js?v=1"></script>
+<script src="/static/js/role-permissions.js?v=1"></script>
+<script src="/static/js/admin.js?v=4"></script>
 <script>
     // Switch between settings pages
     window.switchSettingsPage = function(pageNum) {

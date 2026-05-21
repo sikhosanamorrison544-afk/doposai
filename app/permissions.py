@@ -1,5 +1,5 @@
 """
-Role-based permissions for enterprise modules.
+Role-based permissions for POS and enterprise modules.
 
 Roles: admin (tenant owner), supervisor, cashier.
 Platform owner is separate (platform_routes).
@@ -7,7 +7,7 @@ Platform owner is separate (platform_routes).
 from __future__ import annotations
 
 from enum import Enum
-from typing import Set
+from typing import List, Set
 
 from fastapi import Depends, HTTPException, status
 
@@ -31,6 +31,11 @@ class Perm(str, Enum):
     MANAGE_SETTINGS = "manage_settings"
     MANAGE_ACCOUNTING = "manage_accounting"
     EXPORT_DATA = "export_data"
+    PROCESS_WITHDRAWALS = "process_withdrawals"
+    VIEW_WITHDRAWALS = "view_withdrawals"
+    APPROVE_REFUNDS = "approve_refunds"
+    MANAGE_PENDING_COLLECTION = "manage_pending_collection"
+    MANAGE_SHIFTS = "manage_shifts"
 
 
 OWNER_ROLES = frozenset({"admin", "owner"})
@@ -44,17 +49,23 @@ _ROLE_PERMS: dict[str, Set[Perm]] = {
     "supervisor": {
         Perm.SALES,
         Perm.VIEW_INVENTORY,
-        Perm.MANAGE_INVENTORY,
-        Perm.MANAGE_SUPPLIERS,
-        Perm.MANAGE_PURCHASING,
-        Perm.RECEIVE_STOCK,
+        Perm.PROCESS_WITHDRAWALS,
+        Perm.VIEW_WITHDRAWALS,
+        Perm.APPROVE_REFUNDS,
+        Perm.MANAGE_PENDING_COLLECTION,
         Perm.VIEW_REPORTS,
-        Perm.EXPORT_DATA,
+        Perm.MANAGE_SHIFTS,
     },
     "cashier": {
         Perm.SALES,
         Perm.VIEW_INVENTORY,
     },
+}
+
+ROLE_DESCRIPTIONS: dict[str, str] = {
+    "admin": "Full access — inventory, settings, users, billing, enterprise, and all reports.",
+    "supervisor": "Operational lead — process withdrawals, approve refunds, mark pending collections, and manage shifts.",
+    "cashier": "Point of sale only — ring up sales and view stock levels.",
 }
 
 
@@ -68,6 +79,10 @@ def normalize_role(role: str) -> str:
 def user_permissions(user: User) -> Set[Perm]:
     role = normalize_role(user.role)
     return _ROLE_PERMS.get(role, set())
+
+
+def permissions_as_strings(user: User) -> List[str]:
+    return sorted(p.value for p in user_permissions(user))
 
 
 def has_permission(user: User, perm: Perm) -> bool:
@@ -95,14 +110,18 @@ def is_admin_level(user: User) -> bool:
     return normalize_role(user.role) in ADMIN_ROLES
 
 
+def is_supervisor_or_above(user: User) -> bool:
+    role = normalize_role(user.role)
+    return role in ADMIN_ROLES or role in SUPERVISOR_ROLES
+
+
 def require_admin_level(user: User) -> None:
     if not is_admin_level(user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
 
 def require_supervisor_or_above(user: User) -> None:
-    role = normalize_role(user.role)
-    if role not in ADMIN_ROLES and role not in SUPERVISOR_ROLES:
+    if not is_supervisor_or_above(user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Supervisor access required")
 
 

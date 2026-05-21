@@ -495,7 +495,7 @@ async function maybeShowTrialSubscribeModal() {
     if (!modal || !backdrop) return;
     const bodyEl = document.getElementById('trial-reminder-body');
     const detailEl = document.getElementById('trial-reminder-detail');
-    const isAdmin = currentUser && currentUser.role === 'admin';
+    const isAdmin = window.PosRoles ? PosRoles.isAdmin(currentUser) : currentUser && currentUser.role === 'admin';
     if (bodyEl) {
         bodyEl.textContent = isAdmin
             ? 'Your 14-day trial includes all Pro features. Subscribe before it ends to keep access on Starter, Business, or Pro.'
@@ -545,33 +545,10 @@ async function enterPosAfterAuth(data) {
     }
 
     document.getElementById('user-info').textContent = `${currentUser.username} (${currentUser.role})`;
-    const adminBtn = document.getElementById('btn-admin');
-    const billingBtn = document.getElementById('btn-billing');
-    if (currentUser.role === 'admin') {
-        adminBtn.style.display = 'inline-block';
-        if (billingBtn) billingBtn.style.display = 'inline-block';
-    } else {
-        adminBtn.style.display = 'none';
-        if (billingBtn) billingBtn.style.display = 'none';
+    if (window.PosRoles) {
+        PosRoles.applyPosRoleGates(currentUser);
     }
-
-    const btnPendingCollection = document.getElementById('btn-pending-collection');
-    if (btnPendingCollection) {
-        if (currentUser.role === 'admin' || currentUser.role === 'supervisor') {
-            btnPendingCollection.style.display = 'inline-block';
-        } else {
-            btnPendingCollection.style.display = 'none';
-        }
-    }
-
     const btnWithdraw = document.getElementById('btn-withdraw');
-    if (btnWithdraw) {
-        if (currentUser.role === 'supervisor' || currentUser.role === 'admin') {
-            btnWithdraw.style.display = 'flex';
-        } else {
-            btnWithdraw.style.display = 'none';
-        }
-    }
 
     await loadProducts();
     if (window.posReceipt) {
@@ -600,7 +577,7 @@ async function enterPosAfterAuth(data) {
         };
     }
 
-    if (btnWithdraw && (currentUser.role === 'supervisor' || currentUser.role === 'admin')) {
+    if (btnWithdraw && window.PosRoles && PosRoles.canProcessWithdrawals(currentUser)) {
         btnWithdraw.onclick = function (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -2485,38 +2462,31 @@ async function restoreSession() {
             userInfoEl.textContent = `${currentUser.username} (${currentUser.role})`;
         }
         
-        const adminBtn = document.getElementById('btn-admin');
-        const billingBtn = document.getElementById('btn-billing');
-        if (adminBtn) {
-            if (currentUser.role === 'admin') {
-                adminBtn.style.display = 'inline-block';
-            } else {
-                adminBtn.style.display = 'none';
+        if (window.PosRoles) {
+            PosRoles.applyPosRoleGates(currentUser);
+        } else {
+            const adminBtn = document.getElementById('btn-admin');
+            const billingBtn = document.getElementById('btn-billing');
+            if (adminBtn) {
+                adminBtn.style.display = currentUser.role === 'admin' ? 'inline-block' : 'none';
+            }
+            if (billingBtn) {
+                billingBtn.style.display = currentUser.role === 'admin' ? 'inline-block' : 'none';
+            }
+            const btnPendingCollection = document.getElementById('btn-pending-collection');
+            if (btnPendingCollection) {
+                btnPendingCollection.style.display =
+                    currentUser.role === 'admin' || currentUser.role === 'supervisor'
+                        ? 'inline-block'
+                        : 'none';
+            }
+            const btnWithdrawFallback = document.getElementById('btn-withdraw');
+            if (btnWithdrawFallback) {
+                btnWithdrawFallback.style.display =
+                    currentUser.role === 'supervisor' || currentUser.role === 'admin' ? 'flex' : 'none';
             }
         }
-        if (billingBtn) {
-            billingBtn.style.display = currentUser.role === 'admin' ? 'inline-block' : 'none';
-        }
-        
-        // Show pending collection button for admin and supervisor
-        const btnPendingCollection = document.getElementById('btn-pending-collection');
-        if (btnPendingCollection) {
-            if (currentUser.role === 'admin' || currentUser.role === 'supervisor') {
-                btnPendingCollection.style.display = 'inline-block';
-            } else {
-                btnPendingCollection.style.display = 'none';
-            }
-        }
-        
-        // Show/hide withdrawal button based on role (only supervisor and admin can withdraw)
         const btnWithdraw = document.getElementById('btn-withdraw');
-        if (btnWithdraw) {
-            if (currentUser.role === 'supervisor' || currentUser.role === 'admin') {
-                btnWithdraw.style.display = 'flex';
-            } else {
-                btnWithdraw.style.display = 'none';
-            }
-        }
         
         // Load products and show POS screen
         await loadProducts();
@@ -2538,7 +2508,7 @@ async function restoreSession() {
         }
         
         // Setup withdrawal button handler (only if visible)
-        if (btnWithdraw && (currentUser.role === 'supervisor' || currentUser.role === 'admin')) {
+        if (btnWithdraw && window.PosRoles && PosRoles.canProcessWithdrawals(currentUser)) {
             btnWithdraw.onclick = function(e) {
                 e.preventDefault();
                 e.stopPropagation();
