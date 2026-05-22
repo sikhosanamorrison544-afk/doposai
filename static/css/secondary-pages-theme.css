@@ -1,0 +1,145 @@
+/**
+ * Theme styles for secondary POS pages (refunds, enterprise, billing, etc.)
+ */
+
+/* Stack content above light-theme video / 3D canvas */
+body.theme-light #app,
+body.theme-light .enterprise-wrap,
+body.theme-light .billing-wrap,
+body.theme-light .reset-page {
+    position: relative;
+    z-index: 1;
+}
+
+/* ── Refunds ─────────────────────────────────────────────────────────── */
+body.theme-light.page-refunds .refund-card,
+body.theme-light.page-refunds .refund-stat {
+    background: rgba(255, 255, 255, 0.22) !important;
+    backdrop-filter: blur(20px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.35) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1) !important;
+    color: #ffffff !important;
+}
+
+body.theme-light.page-refunds table,
+body.theme-light.page-refunds table thead,
+body.theme-light.page-refunds table th,
+body.theme-light.page-refunds table td {
+    background: transparent !important;
+    backdrop-filter: none !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    color: #ffffff !important;
+}
+
+body.theme-light.page-refunds input,
+body.theme-light.page-refunds select,
+body.theme-light.page-refunds textarea {
+    background: rgba(255, 255, 255, 0.9) !important;
+    color: #1a1a2e !important;
+    border: 1px solid rgba(0, 0, 0, 0.15) !important;
+}
+
+body.theme-classic.page-refunds .refund-card,
+body.theme-classic.page-refunds .refund-stat {
+    background: rgba(255, 255, 255, 0.92) !important;
+    border: 1px solid rgba(0, 0, 0, 0.12) !important;
+    color: #1a1a2e !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+}
+
+body.theme-classic.page-refunds table th,
+body.theme-classic.page-refunds table td {
+    color: #1a1a2e !important;
+    border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* ── Enterprise ───────────────────────────────────────────────────────── */
+body.theme-light.page-enterprise .enterprise-card {
+    background: rgba(255, 255, 255, 0.22) !important;
+    backdrop-filter: blur(20px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.35) !important;
+    color: #ffffff !important;
+}
+
+body.theme-light.page-enterprise .enterprise-tabs button {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border: 1px solid rgba(255, 255, 255, 0.35) !important;
+    color: #ffffff !important;
+}
+
+body.theme-light.page-enterprise .enterprise-tabs button.active {
+    background: rgba(34, 197, 94, 0.45) !important;
+}
+
+body.theme-light.page-enterprise table.enterprise-table th,
+body.theme-light.page-enterprise table.enterprise-table td {
+    background: transparent !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    color: #ffffff !important;
+}
+
+body.theme-light.page-enterprise h1,
+body.theme-light.page-enterprise h2,
+body.theme-light.page-enterprise a {
+    color: #ffffff !important;
+}
+
+body.theme-light.page-enterprise .enterprise-actions input,
+body.theme-light.page-enterprise .enterprise-actions select {
+    background: rgba(255, 255, 255, 0.9) !important;
+    color: #1a1a2e !important;
+}
+
+body.theme-classic.page-enterprise .enterprise-card {
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #1a1a2e !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+}
+
+body.theme-classic.page-enterprise table.enterprise-table th,
+body.theme-classic.page-enterprise table.enterprise-table td {
+    color: #1a1a2e !important;
+}
+
+/* ── Billing ─────────────────────────────────────────────────────────── */
+body.theme-light.page-billing .billing-card {
+    background: rgba(255, 255, 255, 0.28) !important;
+    backdrop-filter: blur(20px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+}
+
+body.theme-light.page-billing h1,
+body.theme-light.page-billing h2,
+body.theme-light.page-billing p,
+body.theme-light.page-billing label,
+body.theme-light.page-billing a {
+    color: #ffffff !important;
+}
+
+body.theme-light.page-billing .plan-card {
+    background: rgba(255, 255, 255, 0.85) !important;
+    color: #1a1a2e !important;
+}
+
+body.theme-light.page-billing .plan-card h3,
+body.theme-light.page-billing .plan-card .price {
+    color: #1a1a2e !important;
+}
+
+/* ── Reset password ───────────────────────────────────────────────────── */
+body.theme-light.page-reset-password .reset-card {
+    background: rgba(255, 255, 255, 0.25) !important;
+    backdrop-filter: blur(22px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(22px) saturate(180%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.35) !important;
+    color: #ffffff !important;
+}
+
+body.theme-classic.page-reset-password .reset-card {
+    background: rgba(255, 255, 255, 0.96) !important;
+    color: #1a1a2e !important;
+    border: 1px solid rgba(0, 0, 0, 0.12) !important;
+}

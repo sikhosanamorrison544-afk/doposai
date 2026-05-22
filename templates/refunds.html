@@ -4,19 +4,11 @@
     <meta charset="UTF-8">
     <title>Refund Management - {{ store_name }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script>
-        (function() {
-            'use strict';
-            try {
-                const savedTheme = localStorage.getItem('pos-theme') || 'default';
-                const validTheme = ['default', 'light', 'classic'].includes(savedTheme) ? savedTheme : 'default';
-                const themeClass = validTheme !== 'default' ? 'theme-' + validTheme : '';
-                if (themeClass) document.documentElement.className = (document.documentElement.className + ' ' + themeClass).trim();
-            } catch (e) {}
-        })();
-    </script>
+    <script src="/static/js/theme-instant.js?v=1"></script>
+    <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="/static/css/pos-android.css?v=3">
+    <link rel="stylesheet" href="/static/css/secondary-pages-theme.css?v=1">
     <style>
         main.pos-layout { overflow-y: auto !important; height: calc(100vh - 60px) !important; }
         .refund-card { background: rgba(17, 24, 39, 0.35); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
@@ -30,6 +22,11 @@
     </style>
 </head>
 <body class="page-refunds">
+<canvas id="bg3d-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none; background: transparent;"></canvas>
+<video id="light-theme-video" autoplay loop muted playsinline preload="auto" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; pointer-events: none; display: none;">
+    <source src="/static/background-web.mp4" type="video/mp4">
+</video>
+<script src="/static/js/light-theme-video.js?v=3"></script>
 <div id="app" class="screen active">
     <header class="top-bar">
         <span id="refunds-user-info"></span>
@@ -142,6 +139,8 @@
         </section>
     </main>
 </div>
+<script src="/static/js/theme-sync.js?v=1"></script>
+<script src="/static/js/background3d.js?v=5"></script>
 <script src="/static/js/role-permissions.js?v=1"></script>
 <script src="/static/js/refunds.js?v=2"></script>
 <script src="/static/js/store-branding.js?v=1"></script>
