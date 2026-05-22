@@ -19,6 +19,10 @@ from .http_rate_limit import rate_limit_hit as _rate_limit
 from .models import StoreSettings, User
 from .quotation_models import Tenant
 from .saas_models import RefreshToken
+from .billing import service as billing_service
+from .billing.features import resolve_effective_plan
+from .billing.models import Subscription
+from .billing.plans import VALID_PLANS
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +102,13 @@ class PlatformTenantRow(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     subscription_status: str
+    billing_status: Optional[str] = None
+    plan: Optional[str] = None
+    effective_plan: Optional[str] = None
+    billing_cycle: Optional[str] = None
     trial_ends_at: Optional[datetime] = None
+    subscription_end: Optional[datetime] = None
+    access_allowed: bool = True
     is_active: bool
     created_at: datetime
     user_count: int
@@ -138,6 +148,25 @@ def list_all_tenants(
             .first()
         )
         store_display = ss[0] if ss else None
+        sub = db.query(Subscription).filter(Subscription.tenant_id == t.id).first()
+        if sub is None:
+            eff_status = t.subscription_status or "trial"
+            access_allowed = eff_status not in ("suspended", "expired", "trial_expired")
+            eff_plan = "pro" if eff_status == "trial" else "starter"
+            billing_st = eff_status
+            plan_name = None
+            cycle = None
+            trial_end = t.trial_ends_at
+            sub_end = None
+        else:
+            eff_status, access_allowed, _ = billing_service.effective_status(sub, t, db=db)
+            complimentary = is_platform_owner_tenant(db, t)
+            eff_plan = resolve_effective_plan(sub, force_pro=complimentary)
+            billing_st = sub.status
+            plan_name = sub.plan
+            cycle = sub.billing_cycle
+            trial_end = sub.trial_end or t.trial_ends_at
+            sub_end = sub.subscription_end
         rows.append(
             PlatformTenantRow(
                 id=t.id,
@@ -146,8 +175,14 @@ def list_all_tenants(
                 owner_name=t.owner_name,
                 phone=t.phone,
                 email=t.email,
-                subscription_status=t.subscription_status or "trial",
-                trial_ends_at=t.trial_ends_at,
+                subscription_status=t.subscription_status or eff_status or "trial",
+                billing_status=billing_st,
+                plan=plan_name,
+                effective_plan=eff_plan,
+                billing_cycle=cycle,
+                trial_ends_at=trial_end,
+                subscription_end=sub_end,
+                access_allowed=access_allowed,
                 is_active=bool(t.is_active),
                 created_at=t.created_at,
                 user_count=int(user_count),
@@ -285,3 +320,95 @@ def admin_reset_user_password(
         "email": target.email,
         "refresh_tokens_revoked": revoked,
     }
+
+
+class PlatformGrantSubscriptionBody(BaseModel):
+    plan: str = Field(..., description="starter, business, or pro")
+    billing_cycle: str = Field(default="monthly", description="monthly or yearly")
+    duration_days: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=3650,
+        description="For active grants; default 30 (monthly) or 365 (yearly)",
+    )
+    grant_mode: str = Field(
+        default="active",
+        description="active = paid access, trial = trial with Pro-level features",
+    )
+    trial_days: int = Field(default=14, ge=1, le=365)
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+class PlatformRevokeSubscriptionBody(BaseModel):
+    reason: Optional[str] = Field(default=None, max_length=500)
+
+
+def _require_tenant(db: Session, tenant_id: int) -> Tenant:
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Business not found")
+    return tenant
+
+
+@router.post("/tenants/{tenant_id}/subscription/grant")
+def platform_grant_tenant_subscription(
+    tenant_id: int,
+    body: PlatformGrantSubscriptionBody,
+    db: Session = Depends(get_db),
+    operator: User = Depends(require_platform_owner),
+):
+    """Manually grant or extend subscription for any tenant (no Paynow)."""
+    tenant = _require_tenant(db, tenant_id)
+    plan = body.plan.strip().lower()
+    if plan not in VALID_PLANS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"plan must be one of: {', '.join(VALID_PLANS)}",
+        )
+    try:
+        payload = billing_service.platform_grant_subscription(
+            db,
+            tenant,
+            plan=plan,
+            billing_cycle=body.billing_cycle,
+            duration_days=body.duration_days,
+            grant_mode=body.grant_mode,
+            trial_days=body.trial_days,
+            operator_username=operator.username,
+            note=body.note,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    logger.warning(
+        "PLATFORM GRANT: operator=%s tenant_id=%s plan=%s mode=%s",
+        operator.username,
+        tenant_id,
+        plan,
+        body.grant_mode,
+    )
+    return {"ok": True, "subscription": payload}
+
+
+@router.post("/tenants/{tenant_id}/subscription/revoke")
+def platform_revoke_tenant_subscription(
+    tenant_id: int,
+    body: PlatformRevokeSubscriptionBody = PlatformRevokeSubscriptionBody(),
+    db: Session = Depends(get_db),
+    operator: User = Depends(require_platform_owner),
+):
+    """Suspend tenant subscription (revoke access until re-granted)."""
+    tenant = _require_tenant(db, tenant_id)
+    payload = billing_service.platform_revoke_subscription(
+        db,
+        tenant,
+        operator_username=operator.username,
+        reason=body.reason,
+    )
+    logger.warning(
+        "PLATFORM REVOKE: operator=%s tenant_id=%s reason=%s",
+        operator.username,
+        tenant_id,
+        body.reason or "",
+    )
+    return {"ok": True, "subscription": payload}

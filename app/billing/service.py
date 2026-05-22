@@ -58,6 +58,8 @@ def _maybe_apply_platform_owner_complimentary(
 
     if not is_platform_owner_tenant(db, tenant):
         return False
+    if sub.status == "suspended":
+        return False
     now = datetime.utcnow()
     sub.plan = "pro"
     sub.status = "active"
@@ -539,3 +541,83 @@ def billing_history(db: Session, tenant_id: int, limit: int = 50) -> Dict[str, A
             for e in logs
         ],
     }
+
+
+def platform_grant_subscription(
+    db: Session,
+    tenant: Tenant,
+    *,
+    plan: str,
+    billing_cycle: str = "monthly",
+    duration_days: Optional[int] = None,
+    grant_mode: str = "active",
+    trial_days: int = TRIAL_DAYS_DEFAULT,
+    operator_username: str = "platform",
+    note: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Platform owner: manually activate a paid plan or extend trial (no Paynow)."""
+    plan = (plan or "starter").lower()
+    if plan not in VALID_PLANS:
+        raise ValueError(f"Invalid plan. Choose one of: {', '.join(VALID_PLANS)}")
+    cycle = (billing_cycle or "monthly").lower()
+    if cycle not in ("monthly", "yearly"):
+        raise ValueError("billing_cycle must be monthly or yearly")
+    mode = (grant_mode or "active").lower()
+    if mode not in ("active", "trial"):
+        raise ValueError("grant_mode must be active or trial")
+
+    sub = get_or_create_subscription(db, tenant)
+    now = datetime.utcnow()
+    sub.plan = plan
+    sub.billing_cycle = cycle
+
+    if mode == "trial":
+        days = max(1, min(int(trial_days), 365))
+        sub.status = "trial"
+        sub.trial_start = now
+        sub.trial_end = now + timedelta(days=days)
+        tenant.subscription_status = "trial"
+        tenant.trial_ends_at = sub.trial_end
+        desc = note or f"Platform grant: {days}-day trial ({plan}) by {operator_username}"
+        _log(db, tenant.id, "platform_grant_trial", desc)
+    else:
+        if duration_days is not None:
+            days = max(1, min(int(duration_days), 3650))
+        else:
+            days = 365 if cycle == "yearly" else 30
+        sub.status = "active"
+        sub.subscription_start = now
+        sub.subscription_end = now + timedelta(days=days)
+        sub.trial_end = None
+        tenant.subscription_status = "active"
+        tenant.trial_ends_at = None
+        desc = note or (
+            f"Platform grant: {plan}/{cycle} for {days} days by {operator_username}"
+        )
+        _log(db, tenant.id, "platform_grant_subscription", desc)
+
+    _sync_tenant_and_firestore(db, tenant, sub, payment_verified=(mode == "active"))
+    db.commit()
+    db.refresh(sub)
+    return subscription_status_payload(db, tenant)
+
+
+def platform_revoke_subscription(
+    db: Session,
+    tenant: Tenant,
+    *,
+    operator_username: str = "platform",
+    reason: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Platform owner: suspend tenant access (blocks POS until re-granted)."""
+    sub = get_or_create_subscription(db, tenant)
+    now = datetime.utcnow()
+    sub.status = "suspended"
+    sub.subscription_end = now - timedelta(seconds=1)
+    tenant.subscription_status = "suspended"
+    desc = reason or f"Subscription revoked by platform owner ({operator_username})"
+    _log(db, tenant.id, "platform_revoke_subscription", desc)
+    _sync_tenant_and_firestore(db, tenant, sub)
+    db.commit()
+    db.refresh(sub)
+    return subscription_status_payload(db, tenant)

@@ -278,7 +278,7 @@
 
         .platform-table {
             width: 100%;
-            min-width: 1320px;
+            min-width: 1480px;
             border-collapse: collapse;
             font-size: 13px;
             table-layout: auto;
@@ -321,7 +321,47 @@
         .platform-table .col-date { white-space: nowrap; font-size: 12px; color: rgba(26, 26, 26, 0.75); min-width: 110px; }
         .platform-table .col-actions {
             text-align: center;
-            min-width: 150px;
+            min-width: 220px;
+            white-space: nowrap;
+            vertical-align: top;
+        }
+
+        .row-actions-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 6px;
+            min-width: 200px;
+        }
+
+        .row-action-btn--muted {
+            background: #4b5563 !important;
+        }
+        .row-action-btn--muted:hover:not(:disabled) { background: #374151 !important; }
+
+        .row-action-btn--danger {
+            background: #fff !important;
+            color: #b91c1c !important;
+            border: 1px solid #b91c1c !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+        }
+        .row-action-btn--danger:hover:not(:disabled) {
+            background: #fef2f2 !important;
+            color: #991b1b !important;
+        }
+
+        html.theme-light .platform-shell .row-action-btn--danger,
+        html.theme-light .platform-shell .row-action-btn--danger:hover:not(:disabled) {
+            background: #ffffff !important;
+            color: #b91c1c !important;
+            border: 1px solid #b91c1c !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+        }
+
+        .platform-table .col-plan {
+            min-width: 100px;
+            font-size: 12px;
             white-space: nowrap;
         }
 
@@ -651,7 +691,7 @@
         <div class="platform-hero">
             <div class="platform-hero__text">
                 <h1>All businesses</h1>
-                <p>Every registered tenant on this platform. Use this page for support — sign-in emails and admin logins are listed per row.</p>
+                <p>Every registered tenant on this platform. Grant or revoke subscriptions, reset passwords, and view plan details.</p>
             </div>
             <div class="platform-hero__actions">
                 <button type="button" id="platform-refresh-btn" class="platform-btn platform-btn--secondary">Refresh list</button>
@@ -689,7 +729,8 @@
                         <th class="col-owner">Owner</th>
                         <th class="col-contact">Contact</th>
                         <th>Status</th>
-                        <th class="col-date">Trial ends</th>
+                        <th class="col-plan">Plan</th>
+                        <th class="col-date">Trial / ends</th>
                         <th class="col-num">Users</th>
                         <th class="col-admins">Admin logins</th>
                         <th class="col-actions">Actions</th>
@@ -731,7 +772,46 @@
     </div>
 </div>
 
-<script src="/static/js/platform-tenants.js?v=3"></script>
+<div id="grant-sub-modal-backdrop" class="reset-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="grant-sub-modal-title">
+    <div class="reset-modal">
+        <h2 id="grant-sub-modal-title">Grant subscription</h2>
+        <p class="ctx">Business: <strong id="grant-sub-modal-business"></strong></p>
+
+        <label for="grant-sub-mode">Access type</label>
+        <select id="grant-sub-mode">
+            <option value="active">Active subscription (paid access)</option>
+            <option value="trial">Trial (all Pro features for trial period)</option>
+        </select>
+
+        <label for="grant-sub-plan">Plan</label>
+        <select id="grant-sub-plan">
+            <option value="starter">Starter</option>
+            <option value="business">Business</option>
+            <option value="pro" selected>Pro</option>
+        </select>
+
+        <label for="grant-sub-cycle">Billing cycle (record-keeping)</label>
+        <select id="grant-sub-cycle">
+            <option value="monthly" selected>Monthly</option>
+            <option value="yearly">Yearly</option>
+        </select>
+
+        <label for="grant-sub-days" id="grant-sub-days-label">Duration (days)</label>
+        <input type="number" id="grant-sub-days" min="1" max="3650" value="30">
+
+        <label for="grant-sub-note">Note (optional)</label>
+        <input type="text" id="grant-sub-note" placeholder="e.g. Support comp, partner store">
+
+        <div class="modal-msg" id="grant-sub-modal-msg" role="status" aria-live="polite"></div>
+
+        <div class="actions">
+            <button type="button" class="cancel" id="grant-sub-modal-cancel">Cancel</button>
+            <button type="button" class="confirm" id="grant-sub-modal-confirm" style="background:#15803d;">Grant access</button>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/platform-tenants.js?v=4"></script>
 <script src="/static/js/store-branding.js?v=1"></script>
 </body>
 </html>

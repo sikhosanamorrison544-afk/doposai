@@ -90,6 +90,188 @@
             .filter((u) => u && u !== '—');
     }
 
+    function renderPlanCell(r) {
+        const plan = (r.effective_plan || r.plan || '—').toString();
+        const label = plan.charAt(0).toUpperCase() + plan.slice(1);
+        const cycle = r.billing_cycle ? ' · ' + escapeHtml(r.billing_cycle) : '';
+        const blocked = r.access_allowed === false ? '<br><span style="font-size:11px;color:#b91c1c;">No access</span>' : '';
+        return '<span class="pt-badge pt-badge--other">' + escapeHtml(label) + '</span>' + cycle + blocked;
+    }
+
+    function renderEndsCell(r) {
+        if (r.subscription_end) {
+            return '<span style="font-size:12px;">Paid until<br>' + formatDate(r.subscription_end) + '</span>';
+        }
+        return formatDate(r.trial_ends_at);
+    }
+
+    function renderActionsCell(r) {
+        const hasAdmins = parseAdminUsernames(r.admin_usernames).length > 0;
+        const resetBtn = hasAdmins
+            ? '<button type="button" class="row-action-btn row-action-btn--muted js-reset-pw" data-tenant-id="' +
+              escapeHtml(String(r.id)) + '">Reset password</button>'
+            : '<button type="button" class="row-action-btn" disabled title="No admin login">Reset password</button>';
+        return (
+            '<div class="row-actions-stack">' +
+            '<button type="button" class="row-action-btn js-grant-sub" data-tenant-id="' +
+            escapeHtml(String(r.id)) + '">Grant subscription</button>' +
+            '<button type="button" class="row-action-btn row-action-btn--danger js-revoke-sub" data-tenant-id="' +
+            escapeHtml(String(r.id)) + '">Revoke access</button>' +
+            resetBtn +
+            '</div>'
+        );
+    }
+
+    // ── Grant subscription modal ─────────────────────────────────────────
+    function getGrantModal() {
+        return {
+            backdrop: document.getElementById('grant-sub-modal-backdrop'),
+            business: document.getElementById('grant-sub-modal-business'),
+            mode: document.getElementById('grant-sub-mode'),
+            plan: document.getElementById('grant-sub-plan'),
+            cycle: document.getElementById('grant-sub-cycle'),
+            days: document.getElementById('grant-sub-days'),
+            daysLabel: document.getElementById('grant-sub-days-label'),
+            note: document.getElementById('grant-sub-note'),
+            msg: document.getElementById('grant-sub-modal-msg'),
+            confirmBtn: document.getElementById('grant-sub-modal-confirm'),
+            cancelBtn: document.getElementById('grant-sub-modal-cancel'),
+        };
+    }
+
+    function setGrantModalMessage(text, kind) {
+        const m = getGrantModal();
+        if (!m.msg) return;
+        m.msg.textContent = text || '';
+        m.msg.classList.remove('error', 'success');
+        if (kind) m.msg.classList.add(kind);
+    }
+
+    function syncGrantDaysField() {
+        const m = getGrantModal();
+        if (!m.mode || !m.days || !m.daysLabel) return;
+        const isTrial = m.mode.value === 'trial';
+        m.daysLabel.textContent = isTrial ? 'Trial length (days)' : 'Duration (days)';
+        m.days.max = isTrial ? '365' : '3650';
+        m.days.value = isTrial ? '14' : m.cycle && m.cycle.value === 'yearly' ? '365' : '30';
+        if (m.cycle) m.cycle.disabled = isTrial;
+    }
+
+    function closeGrantModal() {
+        const m = getGrantModal();
+        if (!m.backdrop) return;
+        m.backdrop.classList.remove('visible');
+        setGrantModalMessage('');
+    }
+
+    function openGrantModal(row) {
+        const m = getGrantModal();
+        if (!m.backdrop) return;
+        if (m.business) m.business.textContent = row.business_name || '—';
+        if (m.plan) m.plan.value = row.effective_plan || row.plan || 'pro';
+        if (m.mode) m.mode.value = (row.billing_status || row.subscription_status) === 'trial' ? 'trial' : 'active';
+        syncGrantDaysField();
+        if (m.note) m.note.value = '';
+        setGrantModalMessage('');
+        m.backdrop.classList.add('visible');
+        if (m.plan) m.plan.focus();
+    }
+
+    async function submitGrantModal() {
+        const m = getGrantModal();
+        const tenantId = m.backdrop && m.backdrop.dataset.tenantId;
+        if (!tenantId) return;
+        const body = {
+            plan: m.plan ? m.plan.value : 'pro',
+            billing_cycle: m.cycle ? m.cycle.value : 'monthly',
+            grant_mode: m.mode ? m.mode.value : 'active',
+            trial_days: m.days ? parseInt(m.days.value, 10) || 14 : 14,
+            duration_days: m.days ? parseInt(m.days.value, 10) || 30 : 30,
+            note: m.note && m.note.value.trim() ? m.note.value.trim() : null,
+        };
+        if (m.confirmBtn) m.confirmBtn.disabled = true;
+        setGrantModalMessage('Saving…', '');
+        try {
+            await platformFetchJson('/api/platform/tenants/' + tenantId + '/subscription/grant', {
+                method: 'POST',
+                body: body,
+            });
+            setGrantModalMessage('Subscription updated.', 'success');
+            closeGrantModal();
+            await loadTenants();
+        } catch (e) {
+            setGrantModalMessage(e.message || 'Grant failed', 'error');
+        } finally {
+            if (m.confirmBtn) m.confirmBtn.disabled = false;
+        }
+    }
+
+    async function revokeSubscription(row) {
+        const name = row.business_name || 'this business';
+        if (
+            !confirm(
+                'Revoke subscription for “' +
+                    name +
+                    '”? They will lose access until you grant again.',
+            )
+        ) {
+            return;
+        }
+        try {
+            await platformFetchJson('/api/platform/tenants/' + row.id + '/subscription/revoke', {
+                method: 'POST',
+                body: { reason: 'Revoked from platform tenants page' },
+            });
+            await loadTenants();
+        } catch (e) {
+            alert(e.message || 'Revoke failed');
+        }
+    }
+
+    function wireGrantModal() {
+        const m = getGrantModal();
+        if (!m.backdrop) return;
+        if (m.cancelBtn) m.cancelBtn.addEventListener('click', closeGrantModal);
+        if (m.confirmBtn) m.confirmBtn.addEventListener('click', submitGrantModal);
+        if (m.mode) m.mode.addEventListener('change', syncGrantDaysField);
+        if (m.cycle) m.cycle.addEventListener('change', syncGrantDaysField);
+        m.backdrop.addEventListener('click', (e) => {
+            if (e.target === m.backdrop) closeGrantModal();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && m.backdrop.classList.contains('visible')) {
+                closeGrantModal();
+            }
+        });
+    }
+
+    function wireTenantActionButtons(body) {
+        body.querySelectorAll('button.js-grant-sub').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const id = btn.getAttribute('data-tenant-id');
+                const row = _tenantsById.get(id);
+                if (!row) return;
+                const m = getGrantModal();
+                if (m.backdrop) m.backdrop.dataset.tenantId = id;
+                openGrantModal(row);
+            });
+        });
+        body.querySelectorAll('button.js-revoke-sub').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const id = btn.getAttribute('data-tenant-id');
+                const row = _tenantsById.get(id);
+                if (row) revokeSubscription(row);
+            });
+        });
+        body.querySelectorAll('button.js-reset-pw').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const id = btn.getAttribute('data-tenant-id');
+                const row = _tenantsById.get(id);
+                if (row) openResetModal(row);
+            });
+        });
+    }
+
     // ── Reset-password modal ──────────────────────────────────────────────
     function getResetModal() {
         return {
@@ -251,7 +433,8 @@
         const s = (status || '').toLowerCase();
         if (s === 'trial') return 'pt-badge--trial';
         if (s === 'active' || s === 'paid') return 'pt-badge--active';
-        if (s.includes('expired') || s === 'suspended' || s === 'canceled') return 'pt-badge--expired';
+        if (s === 'suspended') return 'pt-badge--expired';
+        if (s.includes('expired') || s === 'canceled') return 'pt-badge--expired';
         return 'pt-badge--other';
     }
 
@@ -323,7 +506,7 @@
 
             if (!Array.isArray(rows) || rows.length === 0) {
                 body.innerHTML =
-                    '<tr><td colspan="8">' +
+                    '<tr><td colspan="9">' +
                     '<div class="platform-empty">' +
                     '<strong>No businesses registered yet</strong>' +
                     'When a store signs up on this platform, it will appear here.' +
@@ -336,34 +519,24 @@
             body.innerHTML = rows
                 .map((r) => {
                     const contact = [r.email, r.phone].filter(Boolean).join(' · ') || '—';
-                    const hasAdmins = parseAdminUsernames(r.admin_usernames).length > 0;
-                    const actionBtn = hasAdmins
-                        ? '<button type="button" class="row-action-btn js-reset-pw" data-tenant-id="' +
-                          escapeHtml(String(r.id)) + '">Reset password</button>'
-                        : '<button type="button" class="row-action-btn" disabled title="No admin login on file">Reset password</button>';
                     return (
                         '<tr>' +
                         '<td class="col-business">' + renderBusinessCell(r) + '</td>' +
                         '<td class="col-owner">' + (escapeHtml(r.owner_name) || '—') + '</td>' +
                         '<td class="col-contact">' + escapeHtml(contact) + '</td>' +
                         '<td>' + renderStatusCell(r) + '</td>' +
-                        '<td class="col-date">' + formatDate(r.trial_ends_at) + '</td>' +
+                        '<td class="col-plan">' + renderPlanCell(r) + '</td>' +
+                        '<td class="col-date">' + renderEndsCell(r) + '</td>' +
                         '<td class="col-num">' + escapeHtml(String(r.user_count)) + '</td>' +
                         '<td class="col-admins">' + escapeHtml(r.admin_usernames) + '</td>' +
-                        '<td class="col-actions">' + actionBtn + '</td>' +
+                        '<td class="col-actions">' + renderActionsCell(r) + '</td>' +
                         '</tr>'
                     );
                 })
                 .join('');
             tableWrap.style.display = 'block';
 
-            body.querySelectorAll('button.js-reset-pw').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    const id = btn.getAttribute('data-tenant-id');
-                    const row = _tenantsById.get(id);
-                    if (row) openResetModal(row);
-                });
-            });
+            wireTenantActionButtons(body);
         } catch (e) {
             loadingEl.style.display = 'none';
             updateStats([]);
@@ -402,6 +575,7 @@
         }
 
         wireResetModal();
+        wireGrantModal();
 
         const refreshBtn = document.getElementById('platform-refresh-btn');
         if (refreshBtn) {
