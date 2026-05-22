@@ -1958,16 +1958,37 @@ function hideImportModal() {
     clearAndroidPendingImport();
 }
 
-function parseApiErrorText(text) {
-    if (!text) return 'Request failed';
+function parseApiErrorText(text, status) {
+    if (!text) {
+        if (status === 502 || status === 504) {
+            return (
+                'Server timed out while importing (file may be too large). ' +
+                'Try a smaller CSV or import in batches.'
+            );
+        }
+        return 'Request failed';
+    }
+    const trimmed = String(text).trim();
+    if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html')) {
+        if (status === 502 || status === 504) {
+            return (
+                'Server timed out while importing (file may be too large). ' +
+                'Try a smaller CSV or import in batches.'
+            );
+        }
+        if (status === 413) {
+            return 'File is too large for the server. Split into smaller CSV files.';
+        }
+        return 'Server error (' + (status || '?') + '). Try again or use a smaller file.';
+    }
     try {
-        const j = JSON.parse(text);
+        const j = JSON.parse(trimmed);
         if (typeof j.detail === 'string') return j.detail;
         if (Array.isArray(j.detail) && j.detail.length > 0) {
             return j.detail.map((d) => d.msg || JSON.stringify(d)).join('; ');
         }
     } catch (_) {}
-    return text.length > 400 ? text.slice(0, 400) + '…' : text;
+    return trimmed.length > 400 ? trimmed.slice(0, 400) + '…' : trimmed;
 }
 
 function getImportAuthToken() {
@@ -2213,7 +2234,7 @@ async function uploadInventoryCsvFile(file, options) {
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(parseApiErrorText(errorText));
+            throw new Error(parseApiErrorText(errorText, response.status));
         }
 
         const result = await response.json();

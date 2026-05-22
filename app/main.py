@@ -940,7 +940,17 @@ async def import_inventory(
     
     if not products_data:
         raise HTTPException(status_code=400, detail="No products found in file")
-    
+
+    max_import_rows = int(os.environ.get("MAX_IMPORT_ROWS", "8000"))
+    if len(products_data) > max_import_rows:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"File has {len(products_data)} product rows; maximum is {max_import_rows}. "
+                "Split the file into smaller CSVs and import each one."
+            ),
+        )
+
     from .inventory_import import import_products_into_db
 
     result = import_products_into_db(
