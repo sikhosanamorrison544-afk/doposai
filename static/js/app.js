@@ -2471,25 +2471,28 @@ async function restoreSession() {
     }
     
     try {
-        // Validate token by making a test API call
-        const response = await fetch('/api/products', {
+        // Validate token (lightweight — works for all roles)
+        const response = await fetch('/api/auth/me', {
             headers: {
-                'Authorization': 'Bearer ' + savedToken
-            }
+                Authorization: 'Bearer ' + savedToken,
+            },
         });
-        
+
         if (!response.ok) {
-            // Token is invalid or expired
-            console.warn('Token validation failed - clearing session');
+            console.warn('Session expired or invalid — clearing saved login');
             localStorage.removeItem('pos_token');
             localStorage.removeItem('pos_user');
             showScreen('login-screen');
             return false;
         }
-        
-        // Token is valid - restore session
+
+        const me = await response.json();
         token = savedToken;
-        currentUser = JSON.parse(savedUser);
+        currentUser = {
+            username: me.username || JSON.parse(savedUser).username,
+            role: me.role || JSON.parse(savedUser).role,
+        };
+        localStorage.setItem('pos_user', JSON.stringify(currentUser));
         
         // Update UI
         const userInfoEl = document.getElementById('user-info');
@@ -2565,13 +2568,11 @@ async function restoreSession() {
 
 // Initialize notifications on page load
 document.addEventListener('DOMContentLoaded', async function() {
-    // Always show login screen first - don't auto-restore session
-    // Users must manually log in each time
-    showScreen('login-screen');
-    
-    // Commented out automatic session restoration - always show login first
-    // const sessionRestored = await restoreSession();
-    
+    const sessionRestored = await restoreSession();
+    if (!sessionRestored) {
+        showScreen('login-screen');
+    }
+
     const btnNotifications = document.getElementById('btn-notifications');
     const btnCloseNotifications = document.getElementById('btn-close-notifications');
     const btnMarkAllRead = document.getElementById('btn-mark-all-read');
@@ -2601,13 +2602,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
     }
     
-    // Load notifications on page load if user is logged in (has token)
-    // Check for token directly since session restoration is disabled
-    if (localStorage.getItem('pos_token')) {
+    if (sessionRestored) {
         loadNotifications();
         updateNotificationBadge();
-        
-        // Poll for new notifications every 30 seconds
         notificationCheckInterval = setInterval(() => {
             updateNotificationBadge();
         }, 30000);
