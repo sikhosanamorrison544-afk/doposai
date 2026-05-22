@@ -106,19 +106,22 @@
     }
 
     function renderActionsCell(r) {
+        const tid = escapeHtml(String(r.id));
         const hasAdmins = parseAdminUsernames(r.admin_usernames).length > 0;
         const resetBtn = hasAdmins
-            ? '<button type="button" class="row-action-btn row-action-btn--muted js-reset-pw" data-tenant-id="' +
-              escapeHtml(String(r.id)) + '">Reset password</button>'
-            : '<button type="button" class="row-action-btn" disabled title="No admin login">Reset password</button>';
+            ? '<button type="button" class="pt-actions-item pt-actions-item--muted js-reset-pw" data-tenant-id="' +
+              tid + '">Reset password</button>'
+            : '<button type="button" class="pt-actions-item" disabled title="No admin login">Reset password</button>';
         return (
-            '<div class="row-actions-stack">' +
-            '<button type="button" class="row-action-btn js-grant-sub" data-tenant-id="' +
-            escapeHtml(String(r.id)) + '">Grant subscription</button>' +
-            '<button type="button" class="row-action-btn row-action-btn--danger js-revoke-sub" data-tenant-id="' +
-            escapeHtml(String(r.id)) + '">Revoke access</button>' +
+            '<details class="pt-actions-menu">' +
+            '<summary class="pt-actions-trigger">Actions</summary>' +
+            '<div class="pt-actions-panel">' +
+            '<button type="button" class="pt-actions-item js-grant-sub" data-tenant-id="' +
+            tid + '">Grant subscription</button>' +
+            '<button type="button" class="pt-actions-item pt-actions-item--danger js-revoke-sub" data-tenant-id="' +
+            tid + '">Revoke access</button>' +
             resetBtn +
-            '</div>'
+            '</div></details>'
         );
     }
 
@@ -245,9 +248,39 @@
         });
     }
 
+    let _actionsMenuOutsideListener = false;
+
+    function closeAllActionsMenus(body) {
+        body.querySelectorAll('.pt-actions-menu[open]').forEach((menu) => menu.removeAttribute('open'));
+    }
+
     function wireTenantActionButtons(body) {
+        if (!_actionsMenuOutsideListener) {
+            _actionsMenuOutsideListener = true;
+            document.addEventListener(
+                'click',
+                (e) => {
+                    const tbody = document.getElementById('platform-tenants-body');
+                    if (!tbody || e.target.closest('.pt-actions-menu')) return;
+                    closeAllActionsMenus(tbody);
+                },
+                true
+            );
+        }
+
+        body.querySelectorAll('.pt-actions-menu').forEach((menu) => {
+            menu.addEventListener('toggle', () => {
+                if (!menu.open) return;
+                body.querySelectorAll('.pt-actions-menu[open]').forEach((other) => {
+                    if (other !== menu) other.removeAttribute('open');
+                });
+            });
+        });
+
         body.querySelectorAll('button.js-grant-sub').forEach((btn) => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                closeAllActionsMenus(body);
                 const id = btn.getAttribute('data-tenant-id');
                 const row = _tenantsById.get(id);
                 if (!row) return;
@@ -257,14 +290,18 @@
             });
         });
         body.querySelectorAll('button.js-revoke-sub').forEach((btn) => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                closeAllActionsMenus(body);
                 const id = btn.getAttribute('data-tenant-id');
                 const row = _tenantsById.get(id);
                 if (row) revokeSubscription(row);
             });
         });
         body.querySelectorAll('button.js-reset-pw').forEach((btn) => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                closeAllActionsMenus(body);
                 const id = btn.getAttribute('data-tenant-id');
                 const row = _tenantsById.get(id);
                 if (row) openResetModal(row);
