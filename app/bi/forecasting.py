@@ -9,8 +9,8 @@ from typing import Any, Dict, List
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ... import tenant_scope
-from ...models import Product, Sale, SaleItem, User
+from .. import tenant_scope
+from ..models import Product, Sale, SaleItem, User
 
 
 def build_forecasts(
