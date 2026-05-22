@@ -1,0 +1,13 @@
+# Optional overlay for VPS without NVIDIA GPU (slow — testing wiring only).
+# Usage: docker compose -f docker-compose.yml -f docker-compose.cpu.yml up -d --build
+
+services:
+  vllm:
+    deploy: {}
+    command: >
+      --model ${VLLM_MODEL:-Qwen/Qwen2.5-1.5B-Instruct}
+      --host 0.0.0.0
+      --port 8000
+      --max-model-len 4096
+      --dtype auto
+      --device cpu

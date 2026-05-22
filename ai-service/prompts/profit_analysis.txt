@@ -1,0 +1,9 @@
+Analyze PROFITABILITY for this tenant using the analytics JSON.
+
+Answer:
+- Gross margin and profit trends (gross_margin_percent, profit_change_percent)
+- Highest and lowest margin products
+- Cost/expense pressure (operating_expenses_withdrawals)
+- Opportunities to improve profitability
+
+Return JSON: summary, insights, risks, recommendations, action_plan.

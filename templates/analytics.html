@@ -343,6 +343,55 @@
         .analytics-header h1 {
             color: #1a1a1a !important;
         }
+        .bi-health-section {
+            margin: 24px 0;
+            padding: 20px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .bi-scores-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+        }
+        .bi-score-card {
+            padding: 14px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.08);
+            position: relative;
+        }
+        .bi-score-card h4 {
+            margin: 8px 0 4px;
+            font-size: 13px;
+            color: #1a1a1a !important;
+        }
+        .bi-score-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1a1a1a !important;
+        }
+        .bi-score-dot {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #94a3b8;
+        }
+        .bi-score-dot.green { background: #10b981; }
+        .bi-score-dot.yellow { background: #f59e0b; }
+        .bi-score-dot.red { background: #ef4444; }
+        .bi-advisor-output {
+            padding: 16px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.05);
+            font-size: 14px;
+            line-height: 1.5;
+            color: #1a1a1a !important;
+        }
+        .bi-advisor-output h3 { margin: 12px 0 6px; font-size: 15px; }
+        .bi-advisor-output ul { margin: 4px 0 12px 18px; }
+
         /* AI Insights Panel - Full Width Content with Even Spacing */
         #ai-insights-panel,
         #ai-insights-panel.floating-panel,
@@ -665,6 +714,41 @@
                 </div>
             </div>
 
+            <!-- DoposAI Business Intelligence health scores -->
+            <div class="bi-health-section" id="bi-health-section" style="display:none;">
+                <h2 style="margin:0 0 12px 0;color:#1a1a1a;">DoposAI Business Advisor</h2>
+                <p id="bi-status-line" style="margin:0 0 16px;font-size:14px;color:#64748b;">Loading health scores…</p>
+                <div class="bi-scores-grid" id="bi-scores-grid">
+                    <div class="bi-score-card" data-metric="business_health">
+                        <span class="bi-score-dot" id="bi-dot-business"></span>
+                        <h4>Business Health</h4>
+                        <div class="bi-score-value" id="bi-val-business">—</div>
+                    </div>
+                    <div class="bi-score-card" data-metric="sales_trend">
+                        <span class="bi-score-dot" id="bi-dot-sales"></span>
+                        <h4>Sales Trend</h4>
+                        <div class="bi-score-value" id="bi-val-sales">—</div>
+                    </div>
+                    <div class="bi-score-card" data-metric="inventory_risk">
+                        <span class="bi-score-dot" id="bi-dot-inventory"></span>
+                        <h4>Inventory Risk</h4>
+                        <div class="bi-score-value" id="bi-val-inventory">—</div>
+                    </div>
+                    <div class="bi-score-card" data-metric="profitability">
+                        <span class="bi-score-dot" id="bi-dot-profit"></span>
+                        <h4>Profitability</h4>
+                        <div class="bi-score-value" id="bi-val-profit">—</div>
+                    </div>
+                </div>
+                <div class="bi-actions" style="margin-top:16px;display:flex;flex-wrap:wrap;gap:8px;">
+                    <button type="button" class="primary small" id="btn-bi-insights">Full insights</button>
+                    <button type="button" class="small" id="btn-bi-sales">Sales analysis</button>
+                    <button type="button" class="small" id="btn-bi-inventory">Inventory</button>
+                    <button type="button" class="small" id="btn-bi-ask">Ask advisor</button>
+                </div>
+                <div id="bi-advisor-output" class="bi-advisor-output" style="display:none;margin-top:16px;"></div>
+            </div>
+
             <div class="analytics-web-cta pos-android-only">
                 <button type="button" id="btn-view-analytics-revenue-web" class="primary">View revenue-by-product table on web</button>
                 <p style="margin:8px 0 0;font-size:13px;color:#64748b;">Full tables and AI insights are available on the website</p>
@@ -780,6 +864,7 @@
 <script src="/static/js/pos-android.js?v=3"></script>
 <script src="/static/js/pos-android-pages.js?v=3"></script>
 <script src="/static/js/analytics.js"></script>
+<script src="/static/js/bi-advisor.js?v=1"></script>
 <script>
     function isAIPanelMobile() { return window.innerWidth <= 768; }
     function applyAIPanelDimensions(panel) {

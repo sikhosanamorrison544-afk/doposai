@@ -154,6 +154,7 @@ from .whatsapp.routes import (
     webhook_router as whatsapp_webhook_router,
 )
 from .whatsapp import models as _whatsapp_models  # noqa: F401 — register ORM tables
+from .bi.routes import router as bi_router
 
 app.include_router(saas_auth_router)
 app.include_router(subscriptions_router)
@@ -163,6 +164,7 @@ app.include_router(platform_router)
 app.include_router(enterprise_router)
 app.include_router(whatsapp_webhook_router)
 app.include_router(whatsapp_api_router)
+app.include_router(bi_router)
 
 # Background task to periodically process offline backup queue
 async def process_backup_queue_periodically():

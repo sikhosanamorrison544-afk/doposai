@@ -1,0 +1,9 @@
+Analyze INVENTORY for this tenant using the analytics JSON.
+
+Answer:
+- Restock priorities (low_stock_products, stockout_predictions if present)
+- Slow movers and dead_stock_candidates
+- Discount candidates for dead stock
+- Stockout risk and reorder urgency
+
+Return JSON: summary, insights, risks, recommendations, action_plan.

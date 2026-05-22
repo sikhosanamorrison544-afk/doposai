@@ -1,0 +1,10 @@
+Analyze FORECASTS and trends for this tenant using analytics JSON and forecast block.
+
+Use statistical forecast data (revenue_forecast, reorder_suggestions, stockout_predictions) — do not replace numbers with guesses.
+
+Answer:
+- Expected revenue direction
+- Stockout and reorder priorities
+- Planning actions for next 2 weeks
+
+Return JSON: summary, insights, risks, recommendations, action_plan.

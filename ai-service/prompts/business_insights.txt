@@ -1,0 +1,5 @@
+Provide a holistic BUSINESS HEALTH review for this tenant using the full analytics JSON.
+
+Cover sales, inventory, profit, debt (outstanding_credit_debt, layby), and branch_performance if present.
+
+Return JSON: summary, insights, risks, recommendations, action_plan.

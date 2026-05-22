@@ -122,3 +122,9 @@ def _parse_platform_owner_emails() -> frozenset[str]:
 # Parsed once at import; restart app after changing env.
 PLATFORM_OWNER_USERNAMES: frozenset[str] = _parse_platform_owner_usernames()
 PLATFORM_OWNER_EMAILS: frozenset[str] = _parse_platform_owner_emails()
+
+# Contabo AI microservice (vLLM + Qwen3) — Render calls this; no Ollama
+AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "").rstrip("/")
+AI_SERVICE_API_KEY = os.environ.get("AI_SERVICE_API_KEY", "").strip()
+BI_CACHE_TTL_SECONDS = int(os.environ.get("BI_CACHE_TTL_SECONDS", "1800"))
+BI_REDIS_URL = os.environ.get("BI_REDIS_URL", os.environ.get("REDIS_URL", "")).strip()

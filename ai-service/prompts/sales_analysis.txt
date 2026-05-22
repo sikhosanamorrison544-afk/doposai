@@ -1,0 +1,9 @@
+Analyze SALES performance for this tenant using the analytics JSON.
+
+Answer:
+- Why sales or revenue may be up or down (revenue_change_percent, period comparison)
+- Top revenue products and promotion opportunities
+- Category/trend signals from top_products and worst_sellers
+- Payment mix implications
+
+Return JSON: summary, insights, risks, recommendations, action_plan.
