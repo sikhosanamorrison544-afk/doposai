@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
-"""Create import_jobs table. Run: python3 migrate_import_jobs.py"""
+"""Create import_jobs table only (idempotent). Run: python3 migrate_import_jobs.py"""
 import sys
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
 
-from app.database import Base, engine  # noqa: E402
-from app import models  # noqa: F401, E402
-from app import accounting_models  # noqa: F401, E402
-from app import enterprise_models  # noqa: F401, E402
-from app.quotation_models import Tenant  # noqa: F401, E402
-
 
 def migrate():
-    Base.metadata.create_all(bind=engine)
+    from app.database import engine
+    from app.models import ImportJob
+
+    ImportJob.__table__.create(bind=engine, checkfirst=True)
     print("Import jobs table ready (import_jobs).")
 
 

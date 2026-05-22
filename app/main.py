@@ -69,6 +69,7 @@ from .models import (
     Withdrawal,
     Refund,
     RefundItem,
+    ImportJob,
 )
 
 from . import tenant_scope
@@ -93,6 +94,11 @@ except Exception as e:
         "Could not run create_all on import: %s. Service will start; DB will retry on first use.",
         e,
     )
+
+try:
+    ImportJob.__table__.create(bind=engine, checkfirst=True)
+except Exception as e:
+    logging.warning("Could not ensure import_jobs table: %s", e)
 
 # Initialize Chart of Accounts on startup (if not already initialized)
 try:

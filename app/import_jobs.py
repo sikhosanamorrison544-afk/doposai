@@ -121,19 +121,20 @@ def _mark_stale_failed(db: Session, job: ImportJob) -> None:
 
 
 def _try_claim_job(db: Session, job_id: str) -> Optional[ImportJob]:
-    row = (
+    """Atomically move queued -> processing (works across DB drivers)."""
+    updated = (
         db.query(ImportJob)
         .filter(ImportJob.id == job_id, ImportJob.status == "queued")
-        .with_for_update()
-        .first()
+        .update(
+            {"status": "processing", "updated_at": datetime.utcnow()},
+            synchronize_session=False,
+        )
     )
-    if not row:
+    if not updated:
+        db.rollback()
         return None
-    row.status = "processing"
-    row.updated_at = datetime.utcnow()
     db.commit()
-    db.refresh(row)
-    return row
+    return db.query(ImportJob).filter(ImportJob.id == job_id).first()
 
 
 def kick_job(job_id: str) -> None:
