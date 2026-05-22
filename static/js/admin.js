@@ -2094,6 +2094,9 @@ function formatImportResultMessage(result) {
     if (result.stock_mode) {
         message += `\nStock handling: ${result.stock_mode === 'set' ? 'set on-hand qty from file' : 'add qty to existing stock'}`;
     }
+    if (result.record_movements === false) {
+        message += '\nStock levels updated (movement log skipped for speed on large imports).';
+    }
     if (result.errors && result.errors.length > 0) {
         message += `\n\nErrors: ${result.errors.length}`;
         if (result.errors.length <= 10) {
@@ -2121,8 +2124,9 @@ async function pollImportJob(jobId, options) {
     if (!token) {
         throw new Error('Not signed in. Open Admin from a logged-in account.');
     }
-    const totalHint = options && options.totalRows ? Number(options.totalRows) : 0;
-    const maxAttempts = 180;
+    const totalHint = options && options.totalRows ? Number(options.totalRows) : 10000;
+    // ~2s per poll; allow up to ~40 min for 10k rows
+    const maxAttempts = Math.min(1200, Math.max(300, Math.ceil(totalHint / 8)));
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const response = await fetch('/api/products/import/status/' + encodeURIComponent(jobId), {
@@ -2142,9 +2146,19 @@ async function pollImportJob(jobId, options) {
         if (data.status === 'processing') {
             const total = data.total_rows || totalHint || '?';
             const done = data.processed || 0;
+            const pct =
+                total && total !== '?' && Number(total) > 0
+                    ? ' — ' + Math.min(100, Math.round((Number(done) / Number(total)) * 100)) + '%'
+                    : '';
             if (messageEl) {
                 messageEl.textContent =
-                    'Import running in background… (' + done + '/' + total + ' rows). Please wait.';
+                    'Import running in background… (' +
+                    done +
+                    '/' +
+                    total +
+                    ' rows' +
+                    pct +
+                    '). Keep this page open.';
                 messageEl.style.color = 'rgba(255, 255, 255, 0.9)';
             }
             await importJobDelay(2000);

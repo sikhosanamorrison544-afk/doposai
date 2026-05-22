@@ -77,7 +77,19 @@ def run_import_job(
         if not user:
             raise RuntimeError("User not found for import job")
 
-        result = import_products_into_db(db, user, products_data, None)
+        def on_progress(processed: int, total: int) -> None:
+            with _lock:
+                job = _jobs.get(job_id)
+                if job:
+                    job["processed"] = processed
+
+        result = import_products_into_db(
+            db,
+            user,
+            products_data,
+            None,
+            progress_callback=on_progress,
+        )
         if import_meta:
             result["columns_mapped"] = import_meta.get("columns_mapped", {})
             if import_meta.get("stock_mode"):

@@ -198,7 +198,8 @@ class PosAndroidImportBridge(
         totalRows: Int,
     ): JSONObject {
         val statusUrl = "$baseUrl/api/products/import/status/$jobId"
-        repeat(120) {
+        val polls = minOf(900, maxOf(300, (totalRows / 8).coerceAtLeast(300)))
+        repeat(polls) {
             val statusReq = Request.Builder()
                 .url(statusUrl)
                 .addHeader("Authorization", "Bearer $token")

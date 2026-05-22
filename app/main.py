@@ -946,7 +946,7 @@ async def import_inventory(
     if not products_data:
         raise HTTPException(status_code=400, detail="No products found in file")
 
-    max_import_rows = int(os.environ.get("MAX_IMPORT_ROWS", "8000"))
+    max_import_rows = int(os.environ.get("MAX_IMPORT_ROWS", "10000"))
     if len(products_data) > max_import_rows:
         raise HTTPException(
             status_code=400,
@@ -956,7 +956,8 @@ async def import_inventory(
             ),
         )
 
-    sync_max = int(os.environ.get("SYNC_IMPORT_MAX_ROWS", "25"))
+    # Large files always run in a background thread (HTTP returns immediately).
+    sync_max = int(os.environ.get("SYNC_IMPORT_MAX_ROWS", "15"))
     if len(products_data) > sync_max:
         from . import import_jobs
         from . import tenant_scope
