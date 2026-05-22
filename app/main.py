@@ -963,25 +963,29 @@ async def import_inventory(
         from . import tenant_scope
 
         job_id = import_jobs.create_job(
+            db,
             tenant_id=tenant_scope.tenant_id_for_row(current_admin),
             user_id=current_admin.id,
             total_rows=len(products_data),
+            products_data=products_data,
+            import_meta=import_meta,
         )
-        import_jobs.start_import_job(
+        import_jobs.kick_job(job_id)
+        logging.info(
+            "Import job %s accepted (%s rows) for user %s",
             job_id,
+            len(products_data),
             current_admin.id,
-            products_data,
-            import_meta,
         )
         return JSONResponse(
             status_code=202,
             content={
-                "status": "processing",
+                "status": "queued",
                 "job_id": job_id,
                 "total_rows": len(products_data),
                 "message": (
                     f"Importing {len(products_data)} products in the background. "
-                    "Poll /api/products/import/status/{job_id} until complete."
+                    "Keep this page open until complete."
                 ),
             },
         )
@@ -1004,24 +1008,32 @@ async def import_inventory(
 @app.get("/api/products/import/status/{job_id}")
 async def import_inventory_status(
     job_id: str,
+    db: Session = Depends(get_db),
     current_admin: User = Depends(auth.get_current_admin_user),
 ):
     """Poll background inventory import job status."""
     from . import import_jobs
 
-    job = import_jobs.get_job(job_id)
+    import_jobs.kick_job(job_id)
+    job = import_jobs.get_job(db, job_id)
     if not job or not import_jobs.job_visible_to_user(job, current_admin):
         raise HTTPException(status_code=404, detail="Import job not found")
 
+    status = job["status"]
+    if status == "queued":
+        status = "processing"
+
     payload: dict = {
         "job_id": job_id,
-        "status": job["status"],
+        "status": status,
         "total_rows": job.get("total_rows", 0),
         "processed": job.get("processed", 0),
     }
     if job["status"] == "complete":
+        payload["status"] = "complete"
         payload["result"] = job.get("result")
     elif job["status"] == "failed":
+        payload["status"] = "failed"
         payload["error"] = job.get("error") or "Import failed"
     return payload
 

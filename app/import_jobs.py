@@ -1,55 +1,104 @@
-"""Background inventory import jobs (avoids HTTP gateway timeouts on large CSVs)."""
+"""Inventory import jobs stored in PostgreSQL (works with multiple app pods)."""
 from __future__ import annotations
 
+import json
 import logging
 import threading
-import time
 import uuid
+from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
+from sqlalchemy.orm import Session
+
 from .database import SessionLocal
-from .models import User
+from .models import ImportJob, User
 
 logger = logging.getLogger(__name__)
 
-_JOB_TTL_SECONDS = 3600
-_lock = threading.Lock()
-_jobs: Dict[str, Dict[str, Any]] = {}
+_STALE_MINUTES = 45
+_running: set[str] = set()
+_running_lock = threading.Lock()
 
 
-def _prune_old_jobs() -> None:
-    now = time.time()
-    stale = [
-        jid
-        for jid, job in _jobs.items()
-        if now - float(job.get("created_at", now)) > _JOB_TTL_SECONDS
-    ]
-    for jid in stale:
-        _jobs.pop(jid, None)
+def _json_default(obj: Any) -> Any:
+    if isinstance(obj, Decimal):
+        return str(obj)
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 
-def create_job(*, tenant_id: Optional[int], user_id: int, total_rows: int) -> str:
+def _serialize_payload(products_data: List[dict], import_meta: Optional[dict]) -> str:
+    return json.dumps(
+        {"products": products_data, "meta": import_meta or {}},
+        default=_json_default,
+    )
+
+
+def _deserialize_payload(raw: str) -> tuple[List[dict], dict]:
+    data = json.loads(raw)
+    products: List[dict] = []
+    for row in data.get("products") or []:
+        item = dict(row)
+        for key in ("cost", "price"):
+            if key in item and item[key] is not None:
+                item[key] = Decimal(str(item[key]))
+        products.append(item)
+    return products, data.get("meta") or {}
+
+
+def _job_to_dict(job: ImportJob) -> Dict[str, Any]:
+    out: Dict[str, Any] = {
+        "job_id": job.id,
+        "status": job.status,
+        "tenant_id": job.tenant_id,
+        "user_id": job.user_id,
+        "total_rows": job.total_rows,
+        "processed": job.processed,
+        "error": job.error,
+        "result": None,
+    }
+    if job.result_json:
+        try:
+            out["result"] = json.loads(job.result_json)
+        except json.JSONDecodeError:
+            out["result"] = None
+    return out
+
+
+def create_job(
+    db: Session,
+    *,
+    tenant_id: Optional[int],
+    user_id: int,
+    total_rows: int,
+    products_data: List[dict],
+    import_meta: Optional[dict] = None,
+) -> str:
     job_id = str(uuid.uuid4())
-    with _lock:
-        _prune_old_jobs()
-        _jobs[job_id] = {
-            "job_id": job_id,
-            "status": "processing",
-            "tenant_id": tenant_id,
-            "user_id": user_id,
-            "total_rows": total_rows,
-            "processed": 0,
-            "result": None,
-            "error": None,
-            "created_at": time.time(),
-        }
+    row = ImportJob(
+        id=job_id,
+        tenant_id=tenant_id,
+        user_id=user_id,
+        status="queued",
+        total_rows=total_rows,
+        processed=0,
+        payload_json=_serialize_payload(products_data, import_meta),
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(row)
+    db.commit()
+    logger.info("Import job %s queued (%s rows)", job_id, total_rows)
     return job_id
 
 
-def get_job(job_id: str) -> Optional[Dict[str, Any]]:
-    with _lock:
-        job = _jobs.get(job_id)
-        return dict(job) if job else None
+def get_job(db: Session, job_id: str) -> Optional[Dict[str, Any]]:
+    row = db.query(ImportJob).filter(ImportJob.id == job_id).first()
+    if not row:
+        return None
+    _mark_stale_failed(db, row)
+    db.refresh(row)
+    return _job_to_dict(row)
 
 
 def job_visible_to_user(job: Dict[str, Any], user: User) -> bool:
@@ -57,31 +106,98 @@ def job_visible_to_user(job: Dict[str, Any], user: User) -> bool:
         return False
     from . import tenant_scope
 
-    job_tid = job.get("tenant_id")
-    user_tid = tenant_scope.tenant_id_for_row(user)
-    return job_tid == user_tid
+    return job.get("tenant_id") == tenant_scope.tenant_id_for_row(user)
 
 
-def run_import_job(
-    job_id: str,
-    user_id: int,
-    products_data: List[dict],
-    import_meta: Optional[dict] = None,
-) -> None:
-    """Run import in a background thread (own DB session)."""
+def _mark_stale_failed(db: Session, job: ImportJob) -> None:
+    if job.status != "processing":
+        return
+    cutoff = datetime.utcnow() - timedelta(minutes=_STALE_MINUTES)
+    if job.updated_at and job.updated_at < cutoff:
+        job.status = "failed"
+        job.error = "Import timed out on the server. Try again or split the file."
+        job.updated_at = datetime.utcnow()
+        db.commit()
+
+
+def _try_claim_job(db: Session, job_id: str) -> Optional[ImportJob]:
+    row = (
+        db.query(ImportJob)
+        .filter(ImportJob.id == job_id, ImportJob.status == "queued")
+        .with_for_update()
+        .first()
+    )
+    if not row:
+        return None
+    row.status = "processing"
+    row.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def kick_job(job_id: str) -> None:
+    """Start processing on this pod if the job is queued and not already running here."""
+    with _running_lock:
+        if job_id in _running:
+            return
+
     db = SessionLocal()
     try:
-        from .inventory_import import import_products_into_db
+        row = db.query(ImportJob).filter(ImportJob.id == job_id).first()
+        if not row:
+            return
+        if row.status == "queued":
+            row = _try_claim_job(db, job_id)
+            if not row:
+                return
+        elif row.status != "processing":
+            return
 
-        user = db.query(User).filter(User.id == user_id).first()
+        with _running_lock:
+            if job_id in _running:
+                return
+            _running.add(job_id)
+    finally:
+        db.close()
+
+    thread = threading.Thread(
+        target=_run_import_job,
+        args=(job_id,),
+        name=f"import-{job_id[:8]}",
+        daemon=True,
+    )
+    thread.start()
+
+
+def _update_progress(job_id: str, processed: int, total: int) -> None:
+    db = SessionLocal()
+    try:
+        row = db.query(ImportJob).filter(ImportJob.id == job_id).first()
+        if row:
+            row.processed = processed
+            row.updated_at = datetime.utcnow()
+            db.commit()
+    finally:
+        db.close()
+
+
+def _run_import_job(job_id: str) -> None:
+    db = SessionLocal()
+    try:
+        row = db.query(ImportJob).filter(ImportJob.id == job_id).first()
+        if not row or not row.payload_json:
+            raise RuntimeError("Import job payload missing")
+
+        products_data, import_meta = _deserialize_payload(row.payload_json)
+        user = db.query(User).filter(User.id == row.user_id).first()
         if not user:
             raise RuntimeError("User not found for import job")
 
+        from .inventory_import import import_products_into_db
+
         def on_progress(processed: int, total: int) -> None:
-            with _lock:
-                job = _jobs.get(job_id)
-                if job:
-                    job["processed"] = processed
+            _update_progress(job_id, processed, total)
 
         result = import_products_into_db(
             db,
@@ -95,21 +211,29 @@ def run_import_job(
             if import_meta.get("stock_mode"):
                 result["stock_mode"] = import_meta["stock_mode"]
 
-        with _lock:
-            job = _jobs.get(job_id)
-            if job:
-                job["status"] = "complete"
-                job["result"] = result
-                job["processed"] = result.get("total_rows", job.get("total_rows", 0))
+        row = db.query(ImportJob).filter(ImportJob.id == job_id).first()
+        if row:
+            row.status = "complete"
+            row.processed = result.get("total_rows", row.total_rows)
+            row.result_json = json.dumps(result, default=_json_default)
+            row.updated_at = datetime.utcnow()
+            db.commit()
+        logger.info("Import job %s complete", job_id)
     except Exception as e:
         logger.error("Import job %s failed: %s", job_id, e, exc_info=True)
-        with _lock:
-            job = _jobs.get(job_id)
-            if job:
-                job["status"] = "failed"
-                job["error"] = str(e)
+        try:
+            row = db.query(ImportJob).filter(ImportJob.id == job_id).first()
+            if row:
+                row.status = "failed"
+                row.error = str(e)
+                row.updated_at = datetime.utcnow()
+                db.commit()
+        except Exception:
+            db.rollback()
     finally:
         db.close()
+        with _running_lock:
+            _running.discard(job_id)
 
 
 def start_import_job(
@@ -118,10 +242,5 @@ def start_import_job(
     products_data: List[dict],
     import_meta: Optional[dict] = None,
 ) -> None:
-    thread = threading.Thread(
-        target=run_import_job,
-        args=(job_id, user_id, products_data, import_meta),
-        name=f"import-{job_id[:8]}",
-        daemon=True,
-    )
-    thread.start()
+    """Backward-compatible: kick an already-persisted job."""
+    kick_job(job_id)

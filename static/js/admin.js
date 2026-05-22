@@ -2143,7 +2143,7 @@ async function pollImportJob(jobId, options) {
             throw new Error('Invalid response while checking import status');
         }
 
-        if (data.status === 'processing') {
+        if (data.status === 'processing' || data.status === 'queued') {
             const total = data.total_rows || totalHint || '?';
             const done = data.processed || 0;
             const pct =
@@ -2320,7 +2320,7 @@ async function uploadInventoryCsvFile(file, options) {
         }
 
         let result = payload;
-        if (response.status === 202 || payload.status === 'processing') {
+        if (response.status === 202 || payload.status === 'processing' || payload.status === 'queued') {
             if (!payload.job_id) {
                 throw new Error('Import started but no job id was returned');
             }

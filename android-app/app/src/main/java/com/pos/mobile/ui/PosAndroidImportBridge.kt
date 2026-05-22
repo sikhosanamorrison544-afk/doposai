@@ -212,6 +212,7 @@ class PosAndroidImportBridge(
                 }
                 val status = JSONObject(statusBody)
                 when (status.optString("status")) {
+                    "queued", "processing" -> { /* keep polling */ }
                     "complete" -> {
                         val result = status.optJSONObject("result")
                         return result ?: JSONObject()

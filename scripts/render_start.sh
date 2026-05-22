@@ -21,6 +21,10 @@ if [ -n "${DATABASE_URL:-}" ] && echo "$DATABASE_URL" | grep -q '^postgresql'; t
     echo "ERROR: migrate_refunds.py failed"
     exit 1
   }
+  python3 migrate_import_jobs.py || {
+    echo "ERROR: migrate_import_jobs.py failed"
+    exit 1
+  }
   python3 migrate_whatsapp.py || {
     echo "ERROR: migrate_whatsapp.py failed"
     exit 1
