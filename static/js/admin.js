@@ -2108,6 +2108,61 @@ function formatImportResultMessage(result) {
     return message;
 }
 
+function importJobDelay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function pollImportJob(jobId, options) {
+    const messageEl =
+        (options && options.messageEl) ||
+        document.getElementById('import-message') ||
+        document.getElementById('backup-message');
+    const token = getImportAuthToken();
+    if (!token) {
+        throw new Error('Not signed in. Open Admin from a logged-in account.');
+    }
+    const totalHint = options && options.totalRows ? Number(options.totalRows) : 0;
+    const maxAttempts = 180;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const response = await fetch('/api/products/import/status/' + encodeURIComponent(jobId), {
+            headers: { Authorization: 'Bearer ' + token },
+        });
+        const text = await response.text();
+        if (!response.ok) {
+            throw new Error(parseApiErrorText(text, response.status));
+        }
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (_) {
+            throw new Error('Invalid response while checking import status');
+        }
+
+        if (data.status === 'processing') {
+            const total = data.total_rows || totalHint || '?';
+            const done = data.processed || 0;
+            if (messageEl) {
+                messageEl.textContent =
+                    'Import running in background… (' + done + '/' + total + ' rows). Please wait.';
+                messageEl.style.color = 'rgba(255, 255, 255, 0.9)';
+            }
+            await importJobDelay(2000);
+            continue;
+        }
+        if (data.status === 'complete') {
+            return data.result || data;
+        }
+        if (data.status === 'failed') {
+            throw new Error(data.error || 'Import failed');
+        }
+        await importJobDelay(2000);
+    }
+    throw new Error(
+        'Import is taking longer than expected. Refresh Admin in a minute — products may still be importing.'
+    );
+}
+
 async function applyImportResult(result, options) {
     const messageEl =
         (options && options.messageEl) ||
@@ -2178,7 +2233,13 @@ async function uploadInventoryViaAndroidBridge(options) {
         if (!payload.ok) {
             throw new Error(payload.error || 'Import failed');
         }
-        const result = payload.result || payload;
+        let result = payload.result || payload;
+        if (payload.async && payload.job_id) {
+            result = await pollImportJob(payload.job_id, {
+                ...options,
+                totalRows: payload.total_rows,
+            });
+        }
         await applyImportResult(result, options);
         return result;
     } catch (e) {
@@ -2232,12 +2293,31 @@ async function uploadInventoryCsvFile(file, options) {
             body: formData,
         });
 
+        const responseText = await response.text();
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(parseApiErrorText(errorText, response.status));
+            throw new Error(parseApiErrorText(responseText, response.status));
         }
 
-        const result = await response.json();
+        let payload;
+        try {
+            payload = JSON.parse(responseText);
+        } catch (_) {
+            throw new Error('Invalid server response during import');
+        }
+
+        let result = payload;
+        if (response.status === 202 || payload.status === 'processing') {
+            if (!payload.job_id) {
+                throw new Error('Import started but no job id was returned');
+            }
+            result = await pollImportJob(payload.job_id, {
+                ...options,
+                totalRows: payload.total_rows,
+            });
+        } else if (payload.result) {
+            result = payload.result;
+        }
+
         await applyImportResult(result, options);
         return result;
     } catch (e) {

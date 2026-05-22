@@ -33,7 +33,7 @@ def normalize_barcode(code: str) -> Optional[str]:
     return c if c else None
 
 
-IMPORT_COMMIT_BATCH = 100
+IMPORT_COMMIT_BATCH = 250
 MAX_IMPORT_ERRORS_REPORTED = 50
 
 

@@ -910,6 +910,25 @@ def extract_products_from_word(content: bytes) -> List[dict]:
     return products
 
 
+def _parse_inventory_upload(content: bytes, file_ext: str) -> tuple[list, dict]:
+    """Parse uploaded inventory file into product row dicts."""
+    import_meta: dict = {}
+    if file_ext == ".csv":
+        from .inventory_csv import parse_csv_import_meta
+
+        products_data = extract_products_from_csv(content)
+        import_meta = parse_csv_import_meta(content)
+        return products_data, import_meta
+    if file_ext == ".pdf":
+        return extract_products_from_pdf(content), import_meta
+    if file_ext in [".doc", ".docx"]:
+        return extract_products_from_word(content), import_meta
+    raise HTTPException(
+        status_code=400,
+        detail=f"Unsupported file type: {file_ext}. Supported: .csv, .pdf, .doc, .docx",
+    )
+
+
 @app.post("/api/products/import")
 async def import_inventory(
     file: UploadFile = File(...),
@@ -919,25 +938,11 @@ async def import_inventory(
     """Import inventory from CSV, PDF, or Word file."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
-    
+
     file_ext = Path(file.filename).suffix.lower()
     content = await file.read()
-    
-    # Extract products based on file type
-    products_data = []
-    import_meta: dict = {}
-    if file_ext == '.csv':
-        from .inventory_csv import parse_csv_import_meta
+    products_data, import_meta = _parse_inventory_upload(content, file_ext)
 
-        products_data = extract_products_from_csv(content)
-        import_meta = parse_csv_import_meta(content)
-    elif file_ext == '.pdf':
-        products_data = extract_products_from_pdf(content)
-    elif file_ext in ['.doc', '.docx']:
-        products_data = extract_products_from_word(content)
-    else:
-        raise HTTPException(status_code=400, detail=f"Unsupported file type: {file_ext}. Supported: .csv, .pdf, .doc, .docx")
-    
     if not products_data:
         raise HTTPException(status_code=400, detail="No products found in file")
 
@@ -949,6 +954,35 @@ async def import_inventory(
                 f"File has {len(products_data)} product rows; maximum is {max_import_rows}. "
                 "Split the file into smaller CSVs and import each one."
             ),
+        )
+
+    sync_max = int(os.environ.get("SYNC_IMPORT_MAX_ROWS", "25"))
+    if len(products_data) > sync_max:
+        from . import import_jobs
+        from . import tenant_scope
+
+        job_id = import_jobs.create_job(
+            tenant_id=tenant_scope.tenant_id_for_row(current_admin),
+            user_id=current_admin.id,
+            total_rows=len(products_data),
+        )
+        import_jobs.start_import_job(
+            job_id,
+            current_admin.id,
+            products_data,
+            import_meta,
+        )
+        return JSONResponse(
+            status_code=202,
+            content={
+                "status": "processing",
+                "job_id": job_id,
+                "total_rows": len(products_data),
+                "message": (
+                    f"Importing {len(products_data)} products in the background. "
+                    "Poll /api/products/import/status/{job_id} until complete."
+                ),
+            },
         )
 
     from .inventory_import import import_products_into_db
@@ -964,6 +998,31 @@ async def import_inventory(
         if import_meta.get("stock_mode"):
             result["stock_mode"] = import_meta["stock_mode"]
     return result
+
+
+@app.get("/api/products/import/status/{job_id}")
+async def import_inventory_status(
+    job_id: str,
+    current_admin: User = Depends(auth.get_current_admin_user),
+):
+    """Poll background inventory import job status."""
+    from . import import_jobs
+
+    job = import_jobs.get_job(job_id)
+    if not job or not import_jobs.job_visible_to_user(job, current_admin):
+        raise HTTPException(status_code=404, detail="Import job not found")
+
+    payload: dict = {
+        "job_id": job_id,
+        "status": job["status"],
+        "total_rows": job.get("total_rows", 0),
+        "processed": job.get("processed", 0),
+    }
+    if job["status"] == "complete":
+        payload["result"] = job.get("result")
+    elif job["status"] == "failed":
+        payload["error"] = job.get("error") or "Import failed"
+    return payload
 
 
 class CustomerCreate(BaseModel):

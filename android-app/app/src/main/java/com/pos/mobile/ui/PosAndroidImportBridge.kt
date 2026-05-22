@@ -139,6 +139,9 @@ class PosAndroidImportBridge(
 
             http.newCall(request).execute().use { response ->
                 val body = response.body?.string().orEmpty()
+                if (response.code == 202) {
+                    return handleAsyncImport(baseUrl, token, body)
+                }
                 if (!response.isSuccessful) {
                     return errorJson(parseApiError(body, response.code))
                 }
@@ -169,16 +172,89 @@ class PosAndroidImportBridge(
         }
     }
 
-    private fun parseApiError(body: String, code: Int): String {
-        if (body.isBlank()) return "Upload failed (HTTP $code)"
+    private fun handleAsyncImport(baseUrl: String, token: String, body: String): String {
         return try {
-            val j = JSONObject(body)
+            val accepted = JSONObject(body)
+            val jobId = accepted.optString("job_id").trim()
+            if (jobId.isEmpty()) {
+                return errorJson("Import started but no job id was returned")
+            }
+            val totalRows = accepted.optInt("total_rows", 0)
+            val result = pollImportJob(baseUrl, token, jobId, totalRows)
+            clearPendingImport()
+            JSONObject().apply {
+                put("ok", true)
+                put("result", result)
+            }.toString()
+        } catch (e: Exception) {
+            errorJson(e.message ?: "Import failed")
+        }
+    }
+
+    private fun pollImportJob(
+        baseUrl: String,
+        token: String,
+        jobId: String,
+        totalRows: Int,
+    ): JSONObject {
+        val statusUrl = "$baseUrl/api/products/import/status/$jobId"
+        repeat(120) {
+            val statusReq = Request.Builder()
+                .url(statusUrl)
+                .addHeader("Authorization", "Bearer $token")
+                .get()
+                .build()
+            http.newCall(statusReq).execute().use { statusResp ->
+                val statusBody = statusResp.body?.string().orEmpty()
+                if (!statusResp.isSuccessful) {
+                    throw IllegalStateException(parseApiError(statusBody, statusResp.code))
+                }
+                val status = JSONObject(statusBody)
+                when (status.optString("status")) {
+                    "complete" -> {
+                        val result = status.optJSONObject("result")
+                        return result ?: JSONObject()
+                    }
+                    "failed" -> {
+                        throw IllegalStateException(
+                            status.optString("error", "Import failed"),
+                        )
+                    }
+                }
+            }
+            Thread.sleep(2000)
+        }
+        throw IllegalStateException(
+            "Import is taking longer than expected ($totalRows rows). " +
+                "Check Admin again in a minute.",
+        )
+    }
+
+    private fun parseApiError(body: String, code: Int): String {
+        if (body.isBlank()) {
+            return when (code) {
+                502, 504 -> "Server timed out. Try a smaller CSV or import in batches."
+                else -> "Upload failed (HTTP $code)"
+            }
+        }
+        val trimmed = body.trim()
+        if (trimmed.startsWith("<!DOCTYPE", ignoreCase = true) ||
+            trimmed.startsWith("<html", ignoreCase = true)
+        ) {
+            return when (code) {
+                502, 504 -> "Server timed out. Try a smaller CSV or import in batches."
+                413 -> "File is too large. Split into smaller CSV files."
+                else -> "Server error (HTTP $code). Try again or use a smaller file."
+            }
+        }
+        return try {
+            val j = JSONObject(trimmed)
             when (val detail = j.opt("detail")) {
                 is String -> detail
-                else -> body.take(400)
+                else -> trimmed.take(400)
             }
         } catch (_: Exception) {
-            body.take(400)
+            trimmed.take(400)
         }
     }
 
