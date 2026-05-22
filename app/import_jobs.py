@@ -65,6 +65,41 @@ def _job_to_dict(job: ImportJob) -> Dict[str, Any]:
     return out
 
 
+def create_job_from_bytes(
+    db: Session,
+    *,
+    tenant_id: Optional[int],
+    user_id: int,
+    file_name: str,
+    file_ext: str,
+    content: bytes,
+) -> str:
+    """Queue import from raw file bytes; parsing runs in the background worker."""
+    job_id = str(uuid.uuid4())
+    row = ImportJob(
+        id=job_id,
+        tenant_id=tenant_id,
+        user_id=user_id,
+        status="queued",
+        total_rows=0,
+        processed=0,
+        file_name=file_name,
+        file_ext=file_ext,
+        file_bytes=content,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(row)
+    db.commit()
+    logger.info(
+        "Import job %s queued from file %s (%s bytes)",
+        job_id,
+        file_name,
+        len(content),
+    )
+    return job_id
+
+
 def create_job(
     db: Session,
     *,
@@ -177,20 +212,51 @@ def _update_progress(job_id: str, processed: int, total: int) -> None:
         row = db.query(ImportJob).filter(ImportJob.id == job_id).first()
         if row:
             row.processed = processed
+            if total and not row.total_rows:
+                row.total_rows = total
             row.updated_at = datetime.utcnow()
             db.commit()
     finally:
         db.close()
 
 
+def _load_products_for_job(row: ImportJob) -> tuple[List[dict], dict]:
+    if row.file_bytes:
+        from .inventory_upload import parse_inventory_upload
+
+        ext = row.file_ext or ".csv"
+        products_data, import_meta = parse_inventory_upload(row.file_bytes, ext)
+        return products_data, import_meta
+    if row.payload_json:
+        return _deserialize_payload(row.payload_json)
+    raise RuntimeError("Import job has no file or payload")
+
+
 def _run_import_job(job_id: str) -> None:
     db = SessionLocal()
     try:
         row = db.query(ImportJob).filter(ImportJob.id == job_id).first()
-        if not row or not row.payload_json:
-            raise RuntimeError("Import job payload missing")
+        if not row:
+            raise RuntimeError("Import job not found")
 
-        products_data, import_meta = _deserialize_payload(row.payload_json)
+        products_data, import_meta = _load_products_for_job(row)
+
+        import os
+
+        max_import_rows = int(os.environ.get("MAX_IMPORT_ROWS", "10000"))
+        if len(products_data) > max_import_rows:
+            raise ValueError(
+                f"File has {len(products_data)} product rows; maximum is {max_import_rows}. "
+                "Split the file into smaller CSVs."
+            )
+        if not products_data:
+            raise ValueError("No products found in file")
+
+        row.total_rows = len(products_data)
+        row.file_bytes = None
+        row.updated_at = datetime.utcnow()
+        db.commit()
+
         user = db.query(User).filter(User.id == row.user_id).first()
         if not user:
             raise RuntimeError("User not found for import job")

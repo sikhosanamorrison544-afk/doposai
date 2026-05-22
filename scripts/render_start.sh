@@ -10,23 +10,19 @@ if [ -n "${DATABASE_URL:-}" ] && echo "$DATABASE_URL" | grep -q '^postgresql'; t
     echo "WARN: alembic upgrade head exited ${_alembic_rc}"
   fi
   python3 migrate_billing_paynow.py || {
-    echo "ERROR: migrate_billing_paynow.py failed"
-    exit 1
+    echo "WARN: migrate_billing_paynow.py failed (non-fatal; app retries on startup)"
   }
   python3 migrate_enterprise.py || {
-    echo "ERROR: migrate_enterprise.py failed"
-    exit 1
+    echo "WARN: migrate_enterprise.py failed (non-fatal)"
   }
   python3 migrate_refunds.py || {
-    echo "ERROR: migrate_refunds.py failed"
-    exit 1
+    echo "WARN: migrate_refunds.py failed (non-fatal)"
   }
   python3 migrate_import_jobs.py || {
     echo "WARN: migrate_import_jobs.py failed (non-fatal; app will retry on startup)"
   }
   python3 migrate_whatsapp.py || {
-    echo "ERROR: migrate_whatsapp.py failed"
-    exit 1
+    echo "WARN: migrate_whatsapp.py failed (non-fatal)"
   }
   # Strip the legacy "J & B MALL" default brand from existing rows.
   # Idempotent; no-op once the rewrite has happened.

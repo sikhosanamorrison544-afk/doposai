@@ -16,7 +16,8 @@ from sqlalchemy.orm import Session
 
 from . import auth
 from .config import PLATFORM_BRAND_NAME, WEB_PUBLIC_URL
-from .database import get_db
+from .database import SessionLocal, get_db
+from .deferred_tasks import run_in_background
 from .billing import service as billing_service
 from .email_service import EmailService
 from .firestore_service import fetch_tenant_subscription, upsert_tenant_security_record
@@ -114,6 +115,28 @@ def _subscription_effective(db: Session, tenant: Optional[Tenant]) -> str:
         return tenant.subscription_status or "trial"
 
 
+def _register_cloud_sync(
+    tenant_id: int, tenant_uid: str, security_payload: Dict[str, Any]
+) -> None:
+    """Firestore + billing plane sync after registration (runs off the HTTP thread)."""
+    db = SessionLocal()
+    try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            return
+        fs_id = upsert_tenant_security_record(tenant_uid, security_payload)
+        if fs_id:
+            tenant.firestore_doc_id = fs_id
+        billing_service.sync_tenant_firestore_after_register(db, tenant_id)
+    except Exception as e:
+        logger.warning(
+            "Register cloud sync failed for tenant %s: %s", tenant_uid, e, exc_info=True
+        )
+        db.rollback()
+    finally:
+        db.close()
+
+
 def _issue_tokens(db: Session, user: User, tenant: Optional[Tenant]) -> AuthResponse:
     tid = user.tenant_id
     tenant_uid = tenant.tenant_uid if tenant else None
@@ -199,24 +222,27 @@ def auth_register(request: Request, body: RegisterBody, db: Session = Depends(ge
         )
     )
 
-    fs_id = upsert_tenant_security_record(
-        tenant_uid,
-        {
-            "tenant_uid": tenant_uid,
-            "business_name": tenant.name,
-            "owner_email": email_norm,
-            "subscription_status": "trial",
-            "trial_ends_at": trial_end.isoformat() + "Z",
-            "created_at": datetime.utcnow().isoformat() + "Z",
-        },
-    )
-    if fs_id:
-        tenant.firestore_doc_id = fs_id
-    billing_service.create_trial_subscription(db, tenant)
+    billing_service.create_trial_subscription(db, tenant, sync_firestore=False)
     db.commit()
     db.refresh(user)
     db.refresh(tenant)
     logger.info("Registered tenant %s user %s", tenant_uid, user.username)
+
+    security_payload = {
+        "tenant_uid": tenant_uid,
+        "business_name": tenant.name,
+        "owner_email": email_norm,
+        "subscription_status": "trial",
+        "trial_ends_at": trial_end.isoformat() + "Z",
+        "created_at": datetime.utcnow().isoformat() + "Z",
+    }
+    run_in_background(
+        "register-firestore",
+        _register_cloud_sync,
+        tenant.id,
+        tenant_uid,
+        security_payload,
+    )
     return _issue_tokens(db, user, tenant)
 
 

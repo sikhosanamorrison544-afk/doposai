@@ -10,6 +10,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -387,6 +388,9 @@ class ImportJob(Base):
     )  # queued, processing, complete, failed
     total_rows: Mapped[int] = mapped_column(Integer, default=0)
     processed: Mapped[int] = mapped_column(Integer, default=0)
+    file_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    file_ext: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    file_bytes: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
     payload_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     result_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

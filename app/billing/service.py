@@ -194,6 +194,7 @@ def _sync_tenant_and_firestore(
     sub: Subscription,
     *,
     payment_verified: bool = False,
+    sync_firestore: bool = True,
 ) -> None:
     eff, allowed, ends = effective_status(sub, tenant, db=db)
     tenant.subscription_status = eff if eff != "trial_expired" else "trial_expired"
@@ -209,23 +210,28 @@ def _sync_tenant_and_firestore(
         tenant.subscription_status = "suspended"
     tenant.last_subscription_verified_at = datetime.utcnow()
     db.flush()
-    sync_subscription_firestore(
-        tenant.tenant_uid,
-        {
-            "subscription_status": tenant.subscription_status,
-            "subscription_end": sub.subscription_end.isoformat() + "Z" if sub.subscription_end else None,
-            "trial_ends_at": sub.trial_end.isoformat() + "Z" if sub.trial_end else None,
-            "billing_status": sub.status,
-            "plan": sub.plan,
-            "billing_cycle": sub.billing_cycle,
-            "payment_verified": payment_verified,
-            "access_allowed": allowed,
-            "updated_at": datetime.utcnow().isoformat() + "Z",
-        },
-    )
+    if sync_firestore:
+        sync_subscription_firestore(
+            tenant.tenant_uid,
+            {
+                "subscription_status": tenant.subscription_status,
+                "subscription_end": sub.subscription_end.isoformat() + "Z"
+                if sub.subscription_end
+                else None,
+                "trial_ends_at": sub.trial_end.isoformat() + "Z" if sub.trial_end else None,
+                "billing_status": sub.status,
+                "plan": sub.plan,
+                "billing_cycle": sub.billing_cycle,
+                "payment_verified": payment_verified,
+                "access_allowed": allowed,
+                "updated_at": datetime.utcnow().isoformat() + "Z",
+            },
+        )
 
 
-def create_trial_subscription(db: Session, tenant: Tenant) -> Subscription:
+def create_trial_subscription(
+    db: Session, tenant: Tenant, *, sync_firestore: bool = True
+) -> Subscription:
     sub = get_or_create_subscription(db, tenant)
     now = datetime.utcnow()
     sub.status = "trial"
@@ -235,8 +241,18 @@ def create_trial_subscription(db: Session, tenant: Tenant) -> Subscription:
     tenant.subscription_status = "trial"
     tenant.trial_ends_at = sub.trial_end
     _log(db, tenant.id, "trial_started", f"Trial until {sub.trial_end.isoformat()}")
-    _sync_tenant_and_firestore(db, tenant, sub)
+    _sync_tenant_and_firestore(db, tenant, sub, sync_firestore=sync_firestore)
     return sub
+
+
+def sync_tenant_firestore_after_register(db: Session, tenant_id: int) -> None:
+    """Background Firestore sync after account registration (non-blocking HTTP)."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        return
+    sub = get_or_create_subscription(db, tenant)
+    _sync_tenant_and_firestore(db, tenant, sub, sync_firestore=True)
+    db.commit()
 
 
 def start_pending_payment(

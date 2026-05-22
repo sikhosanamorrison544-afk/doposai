@@ -1,7 +1,10 @@
 """Optional Firestore sync for tenant subscription security records."""
 import logging
 import os
-from typing import Any, Dict, Optional
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+from typing import Any, Callable, Dict, Optional, TypeVar
+
+T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +14,24 @@ COLLECTION_DEVICES = "devices"
 COLLECTION_SUBSCRIPTIONS = "subscriptions"
 COLLECTION_BILLING_EVENTS = "billing_events"
 COLLECTION_TENANT_SECURITY = "tenant_security"
+
+
+FIRESTORE_TIMEOUT_SEC = float(os.getenv("FIRESTORE_TIMEOUT_SEC", "8"))
+
+
+def _run_with_timeout(fn: Callable[[], T], label: str) -> Optional[T]:
+    """Avoid blocking HTTP workers on slow Firestore (gateway 502)."""
+    if FIRESTORE_TIMEOUT_SEC <= 0:
+        return fn()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        fut = pool.submit(fn)
+        try:
+            return fut.result(timeout=FIRESTORE_TIMEOUT_SEC)
+        except FuturesTimeout:
+            logger.warning(
+                "Firestore %s timed out after %.0fs", label, FIRESTORE_TIMEOUT_SEC
+            )
+            return None
 
 
 def is_firestore_configured() -> bool:
@@ -56,11 +77,18 @@ def upsert_tenant_security_record(
         return None
     if not _ensure_firebase_app():
         return None
-    try:
+
+    def _upsert() -> Optional[str]:
         db = firestore.client()
         doc_ref = db.collection(COLLECTION_TENANTS).document(tenant_uid)
         doc_ref.set(data, merge=True)
         return doc_ref.id
+
+    try:
+        result = _run_with_timeout(_upsert, "upsert_tenant_security_record")
+        if result is None and FIRESTORE_TIMEOUT_SEC > 0:
+            logger.warning("Firestore upsert skipped or timed out for %s", tenant_uid)
+        return result
     except Exception as e:
         logger.error("Firestore upsert failed: %s", e, exc_info=True)
         return None

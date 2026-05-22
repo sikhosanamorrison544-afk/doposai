@@ -100,6 +100,13 @@ try:
 except Exception as e:
     logging.warning("Could not ensure import_jobs table: %s", e)
 
+try:
+    from migrate_import_jobs import migrate as _migrate_import_jobs
+
+    _migrate_import_jobs()
+except Exception as e:
+    logging.warning("Could not upgrade import_jobs columns: %s", e)
+
 # Initialize Chart of Accounts on startup (if not already initialized)
 try:
     with SessionLocal() as db:
@@ -183,6 +190,7 @@ async def startup_event():
     import asyncio
 
     from .config import APP_ENV
+    from .startup_config import DISABLE_STARTUP_OLLAMA
 
     if APP_ENV == "production" and (
         "change" in (auth.SECRET_KEY or "").lower() or len(auth.SECRET_KEY or "") < 32
@@ -193,7 +201,48 @@ async def startup_event():
 
     # Start backup queue processor in background
     asyncio.create_task(process_backup_queue_periodically())
-    
+
+    if DISABLE_STARTUP_OLLAMA:
+        logging.info(
+            "Startup Ollama pre-warm disabled (set DISABLE_STARTUP_OLLAMA=0 to enable)."
+        )
+    else:
+        asyncio.create_task(_start_ollama_background_tasks())
+
+    try:
+        from .scheduler_service import start_scheduler
+
+        start_scheduler()
+        logging.info("Scheduler service started successfully")
+    except Exception as e:
+        logging.error(f"Failed to start scheduler service: {e}", exc_info=True)
+
+    try:
+        from .notification_service import NotificationService
+
+        db = SessionLocal()
+        try:
+            notification_service = NotificationService(db)
+            count = notification_service.check_all_products_and_create_notifications()
+            if count > 0:
+                logging.info(
+                    "Created %s notifications for low-stock/out-of-stock products on startup",
+                    count,
+                )
+            else:
+                logging.info("No new notifications needed - all products are in stock")
+        finally:
+            db.close()
+    except Exception as e:
+        logging.error(
+            "Error checking products for notifications on startup: %s", e, exc_info=True
+        )
+
+
+async def _start_ollama_background_tasks():
+    import asyncio
+    """Ollama pre-warm and keep-alive (skipped on small cloud instances by default)."""
+
     # Ensure Ollama is running (start in background if not), then pre-warm
     async def ensure_and_prewarm_ollama():
         """Start Ollama if needed, then pre-warm the model so it's always available."""
@@ -234,30 +283,6 @@ async def startup_event():
                 logging.debug(f"Keep-alive error (non-critical): {e}")
     
     asyncio.create_task(keep_ollama_alive())
-    
-    # Start scheduler for periodic stock checks
-    try:
-        from .scheduler_service import start_scheduler
-        start_scheduler()
-        logging.info("Scheduler service started successfully")
-    except Exception as e:
-        logging.error(f"Failed to start scheduler service: {e}", exc_info=True)
-    
-    # Check all products and create notifications for out-of-stock and qty <= 5 items
-    try:
-        from .notification_service import NotificationService
-        db = SessionLocal()
-        try:
-            notification_service = NotificationService(db)
-            count = notification_service.check_all_products_and_create_notifications()
-            if count > 0:
-                logging.info(f"Created {count} notifications for low-stock/out-of-stock products on startup")
-            else:
-                logging.info("No new notifications needed - all products are in stock")
-        finally:
-            db.close()
-    except Exception as e:
-        logging.error(f"Error checking products for notifications on startup: {e}", exc_info=True)
 
 
 @app.on_event("shutdown")
@@ -916,25 +941,6 @@ def extract_products_from_word(content: bytes) -> List[dict]:
     return products
 
 
-def _parse_inventory_upload(content: bytes, file_ext: str) -> tuple[list, dict]:
-    """Parse uploaded inventory file into product row dicts."""
-    import_meta: dict = {}
-    if file_ext == ".csv":
-        from .inventory_csv import parse_csv_import_meta
-
-        products_data = extract_products_from_csv(content)
-        import_meta = parse_csv_import_meta(content)
-        return products_data, import_meta
-    if file_ext == ".pdf":
-        return extract_products_from_pdf(content), import_meta
-    if file_ext in [".doc", ".docx"]:
-        return extract_products_from_word(content), import_meta
-    raise HTTPException(
-        status_code=400,
-        detail=f"Unsupported file type: {file_ext}. Supported: .csv, .pdf, .doc, .docx",
-    )
-
-
 @app.post("/api/products/import")
 async def import_inventory(
     file: UploadFile = File(...),
@@ -942,12 +948,57 @@ async def import_inventory(
     current_admin: User = Depends(auth.get_current_admin_user),
 ):
     """Import inventory from CSV, PDF, or Word file."""
+    from . import import_jobs
+    from . import tenant_scope
+    from .inventory_upload import parse_inventory_upload
+    from .startup_config import IMPORT_ASYNC_MIN_BYTES
+
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
     file_ext = Path(file.filename).suffix.lower()
     content = await file.read()
-    products_data, import_meta = _parse_inventory_upload(content, file_ext)
+    tenant_id = tenant_scope.tenant_id_for_row(current_admin)
+
+    # Large uploads: persist bytes and return 202 before CSV/PDF parsing (avoids gateway timeout).
+    defer_parse = len(content) >= IMPORT_ASYNC_MIN_BYTES or file_ext in (
+        ".pdf",
+        ".doc",
+        ".docx",
+    )
+    if defer_parse:
+        job_id = import_jobs.create_job_from_bytes(
+            db,
+            tenant_id=tenant_id,
+            user_id=current_admin.id,
+            file_name=file.filename,
+            file_ext=file_ext,
+            content=content,
+        )
+        import_jobs.kick_job(job_id)
+        logging.info(
+            "Import job %s accepted (deferred parse, %s bytes) for user %s",
+            job_id,
+            len(content),
+            current_admin.id,
+        )
+        return JSONResponse(
+            status_code=202,
+            content={
+                "status": "queued",
+                "job_id": job_id,
+                "total_rows": 0,
+                "message": (
+                    "Import queued. Parsing and loading products in the background — "
+                    "keep this page open until complete."
+                ),
+            },
+        )
+
+    try:
+        products_data, import_meta = parse_inventory_upload(content, file_ext)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     if not products_data:
         raise HTTPException(status_code=400, detail="No products found in file")
@@ -962,15 +1013,11 @@ async def import_inventory(
             ),
         )
 
-    # Large files always run in a background thread (HTTP returns immediately).
     sync_max = int(os.environ.get("SYNC_IMPORT_MAX_ROWS", "15"))
     if len(products_data) > sync_max:
-        from . import import_jobs
-        from . import tenant_scope
-
         job_id = import_jobs.create_job(
             db,
-            tenant_id=tenant_scope.tenant_id_for_row(current_admin),
+            tenant_id=tenant_id,
             user_id=current_admin.id,
             total_rows=len(products_data),
             products_data=products_data,
