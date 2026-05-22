@@ -71,11 +71,26 @@
         return div.innerHTML;
     }
 
+    async function ensureBiAuth() {
+        if (typeof ensureAuthenticated === 'function') {
+            return ensureAuthenticated();
+        }
+        const token = localStorage.getItem('pos_token');
+        return !!(token && token.trim());
+    }
+
     async function loadHealthScores() {
         const section = document.getElementById('bi-health-section');
         const status = document.getElementById('bi-status-line');
         if (!section) return;
+        section.style.display = 'block';
+        if (status) status.textContent = 'Loading DoposAI health scores…';
         try {
+            const ok = await ensureBiAuth();
+            if (!ok) {
+                if (status) status.textContent = 'Sign in to load business intelligence.';
+                return;
+            }
             const days = getDays();
             const data = await biApi('/api/bi/health-scores?days=' + days);
             section.style.display = 'block';
@@ -89,7 +104,15 @@
                     : 'Analytics active · configure AI_SERVICE_URL on server for full Qwen3 advice';
             }
         } catch (e) {
-            if (status) status.textContent = 'BI unavailable: ' + (e.message || e);
+            const msg = e.message || String(e);
+            if (status) {
+                if (msg.indexOf('plan') !== -1 || msg.indexOf('Upgrade') !== -1 || msg.indexOf('Pro') !== -1) {
+                    status.textContent =
+                        'Business Advisor requires Pro (or trial). Upgrade at Billing.';
+                } else {
+                    status.textContent = 'BI unavailable: ' + msg;
+                }
+            }
             console.warn('BI health scores:', e);
         }
     }
@@ -150,7 +173,8 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         wireButtons();
-        loadHealthScores();
+        // Run after analytics.js ensureAuthenticated (same event order: defer one tick)
+        setTimeout(loadHealthScores, 0);
         const period = document.getElementById('period-select');
         if (period) {
             period.addEventListener('change', loadHealthScores);

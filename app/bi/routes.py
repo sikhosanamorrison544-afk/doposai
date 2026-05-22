@@ -19,13 +19,14 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/bi", tags=["business-intelligence"])
 
-_bi_feature = require_feature(Feature.AI_ASSISTANT)
+_bi_analytics = require_feature(Feature.ANALYTICS)
+_bi_ai = require_feature(Feature.AI_ASSISTANT)
 
 
 @router.get("/status")
 def bi_status(
     current_user: User = Depends(auth.get_current_active_user),
-    _=Depends(_bi_feature),
+    _=Depends(_bi_analytics),
 ):
     return {
         "engine": "DoposAI Business Intelligence",
@@ -41,7 +42,7 @@ def bi_health_scores(
     days: int = Query(default=30, ge=7, le=365),
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
-    _=Depends(_bi_feature),
+    _=Depends(_bi_analytics),
 ):
     return service.get_health_dashboard(db, current_user, days=days)
 
@@ -51,7 +52,7 @@ def bi_business_insights(
     days: int = Query(default=30, ge=7, le=365),
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
-    _=Depends(_bi_feature),
+    _=Depends(_bi_ai),
 ):
     return service.run_bi_analysis(
         db, current_user, analysis_type="business_insights", days=days
@@ -63,7 +64,7 @@ def bi_sales_analysis(
     days: int = Query(default=30, ge=7, le=365),
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
-    _=Depends(_bi_feature),
+    _=Depends(_bi_ai),
 ):
     return service.run_bi_analysis(
         db, current_user, analysis_type="sales_analysis", days=days
@@ -75,7 +76,7 @@ def bi_inventory_analysis(
     days: int = Query(default=30, ge=7, le=365),
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
-    _=Depends(_bi_feature),
+    _=Depends(_bi_ai),
 ):
     return service.run_bi_analysis(
         db, current_user, analysis_type="inventory_analysis", days=days
@@ -87,7 +88,7 @@ def bi_profit_analysis(
     days: int = Query(default=30, ge=7, le=365),
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
-    _=Depends(_bi_feature),
+    _=Depends(_bi_ai),
 ):
     return service.run_bi_analysis(
         db, current_user, analysis_type="profit_analysis", days=days
@@ -99,7 +100,7 @@ def bi_forecast(
     days: int = Query(default=30, ge=7, le=365),
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
-    _=Depends(_bi_feature),
+    _=Depends(_bi_ai),
 ):
     return service.run_bi_analysis(
         db, current_user, analysis_type="forecast_analysis", days=days
@@ -111,6 +112,6 @@ def bi_ask(
     body: BIAskRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
-    _=Depends(_bi_feature),
+    _=Depends(_bi_ai),
 ):
     return service.run_ask(db, current_user, body.question, days=body.days)

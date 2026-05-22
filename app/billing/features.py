@@ -179,7 +179,11 @@ def feature_for_api_path(path: str) -> Optional[Feature]:
     """Map API path prefix to a gated feature (None = not plan-gated)."""
     if path.startswith("/api/analytics"):
         return Feature.ANALYTICS
-    if path.startswith("/api/ai/") or path.startswith("/api/bi/"):
+    if path.startswith("/api/ai/"):
+        return Feature.AI_ASSISTANT
+    if path.startswith("/api/bi/"):
+        if path.endswith("/health-scores") or path.endswith("/status"):
+            return Feature.ANALYTICS
         return Feature.AI_ASSISTANT
     if path.startswith("/api/accounting"):
         return Feature.ACCOUNTING
