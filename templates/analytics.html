@@ -799,7 +799,7 @@
         </div>
         
         <div id="ai-status" style="margin:12px 0;padding:8px;border-radius:4px;background:rgba(255,255,255,0.05);">
-            <div>Business Sage: <span id="ai-ollama-status">Checking...</span></div>
+            <div>DoposAI: <span id="ai-ollama-status">Checking...</span></div>
         </div>
         
         <div id="ai-loading" style="display:none;text-align:center;padding:20px;color:#1a1a1a;">
@@ -955,7 +955,6 @@
                 backdrop.style.setProperty('visibility', 'visible', 'important');
             }
             
-            // Load AI analysis
             checkAIStatus();
             loadAIAnalysis();
         }
@@ -1026,18 +1025,24 @@
             statusCheckRetries = 0;
             
             if (statusEl) {
-                if (data.ollama_available) {
-                    statusEl.textContent = data.message || '✅ AI model connected – your messages reach the model';
-                    statusEl.style.color = 'rgba(34, 197, 94, 1)';
-                    statusEl.removeAttribute('title');
-                } else {
-                    const err = data.error || '❌ AI model not connected';
-                    statusEl.textContent = err.length > 80 ? err.slice(0, 77) + '...' : err;
-                    statusEl.title = data.error || '';
-                    statusEl.style.color = 'rgba(239, 68, 68, 1)';
-                    if (data.error) {
-                        console.warn('Ollama status:', data.error);
-                    }
+                const msg =
+                    data.message ||
+                    (data.bi_advisor_available
+                        ? '✅ DoposAI cloud advisor ready'
+                        : 'Use Business Advisor section below');
+                const isOk =
+                    data.bi_advisor_available ||
+                    data.ollama_available ||
+                    (data.hint && !data.error);
+                statusEl.textContent = msg.length > 120 ? msg.slice(0, 117) + '...' : msg;
+                statusEl.title = [data.message, data.error, data.hint].filter(Boolean).join(' ');
+                statusEl.style.color = isOk
+                    ? 'rgba(34, 197, 94, 1)'
+                    : data.error && String(data.error).indexOf('localhost') !== -1
+                      ? 'rgba(245, 158, 11, 1)'
+                      : 'rgba(239, 68, 68, 1)';
+                if (data.error && !data.hint) {
+                    console.warn('AI status:', data.error);
                 }
             }
         } catch (e) {
@@ -1542,10 +1547,7 @@
             });
         }
         
-        // Pre-warm Business Sage status so opening the panel feels instant (backend cache)
-        if (localStorage.getItem('pos_token')) {
-            checkAIStatus();
-        }
+        // Status check when opening the legacy panel only (not on every page load)
         
         // Set up observer and update colors on load
         setupAIPanelObserver();

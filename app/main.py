@@ -2655,43 +2655,73 @@ async def get_ai_status(
     current_user: User = Depends(auth.get_current_active_user),
 ):
     """
-    Business Sage is always available: we return available=true when the AI module is loaded.
-    Chat uses Ollama when running, otherwise instant/reasoned answers from your data.
+    AI status for the analytics UI.
+    Production uses DoposAI BI + Contabo vLLM (no local Ollama on Render).
+    Local/dev may still use Ollama when DISABLE_STARTUP_OLLAMA is off.
     """
+    from .bi.ai_client import ai_service_configured
+    from .config import APP_ENV
+    from .startup_config import DISABLE_STARTUP_OLLAMA
+
+    bi_configured = ai_service_configured()
+    base = {
+        "advisor": "DoposAI Business Advisor",
+        "bi_advisor_available": bi_configured,
+        "ollama_available": False,
+        "legacy_ollama": False,
+        "model": None,
+        "base_url": None,
+    }
+
+    if APP_ENV == "production" or DISABLE_STARTUP_OLLAMA:
+        if bi_configured:
+            base["message"] = (
+                "DoposAI connected (Qwen3 on your AI server). "
+                "Use the Business Advisor section on this page."
+            )
+        else:
+            base["message"] = (
+                "Use DoposAI Business Advisor on this page (scroll down). "
+                "For full AI text, set AI_SERVICE_URL on Render when Contabo is ready."
+            )
+        base["hint"] = "Local Ollama is not used on cloud hosting."
+        return base
+
     if not AI_SERVICE_AVAILABLE or not ai_service:
-        return {
-            "ollama_available": False,
-            "model": None,
-            "base_url": None,
-            "error": "AI service module not loaded. Check server logs for import errors."
-        }
-    
+        base["error"] = "Legacy AI module not loaded."
+        base["message"] = base.get("message") or "Use DoposAI Business Advisor on this page."
+        return base
+
     import asyncio
-    
-    # Business Sage is always available from the app (Ollama or reasoned fallback)
-    # Use detailed check so we can show the user why connection failed
+
     try:
         is_ollama_running, reason = await asyncio.wait_for(
-            asyncio.to_thread(ai_service.check_ollama_with_reason, retries=2),
-            timeout=6.0
+            asyncio.to_thread(ai_service.check_ollama_with_reason, retries=1),
+            timeout=4.0,
         )
     except asyncio.TimeoutError:
         is_ollama_running = False
-        reason = "Status check timed out (Ollama may be slow). Try refreshing."
+        reason = "Ollama status check timed out."
     except Exception as e:
         is_ollama_running = False
         reason = str(e)
-    
-    result = {
-        "ollama_available": is_ollama_running,
-        "model": getattr(ai_service, "model", None) if is_ollama_running else None,
-        "base_url": OLLAMA_BASE_URL if is_ollama_running else None,
-    }
-    if not is_ollama_running:
-        result["error"] = reason
+
+    base["legacy_ollama"] = True
+    base["ollama_available"] = is_ollama_running
+    if is_ollama_running:
+        base["message"] = reason
+        base["model"] = getattr(ai_service, "model", None)
+        base["base_url"] = OLLAMA_BASE_URL
     else:
-        result["message"] = reason
-    return result
+        base["error"] = reason
+        if bi_configured:
+            base["message"] = "Local Ollama off; DoposAI cloud advisor is configured."
+        else:
+            base["message"] = (
+                "Local Ollama not running. Use DoposAI Business Advisor on this page, "
+                "or run ollama serve on this machine."
+            )
+    return base
 
 
 class ChatMessage(BaseModel):
