@@ -344,7 +344,7 @@
                     return (
                         '<tr>' +
                         '<td class="col-business">' + renderBusinessCell(r) + '</td>' +
-                        '<td>' + (escapeHtml(r.owner_name) || '—') + '</td>' +
+                        '<td class="col-owner">' + (escapeHtml(r.owner_name) || '—') + '</td>' +
                         '<td class="col-contact">' + escapeHtml(contact) + '</td>' +
                         '<td>' + renderStatusCell(r) + '</td>' +
                         '<td class="col-date">' + formatDate(r.trial_ends_at) + '</td>' +
