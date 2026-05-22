@@ -90,7 +90,15 @@
         }
         if (banner) {
             banner.style.display =
-                eff === 'trial' || eff === 'trial_expired' || eff === 'expired' ? 'block' : 'none';
+                sub.platform_owner_complimentary
+                    ? 'none'
+                    : eff === 'trial' || eff === 'trial_expired' || eff === 'expired'
+                      ? 'block'
+                      : 'none';
+        }
+        if (line && sub.platform_owner_complimentary) {
+            line.textContent =
+                'Status: Pro (platform owner — complimentary, no payment required)';
         }
     }
 

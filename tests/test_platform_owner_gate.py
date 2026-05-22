@@ -87,3 +87,27 @@ def test_user_missing_email_attr_is_denied_cleanly():
     u.role = "admin"
     u.is_active = True
     assert pr.is_platform_owner_user(u) is False
+
+
+def test_is_platform_owner_tenant_by_tenant_email():
+    """Tenant registration email on allowlist → complimentary Pro tenant."""
+    from app.quotation_models import Tenant
+
+    t = Tenant()
+    t.id = 1
+    t.tenant_uid = "test-uid"
+    t.name = "My Test Shop"
+    t.email = "owner@example.com"
+
+    class FakeQuery:
+        def filter(self, *args, **kwargs):
+            return self
+
+        def all(self):
+            return []
+
+    class FakeDb:
+        def query(self, model):
+            return FakeQuery()
+
+    assert pr.is_platform_owner_tenant(FakeDb(), t) is True

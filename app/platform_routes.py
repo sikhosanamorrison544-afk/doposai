@@ -54,6 +54,25 @@ def is_platform_owner_user(user: User) -> bool:
     return False
 
 
+def is_platform_owner_tenant(db: Session, tenant: Tenant) -> bool:
+    """True if this business is the platform operator's own tenant (complimentary Pro)."""
+    if not PLATFORM_OWNER_EMAILS and not PLATFORM_OWNER_USERNAMES:
+        return False
+    tenant_email = (tenant.email or "").strip().lower()
+    if PLATFORM_OWNER_EMAILS and tenant_email and tenant_email in PLATFORM_OWNER_EMAILS:
+        return True
+    admins = (
+        db.query(User)
+        .filter(
+            User.tenant_id == tenant.id,
+            User.role == "admin",
+            User.is_active == True,  # noqa: E712
+        )
+        .all()
+    )
+    return any(is_platform_owner_user(u) for u in admins)
+
+
 def require_platform_owner(
     user: User = Depends(auth.get_current_active_user),
 ) -> User:

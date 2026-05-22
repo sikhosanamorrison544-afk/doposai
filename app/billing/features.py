@@ -86,6 +86,29 @@ PLAN_FEATURES: Dict[str, FrozenSet[str]] = {
     "pro": _PRO_FEATURES,
 }
 
+# Complimentary Pro for the platform operator's own tenant (testing / ops).
+COMPLIMENTARY_PRO_YEARS = 10
+
+
+def resolve_effective_plan(sub: Subscription, *, force_pro: bool = False) -> str:
+    """During an active trial window, tenants get Pro-level features."""
+    if force_pro:
+        return "pro"
+    now = datetime.utcnow()
+    if sub.trial_end and now <= sub.trial_end:
+        return "pro"
+    if sub.status == "trial":
+        return "pro"
+    plan = (sub.plan or "starter").lower()
+    if plan not in PLAN_FEATURES:
+        return "starter"
+    return plan
+
+
+def features_for_plan(plan: str) -> FrozenSet[str]:
+    return PLAN_FEATURES.get(plan.lower(), frozenset())
+
+
 PLAN_FEATURE_SUMMARIES: Dict[str, list[str]] = {
     "starter": [
         "Point of sale & receipts",
@@ -115,21 +138,10 @@ PLAN_FEATURE_SUMMARIES: Dict[str, list[str]] = {
 }
 
 
-def resolve_effective_plan(sub: Subscription) -> str:
-    """During an active trial window, tenants get Pro-level features."""
-    now = datetime.utcnow()
-    if sub.trial_end and now <= sub.trial_end:
-        return "pro"
-    if sub.status == "trial":
-        return "pro"
-    plan = (sub.plan or "starter").lower()
-    if plan not in PLAN_FEATURES:
-        return "starter"
-    return plan
+def _platform_owner_complimentary(db: Session, tenant: Tenant) -> bool:
+    from ..platform_routes import is_platform_owner_tenant
 
-
-def features_for_plan(plan: str) -> FrozenSet[str]:
-    return PLAN_FEATURES.get(plan.lower(), frozenset())
+    return is_platform_owner_tenant(db, tenant)
 
 
 def tenant_features(db: Session, tenant: Tenant, sub: Optional[Subscription] = None) -> Set[str]:
@@ -137,6 +149,8 @@ def tenant_features(db: Session, tenant: Tenant, sub: Optional[Subscription] = N
 
     if sub is None:
         sub = billing_service.get_or_create_subscription(db, tenant)
+    if _platform_owner_complimentary(db, tenant):
+        return set(_PRO_FEATURES)
     plan = resolve_effective_plan(sub)
     return set(features_for_plan(plan))
 

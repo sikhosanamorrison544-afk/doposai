@@ -24,7 +24,7 @@ def require_subscription_access(
     if not tenant:
         return user
     sub = billing_service.get_or_create_subscription(db, tenant)
-    _, allowed, _ = billing_service.effective_status(sub, tenant)
+    _, allowed, _ = billing_service.effective_status(sub, tenant, db=db)
     if not allowed:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,

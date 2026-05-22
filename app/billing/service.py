@@ -14,6 +14,7 @@ from ..quotation_models import Tenant
 from .models import BillingLog, Subscription, SubscriptionPayment
 from .paynow_client import PaynowClient, get_paynow_client
 from .features import (
+    COMPLIMENTARY_PRO_YEARS,
     PLAN_FEATURE_SUMMARIES,
     resolve_effective_plan,
     tenant_features,
@@ -30,6 +31,7 @@ def _log(db: Session, tenant_id: int, event_type: str, description: str) -> None
 def get_or_create_subscription(db: Session, tenant: Tenant) -> Subscription:
     sub = db.query(Subscription).filter(Subscription.tenant_id == tenant.id).first()
     if sub:
+        _maybe_apply_platform_owner_complimentary(db, tenant, sub)
         return sub
     now = datetime.utcnow()
     trial_end = tenant.trial_ends_at or (now + timedelta(days=TRIAL_DAYS_DEFAULT))
@@ -44,13 +46,42 @@ def get_or_create_subscription(db: Session, tenant: Tenant) -> Subscription:
     db.add(sub)
     db.flush()
     _log(db, tenant.id, "subscription_created", "Initial subscription row created")
+    _maybe_apply_platform_owner_complimentary(db, tenant, sub)
     return sub
+
+
+def _maybe_apply_platform_owner_complimentary(
+    db: Session, tenant: Tenant, sub: Subscription
+) -> bool:
+    """Grant permanent Pro to the platform owner's own business (no payment)."""
+    from ..platform_routes import is_platform_owner_tenant
+
+    if not is_platform_owner_tenant(db, tenant):
+        return False
+    now = datetime.utcnow()
+    sub.plan = "pro"
+    sub.status = "active"
+    if not sub.billing_cycle:
+        sub.billing_cycle = "yearly"
+    sub.subscription_start = sub.subscription_start or now
+    sub.subscription_end = now + timedelta(days=365 * COMPLIMENTARY_PRO_YEARS)
+    sub.trial_end = None
+    tenant.subscription_status = "active"
+    db.flush()
+    _log(
+        db,
+        tenant.id,
+        "platform_owner_complimentary",
+        f"Complimentary Pro until {sub.subscription_end.isoformat()}",
+    )
+    return True
 
 
 def effective_status(
     sub: Subscription,
     tenant: Optional[Tenant] = None,
     grace_hours: int = OFFLINE_GRACE_HOURS_DEFAULT,
+    db: Optional[Session] = None,
 ) -> Tuple[str, bool, Optional[datetime]]:
     """
     Returns (status_for_client, access_allowed, subscription_end_or_trial_end).
@@ -58,6 +89,13 @@ def effective_status(
     """
     now = datetime.utcnow()
     grace = timedelta(hours=grace_hours)
+
+    if tenant is not None and db is not None:
+        from ..platform_routes import is_platform_owner_tenant
+
+        if is_platform_owner_tenant(db, tenant):
+            end = sub.subscription_end or (now + timedelta(days=365 * COMPLIMENTARY_PRO_YEARS))
+            return "active", True, end
 
     if sub.status == "suspended":
         return "suspended", False, sub.subscription_end or sub.trial_end
@@ -101,7 +139,10 @@ def _days_remaining(end_at: Optional[datetime]) -> Optional[int]:
 
 def subscription_status_payload(db: Session, tenant: Tenant) -> Dict[str, Any]:
     sub = get_or_create_subscription(db, tenant)
-    status, allowed, ends = effective_status(sub, tenant)
+    from ..platform_routes import is_platform_owner_tenant
+
+    complimentary = is_platform_owner_tenant(db, tenant)
+    status, allowed, ends = effective_status(sub, tenant, db=db)
     trial_end = sub.trial_end
     sub_end = sub.subscription_end
     days_trial = _days_remaining(trial_end) if trial_end else None
@@ -114,7 +155,7 @@ def subscription_status_payload(db: Session, tenant: Tenant) -> Dict[str, Any]:
         days_remaining = days_sub
     else:
         days_remaining = None
-    effective_plan = resolve_effective_plan(sub)
+    effective_plan = resolve_effective_plan(sub, force_pro=complimentary)
     feats = sorted(tenant_features(db, tenant, sub))
     return {
         "tenant_id": tenant.id,
@@ -126,6 +167,7 @@ def subscription_status_payload(db: Session, tenant: Tenant) -> Dict[str, Any]:
         "effective_status": status,
         "access_allowed": allowed,
         "features": feats,
+        "platform_owner_complimentary": complimentary,
         "trial_all_features": effective_plan == "pro" and sub.status == "trial",
         "plan_feature_summaries": PLAN_FEATURE_SUMMARIES,
         "trial_start": sub.trial_start.isoformat() + "Z" if sub.trial_start else None,
@@ -151,7 +193,7 @@ def _sync_tenant_and_firestore(
     *,
     payment_verified: bool = False,
 ) -> None:
-    eff, allowed, ends = effective_status(sub, tenant)
+    eff, allowed, ends = effective_status(sub, tenant, db=db)
     tenant.subscription_status = eff if eff != "trial_expired" else "trial_expired"
     if eff == "active":
         tenant.subscription_status = "active"
