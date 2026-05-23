@@ -11,7 +11,7 @@ Android / Web POS  →  Render (FastAPI + PostgreSQL analytics)  →  Contabo AI
 
 ## 1. VPS requirements (Ubuntu 24.04)
 
-- NVIDIA GPU recommended (Qwen3-8B)
+- NVIDIA GPU recommended (**Qwen3-14B-AWQ** on 16–24 GB VRAM; see [QWEN3_VLLM_CONTABO_SETUP.md](QWEN3_VLLM_CONTABO_SETUP.md))
 - Docker Engine + Docker Compose v2
 - [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
 - Open firewall: **8080** (AI API) from Render IPs only; do not expose vLLM :8000 publicly
@@ -21,8 +21,13 @@ Android / Web POS  →  Render (FastAPI + PostgreSQL analytics)  →  Contabo AI
 ```bash
 cd ai-service
 cp .env.example .env
-# Edit AI_SERVICE_API_KEY and HF_TOKEN if needed
-docker compose up -d --build
+# Edit AI_SERVICE_API_KEY, VLLM_MODEL, VLLM_SERVED_NAME (see QWEN3_VLLM_CONTABO_SETUP.md)
+
+# Large Qwen3 (~15B class, closest to "18B"):
+docker compose -f docker-compose.yml -f docker-compose.qwen3-14b.yml up -d --build
+
+# Or default 8B AWQ:
+# docker compose up -d --build
 ```
 
 Verify:

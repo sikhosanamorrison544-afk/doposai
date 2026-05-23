@@ -26,7 +26,7 @@ def chat_completion(
 ) -> str:
     url = f"{config.VLLM_BASE_URL}/chat/completions"
     payload = {
-        "model": config.VLLM_MODEL,
+        "model": config.VLLM_SERVED_NAME,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},

@@ -1,0 +1,16 @@
+# Qwen3 32B (AWQ) — needs ~24 GB+ VRAM; reduce max-model-len if OOM.
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.qwen3-32b.yml up -d --build
+
+services:
+  vllm:
+    command: >
+      --model ${VLLM_MODEL:-Qwen/Qwen3-32B-AWQ}
+      --served-model-name ${VLLM_SERVED_NAME:-qwen3-32b}
+      --host 0.0.0.0
+      --port 8000
+      --max-model-len ${VLLM_MAX_MODEL_LEN:-6144}
+      --gpu-memory-utilization ${VLLM_GPU_UTIL:-0.88}
+      --dtype auto
+    healthcheck:
+      start_period: 1200s

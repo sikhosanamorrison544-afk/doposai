@@ -1,0 +1,18 @@
+# Qwen3 ~15B (AWQ) — best fit for 16–24 GB GPU (Contabo GPU VPS).
+# Usage:
+#   cp .env.example .env
+#   # Set VLLM_MODEL=Qwen/Qwen3-14B-AWQ and matching VLLM_SERVED_NAME=qwen3-14b
+#   docker compose -f docker-compose.yml -f docker-compose.qwen3-14b.yml up -d --build
+
+services:
+  vllm:
+    command: >
+      --model ${VLLM_MODEL:-Qwen/Qwen3-14B-AWQ}
+      --served-model-name ${VLLM_SERVED_NAME:-qwen3-14b}
+      --host 0.0.0.0
+      --port 8000
+      --max-model-len ${VLLM_MAX_MODEL_LEN:-8192}
+      --gpu-memory-utilization ${VLLM_GPU_UTIL:-0.92}
+      --dtype auto
+    healthcheck:
+      start_period: 900s

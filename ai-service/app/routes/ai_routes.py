@@ -1,8 +1,10 @@
 """AI API routes — tenant-aware via request body (Render sends pre-scoped analytics)."""
 from __future__ import annotations
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 
+from .. import config
 from ..models.schemas import BIAnalysisRequest, BIAnalysisResponse
 from ..services.advisor import run_analysis
 from .deps import verify_api_key
@@ -17,7 +19,32 @@ def _handle(req: BIAnalysisRequest, analysis_type: str) -> BIAnalysisResponse:
 
 @router.get("/health")
 def health():
-    return {"status": "ok", "service": "doposai-ai", "advisor": "DoposAI Business Advisor"}
+    from .. import config
+    from ..services import vllm_client
+
+    out = {
+        "status": "ok",
+        "service": "doposai-ai",
+        "advisor": "DoposAI Business Advisor",
+        "vllm_model": config.VLLM_SERVED_NAME,
+        "vllm_ready": False,
+    }
+    try:
+        import httpx
+
+        with httpx.Client(timeout=5.0) as client:
+            r = client.get(f"{config.VLLM_BASE_URL}/models")
+            if r.status_code == 200:
+                out["vllm_ready"] = True
+                data = r.json()
+                ids = [m.get("id") for m in data.get("data", []) if m.get("id")]
+                if ids:
+                    out["vllm_models"] = ids
+    except Exception as exc:
+        out["vllm_error"] = str(exc)[:200]
+    if not out["vllm_ready"]:
+        out["status"] = "degraded"
+    return out
 
 
 @router.post("/business-insights", response_model=BIAnalysisResponse)
