@@ -100,13 +100,6 @@ try:
 except Exception as e:
     logging.warning("Could not ensure import_jobs table: %s", e)
 
-try:
-    from migrate_import_jobs import migrate as _migrate_import_jobs
-
-    _migrate_import_jobs()
-except Exception as e:
-    logging.warning("Could not upgrade import_jobs columns: %s", e)
-
 # Initialize Chart of Accounts on startup (if not already initialized)
 try:
     with SessionLocal() as db:
@@ -219,26 +212,27 @@ async def startup_event():
     except Exception as e:
         logging.error(f"Failed to start scheduler service: {e}", exc_info=True)
 
-    try:
-        from .notification_service import NotificationService
-
-        db = SessionLocal()
+    async def deferred_startup_notifications() -> None:
+        await asyncio.sleep(8)
         try:
-            notification_service = NotificationService(db)
-            count = notification_service.check_all_products_and_create_notifications()
-            if count > 0:
-                logging.info(
-                    "Created %s notifications for low-stock/out-of-stock products on startup",
-                    count,
-                )
-            else:
-                logging.info("No new notifications needed - all products are in stock")
-        finally:
-            db.close()
-    except Exception as e:
-        logging.error(
-            "Error checking products for notifications on startup: %s", e, exc_info=True
-        )
+            from .notification_service import NotificationService
+
+            db = SessionLocal()
+            try:
+                count = NotificationService(db).check_all_products_and_create_notifications()
+                if count > 0:
+                    logging.info(
+                        "Created %s notifications for low-stock/out-of-stock products on startup",
+                        count,
+                    )
+            finally:
+                db.close()
+        except Exception as e:
+            logging.error(
+                "Error checking products for notifications on startup: %s", e, exc_info=True
+            )
+
+    asyncio.create_task(deferred_startup_notifications())
 
 
 async def _start_ollama_background_tasks():

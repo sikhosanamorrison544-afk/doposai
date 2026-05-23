@@ -115,15 +115,8 @@
                 }
                 return;
             }
-            let st = { ai_service_configured: false };
-            try {
-                st = await biApi('/api/bi/status');
-            } catch (statusErr) {
-                console.warn('BI status check:', statusErr);
-            }
             const cloudAi =
-                st.ai_service_configured ||
-                st.bi_advisor_available;
+                data.ai_service_configured || data.bi_advisor_available;
             if (status) {
                 status.textContent = cloudAi
                     ? 'Qwen3 advisor connected · scores from your store data'

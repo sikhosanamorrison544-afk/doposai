@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..models import User
 from . import cache
 from .ai_client import AIServiceError, ai_service_configured, call_ai_endpoint
-from .analytics import build_tenant_analytics_summary
+from .analytics import build_health_analytics_summary, build_tenant_analytics_summary
 from .forecasting import build_forecasts
 from .intent import detect_intent
 from .scores import compute_health_scores
@@ -135,7 +135,7 @@ def run_bi_analysis(
                 path,
                 tenant_id=tid,
                 tenant_name=analytics.get("business_name"),
-                analytics=analytics,
+                analytics=_slim_snapshot(analytics),
                 question=question,
                 analysis_type=ai_type,
                 period_days=days,
@@ -206,19 +206,14 @@ def get_health_dashboard(
     if hit and isinstance(hit.get("health_scores"), dict):
         return hit
 
-    analytics = build_tenant_analytics_summary(db, user, days=days)
+    analytics = build_health_analytics_summary(db, user, days=days)
     scores = compute_health_scores(analytics)
-    forecast = build_forecasts(db, user, analytics, horizon_days=14)
     payload = {
         "tenant_id": tid,
         "period_days": days,
         "health_scores": scores.model_dump(),
-        "analytics_summary": _slim_snapshot(analytics),
-        "forecast_summary": {
-            "projected_revenue": forecast.get("projected_revenue_next_period"),
-            "trend": forecast.get("revenue_forecast", {}).get("trend"),
-            "reorder_count": len(forecast.get("reorder_suggestions") or []),
-        },
+        "ai_service_configured": ai_service_configured(),
+        "bi_advisor_available": ai_service_configured(),
     }
     cache.set_cached(tid, "health", cache_payload, payload, ttl=900)
     return payload

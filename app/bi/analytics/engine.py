@@ -75,6 +75,32 @@ def build_tenant_analytics_summary(
     return summary
 
 
+def build_health_analytics_summary(
+    db: Session,
+    user: User,
+    *,
+    days: int = 30,
+) -> Dict[str, Any]:
+    """Lightweight aggregates for health score cards (under ~30s on Render)."""
+    now = datetime.utcnow()
+    period_start = now - timedelta(days=days)
+    prev_start = period_start - timedelta(days=days)
+    meta = _tenant_meta(db, user)
+
+    return {
+        **meta,
+        "period_days": days,
+        **sales_analytics.sales_metrics_for_health(
+            db, user, period_start, now, prev_start, period_start
+        ),
+        **inventory_analytics.inventory_metrics_for_health(db, user),
+        **profit_analytics.profit_metrics(
+            db, user, period_start, now, prev_start, period_start
+        ),
+        **debt_analytics.debt_metrics(db, user),
+    }
+
+
 def _branch_performance(
     db: Session,
     user: User,
@@ -148,7 +174,7 @@ def _customer_activity(
         .scalar()
         or 0
     )
-    top_rows = (
+    top_q = (
         db.query(
             Customer.id,
             Customer.name,
@@ -162,11 +188,12 @@ def _customer_activity(
             tenant_scope.sale_tenant_match(user),
         )
     )
-    cust_q = tenant_scope.filter_customers(db, user)
-    if cust_q.whereclause is not None:
-        top_rows = top_rows.filter(cust_q.whereclause)
+    if user.tenant_id is None:
+        top_q = top_q.filter(Customer.tenant_id.is_(None))
+    else:
+        top_q = top_q.filter(Customer.tenant_id == user.tenant_id)
     top_rows = (
-        top_rows.group_by(Customer.id, Customer.name)
+        top_q.group_by(Customer.id, Customer.name)
         .order_by(func.sum(Sale.total).desc())
         .limit(5)
         .all()

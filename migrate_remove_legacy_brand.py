@@ -38,11 +38,10 @@ def run() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     log = logging.getLogger("migrate_remove_legacy_brand")
 
-    # Pull in the FULL model graph before opening a session — StoreSettings
-    # has a foreign key to ``tenants.id``, and without app.main being
-    # imported the Tenant model isn't registered, so SQLAlchemy raises
-    # NoReferencedTableError as soon as we query.
-    import app.main  # noqa: F401 — registers every ORM model
+    # Register ORM tables without importing app.main (avoids heavy startup on deploy).
+    import app.enterprise_models  # noqa: F401
+    import app.models  # noqa: F401
+    import app.quotation_models  # noqa: F401
     from app.config import PLATFORM_BRAND_NAME
     from app.database import SessionLocal
     from app.models import StoreSettings

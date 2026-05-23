@@ -11,6 +11,43 @@ from ... import tenant_scope
 from ...models import Payment, Product, Sale, SaleItem, User
 
 
+def sales_metrics_for_health(
+    db: Session,
+    user: User,
+    start: datetime,
+    end: datetime,
+    prev_start: datetime,
+    prev_end: datetime,
+) -> Dict[str, Any]:
+    """Minimal sales aggregates for health score cards (fewer DB round-trips)."""
+    sales_this = (
+        db.query(func.coalesce(func.sum(Sale.total), 0))
+        .filter(
+            Sale.created_at >= start,
+            Sale.created_at < end,
+            tenant_scope.sale_tenant_match(user),
+        )
+        .scalar()
+    )
+    sales_last = (
+        db.query(func.coalesce(func.sum(Sale.total), 0))
+        .filter(
+            Sale.created_at >= prev_start,
+            Sale.created_at < prev_end,
+            tenant_scope.sale_tenant_match(user),
+        )
+        .scalar()
+    )
+    sales_this_f = float(sales_this or 0)
+    sales_last_f = float(sales_last or 0)
+    return {
+        "sales_this_period": sales_this_f,
+        "sales_last_period": sales_last_f,
+        "revenue_change_percent": _pct_change(sales_this_f, sales_last_f),
+        "revenue_this_period": sales_this_f,
+    }
+
+
 def sales_metrics(
     db: Session,
     user: User,

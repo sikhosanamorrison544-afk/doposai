@@ -4,11 +4,32 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
-from sqlalchemy import func
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
 
 from ... import tenant_scope
 from ...models import Product, Sale, SaleItem, User
+
+
+def inventory_metrics_for_health(db: Session, user: User) -> Dict[str, Any]:
+    """Stock signals for health scores only (skips dead-stock scan and turnover)."""
+    products_q = tenant_scope.filter_products(db, user).filter(Product.is_active == True)  # noqa: E712
+
+    low_stock = (
+        products_q.filter(
+            Product.stock_qty <= func.coalesce(Product.low_stock_threshold, 5)
+        )
+        .order_by(Product.stock_qty.asc())
+        .limit(20)
+        .all()
+    )
+    out_of_stock = products_q.filter(Product.stock_qty <= 0).limit(20).all()
+
+    return {
+        "total_active_skus": int(products_q.count()),
+        "low_stock_products": [_product_row(p) for p in low_stock],
+        "out_of_stock_products": [_product_row(p) for p in out_of_stock],
+    }
 
 
 def inventory_metrics(db: Session, user: User) -> Dict[str, Any]:
@@ -39,20 +60,17 @@ def inventory_metrics(db: Session, user: User) -> Dict[str, Any]:
     )
 
     cutoff = datetime.utcnow() - timedelta(days=90)
-    sold_ids_q = (
-        db.query(SaleItem.product_id)
+    recent_sale = (
+        select(1)
+        .select_from(SaleItem)
         .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(
+        .where(
+            SaleItem.product_id == Product.id,
             Sale.created_at >= cutoff,
             tenant_scope.sale_tenant_match(user),
         )
-        .distinct()
     )
-    dead_stock = (
-        products_q.filter(~Product.id.in_(sold_ids_q))
-        .limit(15)
-        .all()
-    )
+    dead_stock = products_q.filter(~exists(recent_sale)).limit(15).all()
 
     turnover = _inventory_turnover(db, user, days=30)
 

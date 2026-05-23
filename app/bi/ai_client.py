@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 
 AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "").rstrip("/")
 AI_SERVICE_API_KEY = os.environ.get("AI_SERVICE_API_KEY", "").strip()
-AI_SERVICE_TIMEOUT = float(os.environ.get("AI_SERVICE_TIMEOUT_SEC", "120"))
+AI_SERVICE_TIMEOUT = float(os.environ.get("AI_SERVICE_TIMEOUT_SEC", "25"))
+AI_CONNECT_TIMEOUT = float(os.environ.get("AI_SERVICE_CONNECT_TIMEOUT_SEC", "5"))
 
 
 class AIServiceError(Exception):
@@ -53,8 +54,14 @@ def call_ai_endpoint(
         "Content-Type": "application/json",
         "X-API-Key": AI_SERVICE_API_KEY,
     }
+    timeout = httpx.Timeout(
+        connect=AI_CONNECT_TIMEOUT,
+        read=AI_SERVICE_TIMEOUT,
+        write=10.0,
+        pool=5.0,
+    )
     try:
-        with httpx.Client(timeout=AI_SERVICE_TIMEOUT) as client:
+        with httpx.Client(timeout=timeout) as client:
             resp = client.post(url, json=body, headers=headers)
             resp.raise_for_status()
             return resp.json()
