@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import and_, func
+from sqlalchemy import and_, exists, func, select
 from sqlalchemy.orm import Session
 from starlette.middleware.gzip import GZipMiddleware
 
@@ -2428,58 +2428,61 @@ async def get_revenue_per_product(
 @app.get("/api/analytics/zero-sales", response_model=List[ZeroSalesProduct])
 async def get_zero_sales_products(
     days: int = Query(default=30, ge=1, le=365, description="Number of days to check"),
+    limit: int = Query(default=100, ge=1, le=500, description="Max rows returned"),
     db: Session = Depends(get_db),
     current_user: User = Depends(dep_perm(Perm.VIEW_REPORTS)),
 ):
-    """Get products with zero sales in the last N days."""
+    """Products with no sales in the last N days (bounded; avoids N+1 queries)."""
     cutoff_date = datetime.utcnow() - timedelta(days=days)
-    
-    # Get all active products
-    all_products = tenant_scope.filter_products(db, current_user).filter(Product.is_active == True).all()  # noqa: E712
 
-    # Get products that have sales in the period
-    products_with_sales = (
-        tenant_scope.filter_products(db, current_user)
-        .with_entities(Product.id)
-        .join(SaleItem, SaleItem.product_id == Product.id)
+    recent_sale = (
+        select(1)
+        .select_from(SaleItem)
         .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(
+        .where(
+            SaleItem.product_id == Product.id,
             Sale.created_at >= cutoff_date,
             tenant_scope.sale_tenant_match(current_user),
         )
-        .distinct()
+    )
+    base_q = tenant_scope.filter_products(db, current_user).filter(
+        Product.is_active == True,  # noqa: E712
+        ~exists(recent_sale),
+    )
+
+    zero_sales_products = (
+        base_q.order_by(Product.name.asc()).limit(limit).all()
+    )
+    if not zero_sales_products:
+        return []
+
+    product_ids = [p.id for p in zero_sales_products]
+    last_sale_rows = (
+        db.query(
+            SaleItem.product_id,
+            func.max(Sale.created_at).label("last_sale"),
+        )
+        .join(Sale, SaleItem.sale_id == Sale.id)
+        .filter(
+            SaleItem.product_id.in_(product_ids),
+            tenant_scope.sale_tenant_match(current_user),
+        )
+        .group_by(SaleItem.product_id)
         .all()
     )
-    
-    sold_product_ids = {p.id for p in products_with_sales}
-    
-    # Get products with zero sales
-    zero_sales_products = [p for p in all_products if p.id not in sold_product_ids]
-    
-    # For each product, get the last sale date (if any, outside the period)
-    result = []
-    for product in zero_sales_products:
-        last_sale = (
-            db.query(Sale.created_at)
-            .join(SaleItem, SaleItem.sale_id == Sale.id)
-            .filter(
-                SaleItem.product_id == product.id,
-                tenant_scope.sale_tenant_match(current_user),
-            )
-            .order_by(Sale.created_at.desc())
-            .first()
-        )
-        
-        result.append(ZeroSalesProduct(
+    last_by_id = {row.product_id: row.last_sale for row in last_sale_rows}
+
+    return [
+        ZeroSalesProduct(
             product_id=product.id,
             product_name=product.name,
             barcode=product.barcode,
             stock_qty=product.stock_qty,
             selling_price=product.selling_price,
-            last_sale_date=last_sale[0] if last_sale else None
-        ))
-    
-    return result
+            last_sale_date=last_by_id.get(product.id),
+        )
+        for product in zero_sales_products
+    ]
 
 
 @app.get("/api/analytics/dashboard", response_model=dict)

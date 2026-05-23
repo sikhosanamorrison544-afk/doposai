@@ -237,9 +237,11 @@ async function loadZeroSalesProducts(days = 30) {
     try {
         container.innerHTML = '<div class="loading">Loading zero sales products...</div>';
         
-        const data = await analyticsApi(`/api/analytics/zero-sales?days=${days}`);
+        const data = await analyticsApi(
+            `/api/analytics/zero-sales?days=${days}&limit=100`
+        );
         
-        if (data.length === 0) {
+        if (!data || data.length === 0) {
             container.innerHTML = '<div class="loading">All products have sales in this period! 🎉</div>';
             return;
         }
@@ -281,7 +283,11 @@ async function loadZeroSalesProducts(days = 30) {
             </table>
         `;
         
-        container.innerHTML = html;
+        const note =
+            data.length >= 100
+                ? '<p style="font-size:13px;color:#64748b;margin:0 0 12px;">Showing first 100 products with zero sales. Narrow the date range for a shorter list.</p>'
+                : '';
+        container.innerHTML = note + html;
     } catch (e) {
         console.error('Error loading zero sales products:', e);
         container.innerHTML = `<div class="error">Failed to load zero sales products: ${e.message}</div>`;
@@ -311,9 +317,6 @@ function isAnalyticsAndroidApp() {
 
 async function refreshAll(days) {
     const tasks = [loadDashboard(days)];
-    if (!isAnalyticsAndroidApp()) {
-        tasks.push(loadZeroSalesProducts(days));
-    }
     if (isAnalyticsAndroidApp()) {
         const revenueEl = document.getElementById('revenue-table-container');
         if (revenueEl) revenueEl.innerHTML = '';
@@ -321,6 +324,10 @@ async function refreshAll(days) {
         tasks.push(loadRevenuePerProduct(days));
     }
     await Promise.all(tasks);
+    // Load zero-sales after fast endpoints (old code did N+1 DB queries per product).
+    if (!isAnalyticsAndroidApp()) {
+        loadZeroSalesProducts(days);
+    }
 }
 
 // Theme management
@@ -410,9 +417,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load initial data
     const initialDays = periodSelect ? parseInt(periodSelect.value) : 30;
-    await refreshAll(initialDays);
-    if (typeof window.loadBIHealthScores === 'function') {
-        await window.loadBIHealthScores();
-    }
+    await Promise.all([
+        refreshAll(initialDays),
+        typeof window.loadBIHealthScores === 'function'
+            ? window.loadBIHealthScores()
+            : Promise.resolve(),
+    ]);
 });
 
