@@ -715,7 +715,7 @@
             </div>
 
             <!-- DoposAI Business Intelligence health scores -->
-            <div class="bi-health-section" id="bi-health-section" style="display:none;">
+            <div class="bi-health-section" id="bi-health-section">
                 <h2 style="margin:0 0 12px 0;color:#1a1a1a;">DoposAI Business Advisor</h2>
                 <p id="bi-status-line" style="margin:0 0 16px;font-size:14px;color:#64748b;">Loading health scores…</p>
                 <div class="bi-scores-grid" id="bi-scores-grid">
@@ -800,6 +800,9 @@
         
         <div id="ai-status" style="margin:12px 0;padding:8px;border-radius:4px;background:rgba(255,255,255,0.05);">
             <div>DoposAI: <span id="ai-ollama-status">Checking...</span></div>
+            <div style="font-size:12px;margin-top:6px;color:rgba(0,0,0,0.65);">
+                On cloud hosting, use the <strong>DoposAI Business Advisor</strong> section on this page (not local Ollama).
+            </div>
         </div>
         
         <div id="ai-loading" style="display:none;text-align:center;padding:20px;color:#1a1a1a;">
@@ -864,7 +867,7 @@
 <script src="/static/js/pos-android.js?v=3"></script>
 <script src="/static/js/pos-android-pages.js?v=3"></script>
 <script src="/static/js/analytics.js"></script>
-<script src="/static/js/bi-advisor.js?v=2"></script>
+<script src="/static/js/bi-advisor.js?v=3"></script>
 <script>
     function isAIPanelMobile() { return window.innerWidth <= 768; }
     function applyAIPanelDimensions(panel) {

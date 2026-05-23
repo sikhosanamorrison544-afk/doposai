@@ -28,10 +28,12 @@ def bi_status(
     current_user: User = Depends(auth.get_current_active_user),
     _=Depends(_bi_analytics),
 ):
+    configured = ai_service_configured()
     return {
         "engine": "DoposAI Business Intelligence",
         "advisor": "DoposAI Business Advisor",
-        "ai_service_configured": ai_service_configured(),
+        "ai_service_configured": configured,
+        "bi_advisor_available": configured,
         "analytics": "postgresql",
         "llm": "qwen3-vllm-contabo",
     }
@@ -44,7 +46,11 @@ def bi_health_scores(
     current_user: User = Depends(auth.get_current_active_user),
     _=Depends(_bi_analytics),
 ):
-    return service.get_health_dashboard(db, current_user, days=days)
+    try:
+        return service.get_health_dashboard(db, current_user, days=days)
+    except Exception as e:
+        logger.exception("BI health-scores failed for user %s", current_user.id)
+        raise HTTPException(status_code=500, detail=f"Could not compute health scores: {e}") from e
 
 
 @router.post("/business-insights", response_model=BIAdvisorResponse)

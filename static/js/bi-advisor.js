@@ -23,21 +23,28 @@
         throw new Error('analyticsApi not available');
     }
 
+    function scoreText(raw) {
+        const n = Number(raw);
+        return Number.isFinite(n) ? Math.round(n) + '/100' : '—';
+    }
+
     function applyHealthScores(data) {
         const hs = data && data.health_scores;
-        if (!hs) return;
+        if (!hs || typeof hs !== 'object') {
+            return false;
+        }
         METRICS.forEach(function (m) {
             const dot = document.getElementById(m.dot);
             const val = document.getElementById(m.val);
             const color = hs[m.key] || 'yellow';
-            const score = hs[m.score];
             if (dot) {
                 dot.className = 'bi-score-dot ' + color;
             }
             if (val) {
-                val.textContent = typeof score === 'number' ? Math.round(score) + '/100' : '—';
+                val.textContent = scoreText(hs[m.score]);
             }
         });
+        return true;
     }
 
     function renderAdvisorResponse(res) {
@@ -93,22 +100,43 @@
             }
             const days = getDays();
             const data = await biApi('/api/bi/health-scores?days=' + days);
-            section.style.display = 'block';
-            applyHealthScores(data);
-            const st = await biApi('/api/bi/status').catch(function () {
-                return { ai_service_configured: false };
-            });
+            if (!data) {
+                if (status) {
+                    status.textContent =
+                        'No data returned. Hard-refresh the page (Ctrl+Shift+R) and try again.';
+                }
+                return;
+            }
+            if (!applyHealthScores(data)) {
+                console.warn('BI health_scores missing in response', data);
+                if (status) {
+                    status.textContent =
+                        'Scores could not be loaded. Open browser DevTools (F12) → Network → health-scores.';
+                }
+                return;
+            }
+            let st = { ai_service_configured: false };
+            try {
+                st = await biApi('/api/bi/status');
+            } catch (statusErr) {
+                console.warn('BI status check:', statusErr);
+            }
+            const cloudAi =
+                st.ai_service_configured ||
+                st.bi_advisor_available;
             if (status) {
-                status.textContent = st.ai_service_configured
-                    ? 'Qwen3 advisor connected · scores based on your store data'
-                    : 'Analytics active · configure AI_SERVICE_URL on server for full Qwen3 advice';
+                status.textContent = cloudAi
+                    ? 'Qwen3 advisor connected · scores from your store data'
+                    : 'Scores updated from your sales data · set AI_SERVICE_URL on Render for full AI text';
             }
         } catch (e) {
-            const msg = e.message || String(e);
+            const msg = e && e.message ? String(e.message) : String(e);
             if (status) {
                 if (msg.indexOf('plan') !== -1 || msg.indexOf('Upgrade') !== -1 || msg.indexOf('Pro') !== -1) {
                     status.textContent =
-                        'Business Advisor requires Pro (or trial). Upgrade at Billing.';
+                        'Business Advisor scores need Analytics or Pro. Upgrade at Billing.';
+                } else if (msg.indexOf('Not authenticated') !== -1) {
+                    status.textContent = 'Please sign in again, then reopen Analytics.';
                 } else {
                     status.textContent = 'BI unavailable: ' + msg;
                 }
@@ -173,12 +201,6 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         wireButtons();
-        // Run after analytics.js ensureAuthenticated (same event order: defer one tick)
-        setTimeout(loadHealthScores, 0);
-        const period = document.getElementById('period-select');
-        if (period) {
-            period.addEventListener('change', loadHealthScores);
-        }
     });
 
     window.loadBIHealthScores = loadHealthScores;

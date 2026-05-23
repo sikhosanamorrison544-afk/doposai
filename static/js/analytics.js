@@ -61,7 +61,22 @@ async function analyticsApi(path, options = {}) {
         let errorMsg = text;
         try {
             const errorJson = JSON.parse(text);
-            errorMsg = errorJson.detail || errorJson.message || text;
+            const detail = errorJson.detail || errorJson.message || text;
+            if (typeof detail === 'object' && detail !== null) {
+                if (detail.feature_label && detail.required_plan) {
+                    errorMsg =
+                        detail.feature_label +
+                        ' requires ' +
+                        String(detail.required_plan).toUpperCase() +
+                        ' plan.';
+                } else if (typeof detail.detail === 'string') {
+                    errorMsg = detail.detail;
+                } else {
+                    errorMsg = JSON.stringify(detail);
+                }
+            } else {
+                errorMsg = detail;
+            }
         } catch (e) {
             // Not JSON, use text as is
         }
@@ -383,6 +398,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         periodSelect.addEventListener('change', async (e) => {
             const days = parseInt(e.target.value);
             await refreshAll(days);
+            if (typeof window.loadBIHealthScores === 'function') {
+                window.loadBIHealthScores();
+            }
         });
     }
     
@@ -393,5 +411,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load initial data
     const initialDays = periodSelect ? parseInt(periodSelect.value) : 30;
     await refreshAll(initialDays);
+    if (typeof window.loadBIHealthScores === 'function') {
+        await window.loadBIHealthScores();
+    }
 });
 

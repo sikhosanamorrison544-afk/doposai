@@ -203,7 +203,7 @@ def get_health_dashboard(
     tid = _tenant_id(user)
     cache_payload = {"days": days}
     hit = cache.get_cached(tid, "health", cache_payload)
-    if hit:
+    if hit and isinstance(hit.get("health_scores"), dict):
         return hit
 
     analytics = build_tenant_analytics_summary(db, user, days=days)
