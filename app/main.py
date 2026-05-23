@@ -73,6 +73,12 @@ from .models import (
 )
 
 from . import tenant_scope
+from .analytics_page_data import (
+    build_analytics_bootstrap,
+    build_dashboard_summary,
+    fetch_revenue_per_product_rows,
+    fetch_zero_sales_rows,
+)
 from .permissions import (
     Perm,
     ROLE_DESCRIPTIONS,
@@ -2283,6 +2289,13 @@ class ZeroSalesProduct(BaseModel):
     last_sale_date: Optional[datetime] = None
 
 
+class AnalyticsBootstrapResponse(BaseModel):
+    period_days: int
+    dashboard: dict
+    revenue: List[ProductSalesStats]
+    zero_sales: List[ZeroSalesProduct]
+
+
 @app.get("/api/analytics/top-selling", response_model=TopProductResponse)
 async def get_top_selling_product(
     days: int = Query(default=30, ge=1, le=365, description="Number of days to analyze"),
@@ -2383,46 +2396,8 @@ async def get_revenue_per_product(
     current_user: User = Depends(dep_perm(Perm.VIEW_REPORTS)),
 ):
     """Get revenue statistics per product, sorted by revenue descending."""
-    cutoff_date = datetime.utcnow() - timedelta(days=days)
-    
-    results = (
-        db.query(
-            Product.id,
-            Product.name,
-            Product.barcode,
-            func.sum(SaleItem.quantity).label('total_quantity'),
-            func.sum(SaleItem.line_total).label('total_revenue'),
-            func.sum(SaleItem.line_total - (SaleItem.quantity * Product.cost_price)).label('total_profit'),
-            func.count(Sale.id.distinct()).label('sale_count')
-        )
-        .join(SaleItem, SaleItem.product_id == Product.id)
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(Sale.created_at >= cutoff_date)
-        .filter(
-            and_(
-                tenant_scope.sale_tenant_match(current_user),
-                tenant_scope.product_tenant_match(current_user),
-            )
-        )
-        .filter(Product.is_active == True)
-        .group_by(Product.id, Product.name, Product.barcode)
-        .order_by(func.sum(SaleItem.line_total).desc())
-        .limit(limit)
-        .all()
-    )
-    
-    return [
-        ProductSalesStats(
-            product_id=r.id,
-            product_name=r.name,
-            barcode=r.barcode,
-            total_quantity_sold=int(r.total_quantity or 0),
-            total_revenue=Decimal(str(r.total_revenue or 0)),
-            total_profit=Decimal(str(r.total_profit or 0)),
-            sale_count=int(r.sale_count or 0)
-        )
-        for r in results
-    ]
+    rows = fetch_revenue_per_product_rows(db, current_user, days, limit)
+    return [ProductSalesStats(**row) for row in rows]
 
 
 @app.get("/api/analytics/zero-sales", response_model=List[ZeroSalesProduct])
@@ -2433,56 +2408,24 @@ async def get_zero_sales_products(
     current_user: User = Depends(dep_perm(Perm.VIEW_REPORTS)),
 ):
     """Products with no sales in the last N days (bounded; avoids N+1 queries)."""
-    cutoff_date = datetime.utcnow() - timedelta(days=days)
+    rows = fetch_zero_sales_rows(db, current_user, days, limit)
+    return [ZeroSalesProduct(**row) for row in rows]
 
-    recent_sale = (
-        select(1)
-        .select_from(SaleItem)
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .where(
-            SaleItem.product_id == Product.id,
-            Sale.created_at >= cutoff_date,
-            tenant_scope.sale_tenant_match(current_user),
-        )
-    )
-    base_q = tenant_scope.filter_products(db, current_user).filter(
-        Product.is_active == True,  # noqa: E712
-        ~exists(recent_sale),
-    )
 
-    zero_sales_products = (
-        base_q.order_by(Product.name.asc()).limit(limit).all()
+@app.get("/api/analytics/bootstrap", response_model=AnalyticsBootstrapResponse)
+async def get_analytics_bootstrap(
+    days: int = Query(default=30, ge=1, le=365, description="Number of days to analyze"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(dep_perm(Perm.VIEW_REPORTS)),
+):
+    """Dashboard + revenue + zero-sales in one request (avoids parallel 502s on Render)."""
+    raw = build_analytics_bootstrap(db, current_user, days=days)
+    return AnalyticsBootstrapResponse(
+        period_days=raw["period_days"],
+        dashboard=raw["dashboard"],
+        revenue=[ProductSalesStats(**row) for row in raw["revenue"]],
+        zero_sales=[ZeroSalesProduct(**row) for row in raw["zero_sales"]],
     )
-    if not zero_sales_products:
-        return []
-
-    product_ids = [p.id for p in zero_sales_products]
-    last_sale_rows = (
-        db.query(
-            SaleItem.product_id,
-            func.max(Sale.created_at).label("last_sale"),
-        )
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(
-            SaleItem.product_id.in_(product_ids),
-            tenant_scope.sale_tenant_match(current_user),
-        )
-        .group_by(SaleItem.product_id)
-        .all()
-    )
-    last_by_id = {row.product_id: row.last_sale for row in last_sale_rows}
-
-    return [
-        ZeroSalesProduct(
-            product_id=product.id,
-            product_name=product.name,
-            barcode=product.barcode,
-            stock_qty=product.stock_qty,
-            selling_price=product.selling_price,
-            last_sale_date=last_by_id.get(product.id),
-        )
-        for product in zero_sales_products
-    ]
 
 
 @app.get("/api/analytics/dashboard", response_model=dict)
@@ -2492,125 +2435,7 @@ async def get_analytics_dashboard(
     current_user: User = Depends(dep_perm(Perm.VIEW_REPORTS)),
 ):
     """Get comprehensive analytics dashboard data."""
-    cutoff_date = datetime.utcnow() - timedelta(days=days)
-    
-    # Top selling product
-    top_product = (
-        db.query(
-            Product.id,
-            Product.name,
-            Product.barcode,
-            func.sum(SaleItem.quantity).label('total_quantity'),
-            func.sum(SaleItem.line_total).label('total_revenue')
-        )
-        .join(SaleItem, SaleItem.product_id == Product.id)
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(Sale.created_at >= cutoff_date)
-        .filter(
-            and_(
-                tenant_scope.sale_tenant_match(current_user),
-                tenant_scope.product_tenant_match(current_user),
-            )
-        )
-        .filter(Product.is_active == True)
-        .group_by(Product.id, Product.name, Product.barcode)
-        .order_by(func.sum(SaleItem.quantity).desc())
-        .first()
-    )
-    
-    # Least selling product (with sales)
-    least_product = (
-        db.query(
-            Product.id,
-            Product.name,
-            Product.barcode,
-            func.sum(SaleItem.quantity).label('total_quantity'),
-            func.sum(SaleItem.line_total).label('total_revenue')
-        )
-        .join(SaleItem, SaleItem.product_id == Product.id)
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(Sale.created_at >= cutoff_date)
-        .filter(
-            and_(
-                tenant_scope.sale_tenant_match(current_user),
-                tenant_scope.product_tenant_match(current_user),
-            )
-        )
-        .filter(Product.is_active == True)
-        .group_by(Product.id, Product.name, Product.barcode)
-        .order_by(func.sum(SaleItem.quantity).asc())
-        .first()
-    )
-    
-    # Total revenue
-    total_revenue = (
-        db.query(func.coalesce(func.sum(SaleItem.line_total), 0))
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(
-            Sale.created_at >= cutoff_date,
-            tenant_scope.sale_tenant_match(current_user),
-        )
-        .scalar()
-    )
-    
-    # Total products sold
-    total_products_sold = (
-        db.query(func.count(func.distinct(SaleItem.product_id)))
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(
-            Sale.created_at >= cutoff_date,
-            tenant_scope.sale_tenant_match(current_user),
-        )
-        .scalar()
-    )
-    
-    # Total active products
-    total_active_products = (
-        tenant_scope.filter_products(db, current_user)
-        .filter(Product.is_active == True)  # noqa: E712
-        .with_entities(func.count(Product.id))
-        .scalar()
-    )
-    
-    # Products with zero sales
-    products_with_sales = (
-        db.query(func.count(func.distinct(Product.id)))
-        .join(SaleItem, SaleItem.product_id == Product.id)
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(
-            Sale.created_at >= cutoff_date,
-            Product.is_active == True,  # noqa: E712
-            tenant_scope.sale_tenant_match(current_user),
-            tenant_scope.product_tenant_match(current_user),
-        )
-        .scalar()
-    )
-    
-    zero_sales_count = total_active_products - (products_with_sales or 0)
-    
-    return {
-        "period_days": days,
-        "top_selling": {
-            "product_id": top_product.id if top_product else None,
-            "product_name": top_product.name if top_product else None,
-            "barcode": top_product.barcode if top_product else None,
-            "quantity_sold": int(top_product.total_quantity or 0) if top_product else 0,
-            "revenue": float(top_product.total_revenue or 0) if top_product else 0.0
-        },
-        "least_selling": {
-            "product_id": least_product.id if least_product else None,
-            "product_name": least_product.name if least_product else None,
-            "barcode": least_product.barcode if least_product else None,
-            "quantity_sold": int(least_product.total_quantity or 0) if least_product else 0,
-            "revenue": float(least_product.total_revenue or 0) if least_product else 0.0
-        },
-        "summary": {
-            "total_revenue": float(total_revenue or 0),
-            "total_products_sold": total_products_sold or 0,
-            "total_active_products": total_active_products or 0,
-            "zero_sales_count": zero_sales_count
-        }
-    }
+    return build_dashboard_summary(db, current_user, days)
 
 
 # ==================== AI BUSINESS INTELLIGENCE ====================

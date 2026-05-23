@@ -88,6 +88,18 @@ async function analyticsApi(path, options = {}) {
             return;
         }
         
+        if (
+            typeof errorMsg === 'string' &&
+            (errorMsg.trimStart().startsWith('<!DOCTYPE') ||
+                errorMsg.trimStart().startsWith('<html'))
+        ) {
+            if (res.status === 502 || res.status === 503) {
+                errorMsg =
+                    'Server unavailable (502). Wait a minute and hard-refresh the page (Ctrl+Shift+R).';
+            } else {
+                errorMsg = `Request failed (${res.status}). Please try again.`;
+            }
+        }
         throw new Error(errorMsg || res.statusText);
     }
     
@@ -106,191 +118,224 @@ function formatNumber(num) {
     return new Intl.NumberFormat('en-US').format(num);
 }
 
+function applyDashboard(data) {
+    const topProduct = data.top_selling;
+    const leastProduct = data.least_selling;
+    const summary = data.summary;
+
+    const topProductNameEl = document.getElementById('top-product-name');
+    const topProductStatsEl = document.getElementById('top-product-stats');
+    if (topProductNameEl && topProductStatsEl) {
+        if (topProduct.product_name) {
+            topProductNameEl.textContent = escapeHtml(topProduct.product_name);
+            topProductStatsEl.innerHTML = `
+                <div>Quantity: ${formatNumber(topProduct.quantity_sold)}</div>
+                <div>Revenue: ${formatCurrency(topProduct.revenue)}</div>
+                ${topProduct.barcode ? `<div style="font-size: 11px; color: rgba(255,255,255,0.4);">Barcode: ${escapeHtml(topProduct.barcode)}</div>` : ''}
+            `;
+        } else {
+            topProductNameEl.textContent = 'No sales data';
+            topProductStatsEl.textContent = 'No products sold in this period';
+        }
+    }
+
+    const leastProductNameEl = document.getElementById('least-product-name');
+    const leastProductStatsEl = document.getElementById('least-product-stats');
+    if (leastProductNameEl && leastProductStatsEl) {
+        if (leastProduct.product_name) {
+            leastProductNameEl.textContent = escapeHtml(leastProduct.product_name);
+            leastProductStatsEl.innerHTML = `
+                <div>Quantity: ${formatNumber(leastProduct.quantity_sold)}</div>
+                <div>Revenue: ${formatCurrency(leastProduct.revenue)}</div>
+                ${leastProduct.barcode ? `<div style="font-size: 11px; color: rgba(255,255,255,0.4);">Barcode: ${escapeHtml(leastProduct.barcode)}</div>` : ''}
+            `;
+        } else {
+            leastProductNameEl.textContent = 'No sales data';
+            leastProductStatsEl.textContent = 'No products sold in this period';
+        }
+    }
+
+    const totalRevenueEl = document.getElementById('total-revenue');
+    const revenueLabelEl = document.getElementById('revenue-label');
+    if (totalRevenueEl) {
+        totalRevenueEl.textContent = formatCurrency(summary.total_revenue);
+    }
+    if (revenueLabelEl) {
+        revenueLabelEl.textContent = `${summary.total_products_sold} products sold`;
+    }
+
+    if (!isAnalyticsAndroidApp()) {
+        const zeroSalesCountEl = document.getElementById('zero-sales-count');
+        if (zeroSalesCountEl && summary.zero_sales_count != null) {
+            const zc = summary.zero_sales_count;
+            zeroSalesCountEl.textContent =
+                typeof zc === 'number' ? formatNumber(zc) : String(zc);
+        }
+    }
+}
+
 async function loadDashboard(days = 30) {
     try {
         const data = await analyticsApi(`/api/analytics/dashboard?days=${days}`);
-        
-        // Update summary stats
-        const topProduct = data.top_selling;
-        const leastProduct = data.least_selling;
-        const summary = data.summary;
-        
-        // Top selling product
-        const topProductNameEl = document.getElementById('top-product-name');
-        const topProductStatsEl = document.getElementById('top-product-stats');
-        if (topProductNameEl && topProductStatsEl) {
-            if (topProduct.product_name) {
-                topProductNameEl.textContent = escapeHtml(topProduct.product_name);
-                topProductStatsEl.innerHTML = `
-                    <div>Quantity: ${formatNumber(topProduct.quantity_sold)}</div>
-                    <div>Revenue: ${formatCurrency(topProduct.revenue)}</div>
-                    ${topProduct.barcode ? `<div style="font-size: 11px; color: rgba(255,255,255,0.4);">Barcode: ${escapeHtml(topProduct.barcode)}</div>` : ''}
-                `;
-            } else {
-                topProductNameEl.textContent = 'No sales data';
-                topProductStatsEl.textContent = 'No products sold in this period';
-            }
-        }
-        
-        // Least selling product
-        const leastProductNameEl = document.getElementById('least-product-name');
-        const leastProductStatsEl = document.getElementById('least-product-stats');
-        if (leastProductNameEl && leastProductStatsEl) {
-            if (leastProduct.product_name) {
-                leastProductNameEl.textContent = escapeHtml(leastProduct.product_name);
-                leastProductStatsEl.innerHTML = `
-                    <div>Quantity: ${formatNumber(leastProduct.quantity_sold)}</div>
-                    <div>Revenue: ${formatCurrency(leastProduct.revenue)}</div>
-                    ${leastProduct.barcode ? `<div style="font-size: 11px; color: rgba(255,255,255,0.4);">Barcode: ${escapeHtml(leastProduct.barcode)}</div>` : ''}
-                `;
-            } else {
-                leastProductNameEl.textContent = 'No sales data';
-                leastProductStatsEl.textContent = 'No products sold in this period';
-            }
-        }
-        
-        // Total revenue
-        const totalRevenueEl = document.getElementById('total-revenue');
-        const revenueLabelEl = document.getElementById('revenue-label');
-        if (totalRevenueEl) {
-            totalRevenueEl.textContent = formatCurrency(summary.total_revenue);
-        }
-        if (revenueLabelEl) {
-            revenueLabelEl.textContent = `${summary.total_products_sold} products sold`;
-        }
-        
-        // Zero sales count (hidden on Android app)
-        if (!isAnalyticsAndroidApp()) {
-            const zeroSalesCountEl = document.getElementById('zero-sales-count');
-            if (zeroSalesCountEl) {
-                zeroSalesCountEl.textContent = formatNumber(summary.zero_sales_count);
-            }
-        }
-        
+        applyDashboard(data);
     } catch (e) {
         console.error('Error loading dashboard:', e);
         showError('Failed to load dashboard: ' + e.message);
     }
 }
 
+function renderRevenueTable(data) {
+    const container = document.getElementById('revenue-table-container');
+    if (!container) return;
+
+    if (!data || data.length === 0) {
+        container.innerHTML = '<div class="loading">No sales data available for this period</div>';
+        return;
+    }
+
+    let html = `
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Product Name</th>
+                    <th>Barcode</th>
+                    <th style="text-align: right;">Quantity Sold</th>
+                    <th style="text-align: right;">Revenue</th>
+                    <th style="text-align: right;">Profit</th>
+                    <th style="text-align: center;">Sales Count</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    data.forEach((product, index) => {
+        html += `
+            <tr>
+                <td style="color: #ffffff;">${index + 1}</td>
+                <td style="color: #ffffff;">${escapeHtml(product.product_name)}</td>
+                <td style="color: #ffffff;">${product.barcode ? escapeHtml(product.barcode) : '<span class="badge warning">No barcode</span>'}</td>
+                <td style="text-align: right; color: #ffffff;">${formatNumber(product.total_quantity_sold)}</td>
+                <td style="text-align: right; font-weight: bold; color: #10b981;">${formatCurrency(parseFloat(product.total_revenue))}</td>
+                <td style="text-align: right; color: #3b82f6;">${formatCurrency(parseFloat(product.total_profit))}</td>
+                <td style="text-align: center; color: #ffffff;">${formatNumber(product.sale_count)}</td>
+            </tr>
+        `;
+    });
+
+    html += `
+            </tbody>
+        </table>
+    `;
+    container.innerHTML = html;
+}
+
 async function loadRevenuePerProduct(days = 30) {
     const container = document.getElementById('revenue-table-container');
     if (!container) return;
-    
+
     try {
         container.innerHTML = '<div class="loading">Loading revenue data...</div>';
-        
         const data = await analyticsApi(`/api/analytics/revenue-per-product?days=${days}&limit=20`);
-        
-        if (data.length === 0) {
-            container.innerHTML = '<div class="loading">No sales data available for this period</div>';
-            return;
-        }
-        
-        let html = `
-            <table>
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Product Name</th>
-                        <th>Barcode</th>
-                        <th style="text-align: right;">Quantity Sold</th>
-                        <th style="text-align: right;">Revenue</th>
-                        <th style="text-align: right;">Profit</th>
-                        <th style="text-align: center;">Sales Count</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-        
-        data.forEach((product, index) => {
-            html += `
-                <tr>
-                    <td style="color: #ffffff;">${index + 1}</td>
-                    <td style="color: #ffffff;">${escapeHtml(product.product_name)}</td>
-                    <td style="color: #ffffff;">${product.barcode ? escapeHtml(product.barcode) : '<span class="badge warning">No barcode</span>'}</td>
-                    <td style="text-align: right; color: #ffffff;">${formatNumber(product.total_quantity_sold)}</td>
-                    <td style="text-align: right; font-weight: bold; color: #10b981;">${formatCurrency(parseFloat(product.total_revenue))}</td>
-                    <td style="text-align: right; color: #3b82f6;">${formatCurrency(parseFloat(product.total_profit))}</td>
-                    <td style="text-align: center; color: #ffffff;">${formatNumber(product.sale_count)}</td>
-                </tr>
-            `;
-        });
-        
-        html += `
-                </tbody>
-            </table>
-        `;
-        
-        container.innerHTML = html;
+        renderRevenueTable(data);
     } catch (e) {
         console.error('Error loading revenue per product:', e);
         container.innerHTML = `<div class="error">Failed to load revenue data: ${e.message}</div>`;
     }
 }
 
+function renderZeroSalesTable(data) {
+    const container = document.getElementById('zero-sales-table-container');
+    if (!container) return;
+
+    if (!data || data.length === 0) {
+        container.innerHTML = '<div class="loading">All products have sales in this period! 🎉</div>';
+        return;
+    }
+
+    let html = `
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Product Name</th>
+                    <th>Barcode</th>
+                    <th style="text-align: right;">Stock Qty</th>
+                    <th style="text-align: right;">Selling Price</th>
+                    <th>Last Sale Date</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    data.forEach((product, index) => {
+        const lastSaleDate = product.last_sale_date
+            ? new Date(product.last_sale_date).toLocaleDateString()
+            : '<span class="badge danger">Never sold</span>';
+
+        html += `
+            <tr>
+                <td style="color: #ffffff;">${index + 1}</td>
+                <td style="color: #ffffff;">${escapeHtml(product.product_name)}</td>
+                <td style="color: #ffffff;">${product.barcode ? escapeHtml(product.barcode) : '<span class="badge warning">No barcode</span>'}</td>
+                <td style="text-align: right; color: #ffffff;">${formatNumber(product.stock_qty)}</td>
+                <td style="text-align: right; color: #ffffff;">${formatCurrency(parseFloat(product.selling_price))}</td>
+                <td style="color: #ffffff;">${lastSaleDate}</td>
+            </tr>
+        `;
+    });
+
+    html += `
+            </tbody>
+        </table>
+    `;
+
+    const note =
+        data.length >= 50
+            ? '<p style="font-size:13px;color:#64748b;margin:0 0 12px;">Showing first 50 products with zero sales. Narrow the date range for a shorter list.</p>'
+            : '';
+    container.innerHTML = note + html;
+}
+
 async function loadZeroSalesProducts(days = 30) {
     if (isAnalyticsAndroidApp()) return;
     const container = document.getElementById('zero-sales-table-container');
     if (!container) return;
-    
+
     try {
         container.innerHTML = '<div class="loading">Loading zero sales products...</div>';
-        
-        const data = await analyticsApi(
-            `/api/analytics/zero-sales?days=${days}&limit=100`
-        );
-        
-        if (!data || data.length === 0) {
-            container.innerHTML = '<div class="loading">All products have sales in this period! 🎉</div>';
-            return;
-        }
-        
-        let html = `
-            <table>
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Product Name</th>
-                        <th>Barcode</th>
-                        <th style="text-align: right;">Stock Qty</th>
-                        <th style="text-align: right;">Selling Price</th>
-                        <th>Last Sale Date</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-        
-        data.forEach((product, index) => {
-            const lastSaleDate = product.last_sale_date 
-                ? new Date(product.last_sale_date).toLocaleDateString()
-                : '<span class="badge danger">Never sold</span>';
-            
-            html += `
-                <tr>
-                    <td style="color: #ffffff;">${index + 1}</td>
-                    <td style="color: #ffffff;">${escapeHtml(product.product_name)}</td>
-                    <td style="color: #ffffff;">${product.barcode ? escapeHtml(product.barcode) : '<span class="badge warning">No barcode</span>'}</td>
-                    <td style="text-align: right; color: #ffffff;">${formatNumber(product.stock_qty)}</td>
-                    <td style="text-align: right; color: #ffffff;">${formatCurrency(parseFloat(product.selling_price))}</td>
-                    <td style="color: #ffffff;">${lastSaleDate}</td>
-                </tr>
-            `;
-        });
-        
-        html += `
-                </tbody>
-            </table>
-        `;
-        
-        const note =
-            data.length >= 100
-                ? '<p style="font-size:13px;color:#64748b;margin:0 0 12px;">Showing first 100 products with zero sales. Narrow the date range for a shorter list.</p>'
-                : '';
-        container.innerHTML = note + html;
+        const data = await analyticsApi(`/api/analytics/zero-sales?days=${days}&limit=50`);
+        renderZeroSalesTable(data);
     } catch (e) {
         console.error('Error loading zero sales products:', e);
         container.innerHTML = `<div class="error">Failed to load zero sales products: ${e.message}</div>`;
+    }
+}
+
+async function loadAnalyticsBootstrap(days = 30) {
+    const revenueContainer = document.getElementById('revenue-table-container');
+    const zeroContainer = document.getElementById('zero-sales-table-container');
+    if (revenueContainer) {
+        revenueContainer.innerHTML = '<div class="loading">Loading analytics...</div>';
+    }
+    if (zeroContainer) {
+        zeroContainer.innerHTML = '<div class="loading">Loading analytics...</div>';
+    }
+
+    try {
+        const payload = await analyticsApi(`/api/analytics/bootstrap?days=${days}`);
+        applyDashboard(payload.dashboard);
+        renderRevenueTable(payload.revenue);
+        renderZeroSalesTable(payload.zero_sales);
+    } catch (e) {
+        console.error('Error loading analytics bootstrap:', e);
+        showError('Failed to load analytics: ' + e.message);
+        if (revenueContainer) {
+            revenueContainer.innerHTML = `<div class="error">Failed to load revenue data: ${e.message}</div>`;
+        }
+        if (zeroContainer) {
+            zeroContainer.innerHTML = `<div class="error">Failed to load zero sales products: ${e.message}</div>`;
+        }
     }
 }
 
@@ -316,18 +361,13 @@ function isAnalyticsAndroidApp() {
 }
 
 async function refreshAll(days) {
-    const tasks = [loadDashboard(days)];
     if (isAnalyticsAndroidApp()) {
         const revenueEl = document.getElementById('revenue-table-container');
         if (revenueEl) revenueEl.innerHTML = '';
-    } else {
-        tasks.push(loadRevenuePerProduct(days));
+        await loadDashboard(days);
+        return;
     }
-    await Promise.all(tasks);
-    // Load zero-sales after fast endpoints (old code did N+1 DB queries per product).
-    if (!isAnalyticsAndroidApp()) {
-        loadZeroSalesProducts(days);
-    }
+    await loadAnalyticsBootstrap(days);
 }
 
 // Theme management
@@ -406,7 +446,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const days = parseInt(e.target.value);
             await refreshAll(days);
             if (typeof window.loadBIHealthScores === 'function') {
-                window.loadBIHealthScores();
+                await window.loadBIHealthScores();
             }
         });
     }
@@ -417,11 +457,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load initial data
     const initialDays = periodSelect ? parseInt(periodSelect.value) : 30;
-    await Promise.all([
-        refreshAll(initialDays),
-        typeof window.loadBIHealthScores === 'function'
-            ? window.loadBIHealthScores()
-            : Promise.resolve(),
-    ]);
+    await refreshAll(initialDays);
+    if (typeof window.loadBIHealthScores === 'function') {
+        await window.loadBIHealthScores();
+    }
 });
 

@@ -137,7 +137,7 @@ class SaleItem(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     sale_id: Mapped[int] = mapped_column(ForeignKey("sales.id"), index=True)
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
     quantity: Mapped[int] = mapped_column(Integer)
     unit_price: Mapped[Numeric] = mapped_column(Numeric(10, 2))
     discount: Mapped[Numeric] = mapped_column(Numeric(10, 2), default=0)

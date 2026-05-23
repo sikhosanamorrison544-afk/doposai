@@ -29,5 +29,8 @@ if [ -n "${DATABASE_URL:-}" ] && echo "$DATABASE_URL" | grep -q '^postgresql'; t
   python3 migrate_remove_legacy_brand.py || {
     echo "WARN: migrate_remove_legacy_brand.py failed (non-fatal)"
   }
+  python3 migrate_analytics_indexes.py || {
+    echo "WARN: migrate_analytics_indexes.py failed (non-fatal)"
+  }
 fi
 exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --proxy-headers --forwarded-allow-ips='*'

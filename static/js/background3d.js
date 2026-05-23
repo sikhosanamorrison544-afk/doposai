@@ -110,75 +110,74 @@
         
         console.log('3D Background: Preloading model for all pages...');
         const loader = new LoaderClass();
-        loader.load(
-            '/static/butterflies.glb',
-            function(gltf) {
-                console.log('3D Background: Model loaded successfully and cached');
-                console.log('3D Background: GLTF scene has', gltf.scene.children.length, 'children');
-                window._modelLoadingInProgress = false;
-                model = gltf.scene;
-                
-                if (!model) {
-                    console.error('3D Background: Model scene is null or undefined!');
-                    return;
-                }
-                
-                // Scale and position the model
-                const box = new THREE.Box3().setFromObject(model);
-                const center = box.getCenter(new THREE.Vector3());
-                const size = box.getSize(new THREE.Vector3());
-                
-                // Scale to fit nicely in view - enlarged for better visibility
-                const maxDim = Math.max(size.x, size.y, size.z);
-                const scale = maxDim > 0 ? 25 / maxDim : 1; // Increased scale for more zoom (was 18)
-                model.scale.multiplyScalar(scale);
-                
-                // Center the model
-                model.position.sub(center.multiplyScalar(scale));
-                model.position.y = -0.5; // Set base Y position
-                
-                // Reset all rotations to ensure clean start - no stretching
-                model.rotation.set(0, 0, 0);
-                
-                // Reset ALL child rotations to 0 so they follow parent rotation only
-                model.traverse(function(child) {
-                    if (child.isMesh || child.isGroup || child.isObject3D) {
-                        child.rotation.set(0, 0, 0);
-                    }
-                });
-                
-                modelLoaded = true;
-                
-                // If default theme is active and scene is ready, add model to scene immediately
-                if (isDefaultTheme && scene && renderer && camera) {
-                    console.log('3D Background: Model loaded, adding to scene immediately');
-                    // Check if model is already in scene to avoid duplicates
-                    if (!scene.children.includes(model)) {
-                    scene.add(model);
-                        console.log('3D Background: Model added to scene');
-                    }
-                    renderer.render(scene, camera);
-                    // Start animation loop if not already running
-                    if (!animationId) {
-                    animate();
-                    }
-                } else {
-                    console.log('3D Background: Model cached, will be added when default theme is active and scene is initialized');
-                }
-            },
-            function(progress) {
-                if (progress.total > 0) {
-                    const percent = (progress.loaded / progress.total * 100).toFixed(1);
-                    if (percent % 10 === 0) { // Log every 10% to reduce console spam
-                        console.log('3D Background: Loading model...', percent + '%');
-                    }
-                }
-            },
-            function(error) {
-                window._modelLoadingInProgress = false;
-                console.error('3D Background: Error loading 3D model:', error);
+        const modelUrl = '/static/butterflies.glb';
+
+        function onGltfLoaded(gltf) {
+            console.log('3D Background: Model loaded successfully and cached');
+            window._modelLoadingInProgress = false;
+            model = gltf.scene;
+
+            if (!model) {
+                console.warn('3D Background: Model scene is empty');
+                return;
             }
-        );
+
+            const box = new THREE.Box3().setFromObject(model);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const scale = maxDim > 0 ? 25 / maxDim : 1;
+            model.scale.multiplyScalar(scale);
+            model.position.sub(center.multiplyScalar(scale));
+            model.position.y = -0.5;
+            model.rotation.set(0, 0, 0);
+            model.traverse(function (child) {
+                if (child.isMesh || child.isGroup || child.isObject3D) {
+                    child.rotation.set(0, 0, 0);
+                }
+            });
+            modelLoaded = true;
+
+            if (isDefaultTheme && scene && renderer && camera) {
+                if (!scene.children.includes(model)) {
+                    scene.add(model);
+                }
+                renderer.render(scene, camera);
+                if (!animationId) {
+                    animate();
+                }
+            }
+        }
+
+        fetch(modelUrl)
+            .then(function (res) {
+                if (!res.ok) {
+                    throw new Error('HTTP ' + res.status);
+                }
+                return res.arrayBuffer();
+            })
+            .then(function (buffer) {
+                if (!buffer || buffer.byteLength < 12) {
+                    throw new Error('Model file too small or truncated');
+                }
+                const magic = new TextDecoder().decode(new Uint8Array(buffer, 0, 4));
+                if (magic !== 'glTF') {
+                    throw new Error('Response is not a glTF file (server may be down)');
+                }
+                loader.parse(
+                    buffer,
+                    modelUrl,
+                    onGltfLoaded,
+                    function (err) {
+                        window._modelLoadingInProgress = false;
+                        console.warn('3D Background: Could not parse model:', err);
+                    }
+                );
+            })
+            .catch(function (err) {
+                window._modelLoadingInProgress = false;
+                console.warn('3D Background: Model skipped:', err.message || err);
+            });
     }
     
     // Check if default theme is active

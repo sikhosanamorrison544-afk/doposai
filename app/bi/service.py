@@ -206,6 +206,9 @@ def get_health_dashboard(
     if hit and isinstance(hit.get("health_scores"), dict):
         return hit
 
+    from ..analytics_page_data import pg_statement_timeout
+
+    pg_statement_timeout(db)
     analytics = build_health_analytics_summary(db, user, days=days)
     scores = compute_health_scores(analytics)
     payload = {
