@@ -251,7 +251,7 @@ def build_analytics_bootstrap(
     }
 
 
-def _build_bi_health_block(db: Session, current_user: Any, days: int) -> dict | None:
+def _build_bi_health_block(db: Session, current_user: Any, days: int) -> Optional[dict]:
     try:
         from app.bi.ai_client import ai_service_configured
         from app.bi.analytics.engine import build_health_analytics_summary

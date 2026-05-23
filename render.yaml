@@ -21,6 +21,8 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: sh scripts/render_start.sh
     healthCheckPath: /health
+    # Allow migrations + import before first successful /health (free tier is slow).
+    healthCheckGracePeriod: 300
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.9"

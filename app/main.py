@@ -93,29 +93,29 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
-try:
-    Base.metadata.create_all(bind=engine)
-except Exception as e:
-    logging.warning(
-        "Could not run create_all on import: %s. Service will start; DB will retry on first use.",
-        e,
-    )
+def _deferred_db_bootstrap() -> None:
+    """Run after bind so Render sees an open PORT before slow Postgres work."""
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        logging.warning(
+            "Could not run create_all on startup: %s. DB will retry on first use.",
+            e,
+        )
+    try:
+        ImportJob.__table__.create(bind=engine, checkfirst=True)
+    except Exception as e:
+        logging.warning("Could not ensure import_jobs table: %s", e)
+    try:
+        with SessionLocal() as db:
+            initialize_chart_of_accounts(db)
+            logging.info("Accounting system initialized successfully")
+    except Exception as e:
+        logging.warning(
+            "Could not initialize Chart of Accounts: %s. Accounting features will be disabled until COA is initialized.",
+            e,
+        )
 
-try:
-    ImportJob.__table__.create(bind=engine, checkfirst=True)
-except Exception as e:
-    logging.warning("Could not ensure import_jobs table: %s", e)
-
-# Initialize Chart of Accounts on startup (if not already initialized)
-try:
-    with SessionLocal() as db:
-        initialize_chart_of_accounts(db)
-        logging.info("Accounting system initialized successfully")
-except Exception as e:
-    logging.warning(
-        "Could not initialize Chart of Accounts: %s. Accounting features will be disabled until COA is initialized.",
-        e,
-    )
 
 app = FastAPI(title="Raspberry Pi Offline POS", docs_url=None, redoc_url=None)
 
@@ -192,6 +192,8 @@ async def startup_event():
 
     from .config import APP_ENV
     from .startup_config import DISABLE_STARTUP_OLLAMA
+
+    asyncio.create_task(asyncio.to_thread(_deferred_db_bootstrap))
 
     if APP_ENV == "production" and (
         "change" in (auth.SECRET_KEY or "").lower() or len(auth.SECRET_KEY or "") < 32
@@ -2426,6 +2428,7 @@ async def get_analytics_bootstrap(
         dashboard=raw["dashboard"],
         revenue=[ProductSalesStats(**row) for row in raw["revenue"]],
         zero_sales=[ZeroSalesProduct(**row) for row in raw["zero_sales"]],
+        bi=raw.get("bi"),
     )
 
 
