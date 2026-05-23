@@ -238,6 +238,8 @@ def build_analytics_bootstrap(
     dashboard["summary"]["zero_sales_count"] = (
         zs if zs < zero_sales_limit else f"{zero_sales_limit}+"
     )
+    bi_block = _build_bi_health_block(db, current_user, days)
+
     return {
         "period_days": days,
         "dashboard": dashboard,
@@ -245,4 +247,23 @@ def build_analytics_bootstrap(
             db, current_user, days, revenue_limit
         ),
         "zero_sales": zero_sales,
+        "bi": bi_block,
     }
+
+
+def _build_bi_health_block(db: Session, current_user: Any, days: int) -> dict | None:
+    try:
+        from app.bi.ai_client import ai_service_configured
+        from app.bi.analytics.engine import build_health_analytics_summary
+        from app.bi.scores import compute_health_scores
+
+        analytics = build_health_analytics_summary(db, current_user, days=days)
+        scores = compute_health_scores(analytics)
+        return {
+            "period_days": days,
+            "health_scores": scores.model_dump(),
+            "ai_service_configured": ai_service_configured(),
+            "bi_advisor_available": ai_service_configured(),
+        }
+    except Exception:
+        return None

@@ -194,6 +194,24 @@ def run_ask(
     )
 
 
+_SCORE_NUM_KEYS = (
+    "business_health_score",
+    "sales_trend_score",
+    "inventory_risk_score",
+    "profitability_score",
+)
+
+
+def _health_scores_have_numbers(hs: Any) -> bool:
+    if not isinstance(hs, dict):
+        return False
+    for key in _SCORE_NUM_KEYS:
+        val = hs.get(key)
+        if not isinstance(val, (int, float)):
+            return False
+    return True
+
+
 def get_health_dashboard(
     db: Session,
     user: User,
@@ -201,9 +219,9 @@ def get_health_dashboard(
     days: int = 30,
 ) -> Dict[str, Any]:
     tid = _tenant_id(user)
-    cache_payload = {"days": days}
-    hit = cache.get_cached(tid, "health", cache_payload)
-    if hit and isinstance(hit.get("health_scores"), dict):
+    cache_payload = {"days": days, "v": 2}
+    hit = cache.get_cached(tid, "health_v2", cache_payload)
+    if hit and _health_scores_have_numbers(hit.get("health_scores")):
         return hit
 
     from ..analytics_page_data import pg_statement_timeout
@@ -218,7 +236,7 @@ def get_health_dashboard(
         "ai_service_configured": ai_service_configured(),
         "bi_advisor_available": ai_service_configured(),
     }
-    cache.set_cached(tid, "health", cache_payload, payload, ttl=900)
+    cache.set_cached(tid, "health_v2", cache_payload, payload, ttl=900)
     return payload
 
 

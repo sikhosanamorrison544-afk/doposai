@@ -2294,6 +2294,7 @@ class AnalyticsBootstrapResponse(BaseModel):
     dashboard: dict
     revenue: List[ProductSalesStats]
     zero_sales: List[ZeroSalesProduct]
+    bi: Optional[dict] = None
 
 
 @app.get("/api/analytics/top-selling", response_model=TopProductResponse)

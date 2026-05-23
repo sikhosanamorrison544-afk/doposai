@@ -327,6 +327,18 @@ async function loadAnalyticsBootstrap(days = 30) {
         applyDashboard(payload.dashboard);
         renderRevenueTable(payload.revenue);
         renderZeroSalesTable(payload.zero_sales);
+        if (payload.bi && typeof window.applyBIHealthScores === 'function') {
+            if (window.applyBIHealthScores(payload.bi)) {
+                const status = document.getElementById('bi-status-line');
+                if (status) {
+                    const cloudAi =
+                        payload.bi.ai_service_configured || payload.bi.bi_advisor_available;
+                    status.textContent = cloudAi
+                        ? 'Qwen3 advisor connected · scores from your store data'
+                        : 'Scores updated from your sales data · set AI_SERVICE_URL on Render for full AI text';
+                }
+            }
+        }
     } catch (e) {
         console.error('Error loading analytics bootstrap:', e);
         showError('Failed to load analytics: ' + e.message);

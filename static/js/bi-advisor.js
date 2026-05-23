@@ -23,16 +23,46 @@
         throw new Error('analyticsApi not available');
     }
 
-    function scoreText(raw) {
-        const n = Number(raw);
+    function scoreFromColor(color) {
+        if (color === 'green') return 75;
+        if (color === 'yellow') return 50;
+        if (color === 'red') return 25;
+        return null;
+    }
+
+    function scoreText(raw, color) {
+        let n = Number(raw);
+        if (!Number.isFinite(n) && color) {
+            n = scoreFromColor(color);
+        }
         return Number.isFinite(n) ? Math.round(n) + '/100' : '—';
     }
 
-    function applyHealthScores(data) {
-        const hs = data && data.health_scores;
+    function normalizeHealthScores(data) {
+        if (!data || typeof data !== 'object') return null;
+        let hs = data.health_scores;
+        if (typeof hs === 'string') {
+            try {
+                hs = JSON.parse(hs);
+            } catch (e) {
+                hs = null;
+            }
+        }
+        if (hs && typeof hs === 'object' && hs.health_scores) {
+            hs = hs.health_scores;
+        }
         if (!hs || typeof hs !== 'object') {
+            return null;
+        }
+        return hs;
+    }
+
+    function applyHealthScores(data) {
+        const hs = normalizeHealthScores(data);
+        if (!hs) {
             return false;
         }
+        let applied = 0;
         METRICS.forEach(function (m) {
             const dot = document.getElementById(m.dot);
             const val = document.getElementById(m.val);
@@ -41,10 +71,14 @@
                 dot.className = 'bi-score-dot ' + color;
             }
             if (val) {
-                val.textContent = scoreText(hs[m.score]);
+                const text = scoreText(hs[m.score], color);
+                val.textContent = text;
+                if (text !== '—') {
+                    applied += 1;
+                }
             }
         });
-        return true;
+        return applied > 0;
     }
 
     function renderAdvisorResponse(res) {
@@ -197,4 +231,5 @@
     });
 
     window.loadBIHealthScores = loadHealthScores;
+    window.applyBIHealthScores = applyHealthScores;
 })();
