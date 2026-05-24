@@ -657,6 +657,10 @@ function applyStoreSettingsGlobally(settings) {
 
 async function saveStoreSettings() {
     const msg = document.getElementById('settings-message');
+    if (!msg) {
+        console.warn('saveStoreSettings: settings-message element not found');
+        return;
+    }
     msg.textContent = '';
     const storeName = document.getElementById('store-name').value.trim();
     const storePhone = document.getElementById('store-phone').value.trim() || null;

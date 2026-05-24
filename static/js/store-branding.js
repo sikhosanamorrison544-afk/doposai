@@ -52,7 +52,7 @@
         document.querySelectorAll('.top-bar').forEach(function (bar) {
             if (bar.querySelector('.platform-motto')) return;
             const shop = bar.querySelector('.shop-name');
-            if (!shop) return;
+            if (!shop || !shop.parentNode) return;
             let brand = shop.parentElement;
             if (!brand || !brand.classList.contains('top-bar-brand')) {
                 brand = document.createElement('div');

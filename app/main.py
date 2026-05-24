@@ -9,7 +9,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import BackgroundTasks, Body, Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile, status
+from fastapi import BackgroundTasks, Body, Depends, FastAPI, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
@@ -331,6 +331,19 @@ def _page_ctx(request: Request, **kwargs):
     return {"request": request, "platform_motto": PLATFORM_MOTTO, **kwargs}
 
 
+def _shell_store_name() -> str:
+    """Fast title/header fallback — avoids blocking HTML on DB during deploy load."""
+    return STORE_NAME.upper()
+
+
+def _shell_page(request: Request, template_name: str, **extra):
+    """Render a static HTML shell; tenant store name loads via JS (/api/store-settings)."""
+    return templates.TemplateResponse(
+        template_name,
+        _page_ctx(request, store_name=_shell_store_name(), **extra),
+    )
+
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
   """Return FastAPI HTTP errors as plain detail strings (for mobile/web clients)."""
@@ -359,54 +372,26 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request, db: Session = Depends(get_db)):
-    # Get store name from database, fallback to config
-    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
-    if store_settings:
-        store_name = store_settings.store_name.upper()
-    else:
-        store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("index.html", _page_ctx(request, store_name=store_name))
+async def index(request: Request):
+    return _shell_page(request, "index.html")
 
 
 @app.get("/accounting", response_class=HTMLResponse)
-async def accounting_page(request: Request, db: Session = Depends(get_db)):
+async def accounting_page(request: Request):
     """Accounting Reports Page"""
-    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
-    if store_settings:
-        store_name = store_settings.store_name.upper()
-    else:
-        store_name = STORE_NAME.upper()
-    return templates.TemplateResponse(
-        "accounting.html",
-        _page_ctx(request, store_name=store_name)
-    )
+    return _shell_page(request, "accounting.html")
 
 
 @app.get("/admin", response_class=HTMLResponse)
-async def admin_page(request: Request, db: Session = Depends(get_db)):
+async def admin_page(request: Request):
     # Authentication for actions is enforced on the API endpoints.
-    # Get store name from database, fallback to config
-    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
-    if store_settings:
-        store_name = store_settings.store_name.upper()
-    else:
-        store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("admin.html", _page_ctx(request, store_name=store_name))
+    return _shell_page(request, "admin.html")
 
 
 @app.get("/platform/tenants", response_class=HTMLResponse)
-async def platform_tenants_page(request: Request, db: Session = Depends(get_db)):
+async def platform_tenants_page(request: Request):
     """Platform owner: list all businesses (tenants) on this POS deployment."""
-    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
-    if store_settings:
-        store_name = store_settings.store_name.upper()
-    else:
-        store_name = STORE_NAME.upper()
-    return templates.TemplateResponse(
-        "platform-tenants.html",
-        _page_ctx(request, store_name=store_name),
-    )
+    return _shell_page(request, "platform-tenants.html")
 
 
 @app.get("/platform/tanents", response_class=RedirectResponse)
@@ -416,44 +401,25 @@ async def platform_tenants_typo():
 
 
 @app.get("/store-settings", response_class=HTMLResponse)
-async def store_settings_page(request: Request, db: Session = Depends(get_db)):
+async def store_settings_page(request: Request):
     # Authentication for actions is enforced on the API endpoints.
-    # Get store name from database, fallback to config
-    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
-    if store_settings:
-        store_name = store_settings.store_name.upper()
-    else:
-        store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("store-settings.html", _page_ctx(request, store_name=store_name))
+    return _shell_page(request, "store-settings.html")
 
 
 @app.get("/quotations", response_class=HTMLResponse)
-async def quotations_page(request: Request, db: Session = Depends(get_db)):
+async def quotations_page(request: Request):
     """Quotation management page."""
-    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
-    if store_settings:
-        store_name = store_settings.store_name.upper()
-    else:
-        store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("quotations.html", _page_ctx(request, store_name=store_name))
+    return _shell_page(request, "quotations.html")
 
 
 @app.get("/reset-password", response_class=HTMLResponse)
-async def reset_password_page(request: Request, db: Session = Depends(get_db)):
+async def reset_password_page(request: Request):
     """Public reset-password page; reads ?token=... from query string.
 
     The token is NOT validated here — that happens server-side when the user
     submits the form. We just render the page; bad tokens get a clear error.
     """
-    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
-    if store_settings:
-        store_name = store_settings.store_name.upper()
-    else:
-        store_name = STORE_NAME.upper()
-    return templates.TemplateResponse(
-        "reset-password.html",
-        _page_ctx(request, store_name=store_name),
-    )
+    return _shell_page(request, "reset-password.html")
 
 
 class Token(BaseModel):
@@ -1632,11 +1598,9 @@ async def get_pending_collection_sales(
 
 
 @app.get("/pending-collection", response_class=HTMLResponse)
-async def pending_collection_page(request: Request, db: Session = Depends(get_db)):
+async def pending_collection_page(request: Request):
     """Pending collection items page."""
-    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
-    store_name = store_settings.store_name if store_settings else "POS System"
-    return templates.TemplateResponse("pending_collection.html", _page_ctx(request, store_name=store_name))
+    return _shell_page(request, "pending_collection.html")
 
 
 def print_receipt_background(sale_id: int):
@@ -3156,74 +3120,45 @@ class LaybyPaymentRead(BaseModel):
 
 
 @app.get("/layby", response_class=HTMLResponse)
-async def layby_page(request: Request, db: Session = Depends(get_db)):
+async def layby_page(request: Request):
     """Layby management page."""
-    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
-    if store_settings:
-        store_name = store_settings.store_name.upper()
-    else:
-        store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("layby.html", _page_ctx(request, store_name=store_name))
+    return _shell_page(request, "layby.html")
 
 
 @app.get("/debts/outstanding", response_class=HTMLResponse)
-async def outstanding_debts_page(request: Request, db: Session = Depends(get_db)):
+async def outstanding_debts_page(request: Request):
     """Outstanding debts page."""
-    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
-    if store_settings:
-        store_name = store_settings.store_name.upper()
-    else:
-        store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("outstanding_debts.html", _page_ctx(request, store_name=store_name))
+    return _shell_page(request, "outstanding_debts.html")
 
 
 @app.get("/withdrawals/history", response_class=HTMLResponse)
-async def withdrawal_history_page(request: Request, db: Session = Depends(get_db)):
+async def withdrawal_history_page(request: Request):
     """Withdrawal history page."""
-    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
-    if store_settings:
-        store_name = store_settings.store_name.upper()
-    else:
-        store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("withdrawal_history.html", _page_ctx(request, store_name=store_name))
+    return _shell_page(request, "withdrawal_history.html")
 
 
 @app.get("/refunds", response_class=HTMLResponse)
-async def refunds_page(request: Request, db: Session = Depends(get_db)):
+async def refunds_page(request: Request):
     """Refund management — request, track, and approve refunds."""
-    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
-    if store_settings:
-        store_name = store_settings.store_name.upper()
-    else:
-        store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("refunds.html", _page_ctx(request, store_name=store_name))
+    return _shell_page(request, "refunds.html")
 
 
 @app.get("/billing", response_class=HTMLResponse)
-async def billing_page(request: Request, db: Session = Depends(get_db)):
+async def billing_page(request: Request):
     """Subscription management & Paynow / EcoCash billing."""
-    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
-    store_name = store_settings.store_name.upper() if store_settings else STORE_NAME.upper()
-    return templates.TemplateResponse("billing.html", _page_ctx(request, store_name=store_name))
+    return _shell_page(request, "billing.html")
 
 
 @app.get("/enterprise", response_class=HTMLResponse)
-async def enterprise_hub_page(request: Request, db: Session = Depends(get_db)):
+async def enterprise_hub_page(request: Request):
     """Enterprise inventory: suppliers, purchasing, branches, audit."""
-    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
-    store_name = store_settings.store_name.upper() if store_settings else STORE_NAME.upper()
-    return templates.TemplateResponse("enterprise.html", _page_ctx(request, store_name=store_name))
+    return _shell_page(request, "enterprise.html")
 
 
 @app.get("/analytics", response_class=HTMLResponse)
-async def analytics_page(request: Request, db: Session = Depends(get_db)):
+async def analytics_page(request: Request):
     """Sales Analytics dashboard page."""
-    store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
-    if store_settings:
-        store_name = store_settings.store_name.upper()
-    else:
-        store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("analytics.html", _page_ctx(request, store_name=store_name))
+    return _shell_page(request, "analytics.html")
 
 
 @app.get("/layby/customer/{customer_id}", response_class=HTMLResponse)

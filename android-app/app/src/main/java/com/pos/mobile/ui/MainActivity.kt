@@ -70,6 +70,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cartAdapter: CartAdapter
     private lateinit var searchAdapter: SearchProductAdapter
     private var posSearchSetupDone = false
+    private var posUiSetupDone = false
     private var saleEventsObserving = false
     private var activePaymentDialog: BottomSheetDialog? = null
     private var manualSyncInProgress = false
@@ -698,8 +699,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupPos(posContainer: View, prefs: android.content.SharedPreferences) {
         posPrefs = prefs
-        val role = PosAuth.role(this)
         refreshNativeShopName(posContainer, prefs)
+        if (posUiSetupDone) return
+        posUiSetupDone = true
+
+        val role = PosAuth.role(this)
 
         val posMessageTv = posContainer.findViewById<TextView>(R.id.pos_message)
         lifecycleScope.launch {
