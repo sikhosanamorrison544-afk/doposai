@@ -18,15 +18,14 @@ class PosApplication : Application() {
     }
 
     /**
-     * Keep SharedPreferences "base_url" in sync with [BuildConfig.DEFAULT_API_BASE_URL]
-     * (production: https://doposai.com/). Override at build time via `pos.api.base.url` in local.properties.
+     * Set default server URL on first install only. Do not overwrite a URL the user chose —
+     * Android and desktop/web must point at the same backend to share sales and stock.
      */
     private fun setDefaultServerUrlIfNeeded() {
         val prefs = getSharedPreferences("pos", MODE_PRIVATE)
-        val desired = BuildConfig.DEFAULT_API_BASE_URL
         val current = prefs.getString("base_url", null)
-        if (current != desired) {
-            prefs.edit().putString("base_url", desired).apply()
+        if (current.isNullOrBlank()) {
+            prefs.edit().putString("base_url", BuildConfig.DEFAULT_API_BASE_URL).apply()
         }
     }
 

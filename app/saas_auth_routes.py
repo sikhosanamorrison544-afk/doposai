@@ -15,7 +15,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from . import auth
-from .config import PLATFORM_BRAND_NAME, WEB_PUBLIC_URL
+from .config import PLATFORM_BRAND_NAME, PLATFORM_MOTTO, WEB_PUBLIC_URL
 from .database import SessionLocal, get_db
 from .deferred_tasks import run_in_background
 from .billing import service as billing_service
@@ -374,6 +374,7 @@ def _build_reset_email(reset_url: str, owner_name: Optional[str]) -> tuple[str, 
       </p>
     </div>
     <p style="text-align:center;color:#9ca3af;font-size:12px;margin:16px 0 0;">— {brand}</p>
+    <p style="text-align:center;color:#9ca3af;font-size:12px;margin:4px 0 0;font-style:italic;">{PLATFORM_MOTTO}</p>
   </body>
 </html>"""
     return subject, plain, html

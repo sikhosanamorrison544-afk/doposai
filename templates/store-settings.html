@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Store Settings - POS</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="platform-motto" content="{{ platform_motto or 'Pecunia Non Olet' }}">
     <script>
         // CRITICAL: Apply theme INSTANTLY - must be first script, runs synchronously
         (function() {
@@ -496,7 +497,8 @@
 <script src="/static/js/printer-web-setup.js?v=1"></script>
 <script src="/static/js/plan-features.js?v=1"></script>
 <script src="/static/js/role-permissions.js?v=1"></script>
-<script src="/static/js/admin.js?v=4"></script>
+<script src="/static/js/offline-fetch.js?v=2"></script>
+<script src="/static/js/admin.js?v=5"></script>
 <script>
     // Switch between settings pages
     window.switchSettingsPage = function(pageNum) {
@@ -564,8 +566,13 @@
             loadBackupStatus();
         }
     });
+    window.addEventListener('focus', function() {
+        if (typeof loadStoreSettings === 'function') {
+            loadStoreSettings();
+        }
+    });
 </script>
-<script src="/static/js/store-branding.js?v=1"></script>
+<script src="/static/js/store-branding.js?v=3"></script>
 </body>
 </html>
 

@@ -81,6 +81,11 @@ PLATFORM_BRAND_NAME = (
     os.environ.get("PLATFORM_BRAND_NAME", "").strip() or "All In One POS"
 )
 
+# Latin motto shown on login, headers, receipts, and emails (override via PLATFORM_MOTTO).
+PLATFORM_MOTTO = (
+    os.environ.get("PLATFORM_MOTTO", "").strip() or "Pecunia Non Olet"
+)
+
 # STORE_NAME is the per-tenant fallback used when a tenant has not set its
 # own StoreSettings.store_name yet (fresh signups, etc). We default it to
 # the platform brand so unbranded views never show "POS".

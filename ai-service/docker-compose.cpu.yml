@@ -1,11 +1,13 @@
 # Optional overlay for VPS without NVIDIA GPU (slow — testing wiring only).
-# Usage: docker compose -f docker-compose.yml -f docker-compose.cpu.yml up -d --build
+# Prefer docker-compose.cpu-only.yml — merging does not reliably remove GPU reservations.
+# Usage: docker compose -f docker-compose.cpu-only.yml up -d --build
 
 services:
   vllm:
-    deploy: {}
+    deploy: !reset null
     command: >
       --model ${VLLM_MODEL:-Qwen/Qwen2.5-1.5B-Instruct}
+      --served-model-name ${VLLM_SERVED_NAME:-qwen2.5-1.5b}
       --host 0.0.0.0
       --port 8000
       --max-model-len 4096

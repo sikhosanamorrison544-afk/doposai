@@ -171,7 +171,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         _isCompletingSale.value = true
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) {
+                val synced = withContext(Dispatchers.IO) {
                     if (online && !authToken.isNullOrBlank()) {
                         refreshProductsFromServer(authToken)
                     }
@@ -223,13 +223,25 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                     for (line in cartList) {
                         productDao.deductStock(line.product.id, line.quantity.toDouble())
                     }
+
+                    var syncedNow = false
+                    if (online && !authToken.isNullOrBlank()) {
+                        val prefs = getApplication<Application>().getSharedPreferences("pos", android.content.Context.MODE_PRIVATE)
+                        val baseUrl = prefs.getString("base_url", BuildConfig.DEFAULT_API_BASE_URL)
+                            ?: BuildConfig.DEFAULT_API_BASE_URL
+                        val api = SyncWorker.createApi(baseUrl)
+                        val repo = SyncWorker.createRepository(getApplication(), baseUrl, api, db)
+                        syncedNow = repo.pushPendingSales(authToken) > 0
+                    }
+                    syncedNow
                 }
                 _cart.value = emptyList()
                 _posMessage.value = null
                 _saleEvents.emit(
                     SaleUiEvent.Success(
                         message = getApplication<Application>().getString(
-                            com.pos.mobile.R.string.sale_saved_offline,
+                            if (synced) com.pos.mobile.R.string.sale_synced_online
+                            else com.pos.mobile.R.string.sale_saved_offline,
                         ),
                         receipt = receipt,
                     ),

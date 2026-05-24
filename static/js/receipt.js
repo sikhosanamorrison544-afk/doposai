@@ -6,6 +6,46 @@
     'use strict';
 
     let storeSettings = null;
+    let platformMotto = (global.__PLATFORM_MOTTO__ || '').trim();
+
+    const DEFAULT_MOTTO = 'Pecunia Non Olet';
+
+    function receiptMottoHtml() {
+        const m = platformMotto || (global.__PLATFORM_MOTTO__ || DEFAULT_MOTTO).trim();
+        if (!m) return '';
+        return (
+            '<div class="footer" style="font-style:italic;margin-top:4px">' +
+            escapeHtml(m) +
+            '</div>'
+        );
+    }
+
+    fetch('/api/platform-info', { credentials: 'same-origin' })
+        .then(function (res) {
+            return res.ok ? res.json() : null;
+        })
+        .then(function (data) {
+            if (data && data.motto) {
+                platformMotto = String(data.motto).trim();
+                global.__PLATFORM_MOTTO__ = platformMotto;
+            }
+        })
+        .catch(function () { /* optional */ });
+
+    function readReceiptMotto() {
+        const meta = document.querySelector('meta[name="platform-motto"]');
+        if (meta && meta.content && meta.content.trim()) {
+            platformMotto = meta.content.trim();
+            global.__PLATFORM_MOTTO__ = platformMotto;
+            return;
+        }
+        if (!platformMotto) {
+            platformMotto = DEFAULT_MOTTO;
+            global.__PLATFORM_MOTTO__ = platformMotto;
+        }
+    }
+
+    readReceiptMotto();
 
     function formatMoney(n) {
         return Number(n || 0).toFixed(2);
@@ -262,6 +302,7 @@
                 '</td></tr>';
         }
         body += '</table><hr><div class="footer">Thank you for shopping with us!</div>';
+        body += receiptMottoHtml();
         return body;
     }
 

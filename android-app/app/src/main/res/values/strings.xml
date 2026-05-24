@@ -54,6 +54,10 @@
     <string name="status_offline">Offline</string>
     <string name="status_synced">Synced</string>
     <string name="sale_saved_offline">Sale saved locally. Will sync to the server when online (up to 3 days offline).</string>
+    <string name="sale_synced_online">Sale uploaded to the server.</string>
+    <string name="server_url_label">Server URL</string>
+    <string name="server_url_hint">https://api.doposai.com</string>
+    <string name="server_url_mismatch_hint">Use the same server URL as your desktop browser.</string>
     <string name="payment_cash_hint">Leave payment blank to charge the full total as cash. Sales are stored on this device until internet is available.</string>
     <string name="sale_processing">Saving sale…</string>
     <string name="login_or_email">Email or username</string>

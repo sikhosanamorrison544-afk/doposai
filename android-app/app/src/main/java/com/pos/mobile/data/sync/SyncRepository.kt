@@ -16,7 +16,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONArray
 
 /**
  * Single source of truth: UI always reads from local DB.
@@ -129,6 +128,7 @@ class SyncRepository(
                 .putString("store_name", o.optString("store_name", "All In One POS"))
                 .putString("store_phone", o.optString("store_phone", ""))
                 .putString("store_location", o.optString("store_location", ""))
+                .putString("store_settings_json", body)
                 .apply()
         } catch (e: Exception) {
             Log.w(TAG, "persistStoreSettings failed", e)
@@ -179,6 +179,23 @@ class SyncRepository(
 
     suspend fun getPendingSyncCount(): Int = withContext(Dispatchers.IO) {
         syncQueueDao.getByStatus(SyncQueueEntity.STATUS_PENDING).size
+    }
+
+    /** Upload queued sales before pulling catalog (avoids stale stock overwriting local deductions). */
+    suspend fun pushPendingSales(token: String): Int = withContext(Dispatchers.IO) {
+        var pushed = 0
+        for (item in syncQueueDao.getByStatus(SyncQueueEntity.STATUS_PENDING)) {
+            pushSale(token, item).onSuccess {
+                pushed++
+                Log.i(TAG, "Uploaded sale localId=${item.saleLocalId} -> server id=$it")
+            }.onFailure {
+                Log.w(TAG, "Push failed for queue id ${item.id}: $it")
+            }
+        }
+        if (pushed > 0) {
+            Log.i(TAG, "pushPendingSales: uploaded $pushed sale(s)")
+        }
+        pushed
     }
 
     suspend fun getLastSyncedAt(key: String): Long? = withContext(Dispatchers.IO) {
@@ -261,13 +278,27 @@ class SyncRepository(
         }
     }
 
-    suspend fun syncMasterDatabase(context: Context, token: String): Result<MasterSyncResult> = withContext(Dispatchers.IO) {
+    /** Products, store settings, and queued mutations — always run on sync. */
+    suspend fun syncEssentials(context: Context, token: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             pullProductsAndCustomers(token).getOrElse { return@withContext Result.failure(it) }
             persistStoreSettings(context, token)
-            pullEnterpriseData(token)
             pushOfflineMutations(token)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "syncEssentials failed", e)
+            Result.failure(e)
+        }
+    }
 
+    /** Optional offline JSON/HTML cache — skip when [fullCache] is false (e.g. frequent background sync). */
+    suspend fun prefetchApiCache(token: String, fullCache: Boolean): Result<MasterSyncResult> = withContext(Dispatchers.IO) {
+        if (!fullCache) {
+            return@withContext Result.success(MasterSyncResult(0, 0, 0, 0))
+        }
+        try {
+            pullEnterpriseData(token)
+            val cacheApi = SyncWorker.createApi(baseUrl, readTimeoutSec = 12)
             val bearer = "Bearer $token"
             val base = baseUrl.trimEnd('/')
             val now = System.currentTimeMillis()
@@ -280,7 +311,13 @@ class SyncRepository(
                 val query = fullPath.substringAfter('?', "").takeIf { it.isNotEmpty() }
                 val cacheKey = OfflineCacheKeys.forGet(pathOnly, query)
                 val url = base + fullPath
-                val res = api.getUrl(url, bearer)
+                val res = try {
+                    cacheApi.getUrl(url, bearer)
+                } catch (e: Exception) {
+                    apiFail++
+                    Log.w(TAG, "Cache prefetch failed for $fullPath: $e")
+                    continue
+                }
                 if (res.isSuccessful) {
                     val body = res.body()?.string() ?: "[]"
                     val contentType = res.headers()["Content-Type"] ?: "application/json"
@@ -291,51 +328,6 @@ class SyncRepository(
                 } else {
                     apiFail++
                     Log.w(TAG, "Cache miss for $fullPath: HTTP ${res.code()}")
-                }
-            }
-
-            var laybyPayments = 0
-            val txKey = OfflineCacheKeys.forGet("/api/layby/transactions", null)
-            cacheEntries.find { it.cacheKey == txKey }?.let { txCache ->
-                try {
-                    val arr = JSONArray(txCache.responseBody)
-                    for (i in 0 until arr.length()) {
-                        val id = arr.getJSONObject(i).optInt("id", -1)
-                        if (id < 0) continue
-                        val payPath = "/api/layby/payments/$id"
-                        val payRes = api.getUrl(base + payPath, bearer)
-                        if (payRes.isSuccessful) {
-                            cacheEntries.add(
-                                ApiCacheEntity(
-                                    OfflineCacheKeys.forGet(payPath, null),
-                                    payRes.body()?.string() ?: "[]",
-                                    payRes.headers()["Content-Type"] ?: "application/json",
-                                    payRes.code(),
-                                    now,
-                                )
-                            )
-                            laybyPayments++
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Layby payment cache prefetch failed", e)
-                }
-            }
-
-            var pagesOk = 0
-            for (page in MasterSyncEndpoints.webPages) {
-                val res = api.getUrl(base + page, bearer)
-                if (res.isSuccessful) {
-                    cacheEntries.add(
-                        ApiCacheEntity(
-                            OfflineCacheKeys.forGet(page, null),
-                            res.body()?.string() ?: "",
-                            res.headers()["Content-Type"] ?: "text/html",
-                            res.code(),
-                            now,
-                        )
-                    )
-                    pagesOk++
                 }
             }
 
@@ -356,15 +348,26 @@ class SyncRepository(
                 MasterSyncResult(
                     apiEndpointsCached = apiOk,
                     apiEndpointsFailed = apiFail,
-                    webPagesCached = pagesOk,
-                    laybyPaymentCaches = laybyPayments,
+                    webPagesCached = 0,
+                    laybyPaymentCaches = 0,
                 )
             )
         } catch (e: Exception) {
-            Log.e(TAG, "syncMasterDatabase failed", e)
+            Log.e(TAG, "prefetchApiCache failed", e)
             Result.failure(e)
         }
     }
+
+    suspend fun syncMasterDatabase(context: Context, token: String, fullCache: Boolean = true): Result<MasterSyncResult> =
+        withContext(Dispatchers.IO) {
+            try {
+                syncEssentials(context, token).getOrElse { return@withContext Result.failure(it) }
+                prefetchApiCache(token, fullCache)
+            } catch (e: Exception) {
+                Log.e(TAG, "syncMasterDatabase failed", e)
+                Result.failure(e)
+            }
+        }
 
     suspend fun pushOfflineMutations(token: String): Int = withContext(Dispatchers.IO) {
         val bearer = "Bearer $token"

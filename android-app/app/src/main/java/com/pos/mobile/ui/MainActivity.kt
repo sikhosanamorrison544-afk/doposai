@@ -27,9 +27,11 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.pos.mobile.BuildConfig
 import com.pos.mobile.R
@@ -136,7 +138,20 @@ class MainActivity : AppCompatActivity() {
         loginTitle.setText(R.string.pos_login)
         username.setText(prefs.getString("last_login_identifier", prefs.getString("username", "")) ?: "")
 
-        fun apiBase() = prefs.getString("base_url", BuildConfig.DEFAULT_API_BASE_URL) ?: BuildConfig.DEFAULT_API_BASE_URL
+        val serverUrlInput = findViewById<EditText>(R.id.login_server_url)
+        serverUrlInput.setText(
+            prefs.getString("base_url", BuildConfig.DEFAULT_API_BASE_URL) ?: BuildConfig.DEFAULT_API_BASE_URL,
+        )
+
+        fun apiBase(): String {
+            val raw = serverUrlInput.text.toString().trim()
+            val url = if (raw.isBlank()) BuildConfig.DEFAULT_API_BASE_URL else raw
+            return if (url.endsWith("/")) url else "$url/"
+        }
+
+        fun persistServerUrl() {
+            prefs.edit().putString("base_url", apiBase()).apply()
+        }
 
         linkCreate.setOnClickListener {
             loginCard.isVisible = false
@@ -164,6 +179,7 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             loginError.visibility = View.GONE
+            persistServerUrl()
             api = SyncWorker.createApi(apiBase())
             val session = SessionStore(this)
             lifecycleScope.launch {
@@ -296,7 +312,12 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             regErr.visibility = View.GONE
-            val baseUrl = prefs.getString("base_url", BuildConfig.DEFAULT_API_BASE_URL) ?: BuildConfig.DEFAULT_API_BASE_URL
+            val serverUrlInput = findViewById<EditText>(R.id.login_server_url)
+            val raw = serverUrlInput.text.toString().trim()
+            val baseUrl = (if (raw.isBlank()) BuildConfig.DEFAULT_API_BASE_URL else raw).let {
+                if (it.endsWith("/")) it else "$it/"
+            }
+            prefs.edit().putString("base_url", baseUrl).apply()
             api = SyncWorker.createApi(baseUrl)
             val session = SessionStore(this)
             lifecycleScope.launch {
@@ -643,12 +664,42 @@ class MainActivity : AppCompatActivity() {
         cm.registerNetworkCallback(request, networkCallback!!)
     }
 
-    private fun setupPos(posContainer: View, prefs: android.content.SharedPreferences) {
-        val shopName = posContainer.findViewById<android.widget.TextView>(R.id.shop_name)
+    private var posPrefs: android.content.SharedPreferences? = null
+
+    override fun onResume() {
+        super.onResume()
+        val posContainer = findViewById<View>(R.id.pos_container) ?: return
+        if (!posContainer.isVisible) return
+        val prefs = posPrefs ?: getSharedPreferences("pos", MODE_PRIVATE)
+        refreshNativeShopName(posContainer, prefs)
+        val token = SessionStore(this).getAccessToken() ?: prefs.getString("token", null)
+        if (!token.isNullOrBlank() && NetworkUtils.isOnline(this)) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    createSyncRepository().persistStoreSettings(this@MainActivity, token)
+                } catch (_: Exception) { /* ignore */ }
+                withContext(Dispatchers.Main) {
+                    refreshNativeShopName(posContainer, prefs)
+                }
+            }
+        }
+        findViewById<android.widget.Button>(R.id.icon_notifications)?.let { refreshNotificationBadge(it) }
+        refreshSubscriptionWarning(posContainer)
+        refreshSubscriptionFromServer()
+    }
+
+    private fun refreshNativeShopName(posContainer: View, prefs: android.content.SharedPreferences) {
+        val shopName = posContainer.findViewById<android.widget.TextView>(R.id.shop_name) ?: return
         val username = prefs.getString("username", "") ?: ""
         val role = prefs.getString("role", "cashier") ?: "cashier"
         val storeLabel = prefs.getString("store_name", getString(R.string.store_name)) ?: getString(R.string.store_name)
         shopName.text = if (username.isNotBlank()) "$storeLabel — $username ($role)" else storeLabel
+    }
+
+    private fun setupPos(posContainer: View, prefs: android.content.SharedPreferences) {
+        posPrefs = prefs
+        val role = PosAuth.role(this)
+        refreshNativeShopName(posContainer, prefs)
 
         val posMessageTv = posContainer.findViewById<TextView>(R.id.pos_message)
         lifecycleScope.launch {
@@ -1186,14 +1237,14 @@ class MainActivity : AppCompatActivity() {
     private suspend fun performManualSync(token: String): ManualSyncOutcome {
         val repo = createSyncRepository()
         val db = AppDatabase.getInstance(this)
-        val masterOk = repo.syncMasterDatabase(this@MainActivity, token).isSuccess
+        var pushed = 0
+        for (item in db.syncQueueDao().getByStatus(SyncQueueEntity.STATUS_PENDING)) {
+            repo.pushSale(token, item).onSuccess { pushed++ }
+        }
+        repo.pushOfflineMutations(token)
+        val masterOk = repo.syncMasterDatabase(this@MainActivity, token, fullCache = true).isSuccess
         if (masterOk) {
             SessionStore(this).recordOfflineAnchor()
-        }
-        val pending = db.syncQueueDao().getByStatus(SyncQueueEntity.STATUS_PENDING)
-        var pushed = 0
-        for (item in pending) {
-            repo.pushSale(token, item).onSuccess { pushed++ }
         }
         val stillPending = db.syncQueueDao().getByStatus(SyncQueueEntity.STATUS_PENDING).size
         val productCount = db.productDao().countActive()
@@ -1207,14 +1258,30 @@ class MainActivity : AppCompatActivity() {
 
     /** Enqueue a one-time sync when online. UI never waits; sync runs in background. */
     private fun triggerSyncWhenOnline() {
+        val prefs = getSharedPreferences("pos", MODE_PRIVATE)
+        val baseUrl = prefs.getString("base_url", BuildConfig.DEFAULT_API_BASE_URL)
+            ?: BuildConfig.DEFAULT_API_BASE_URL
+        val token = SessionStore(this).getAccessToken() ?: prefs.getString("token", null)
+        if (token.isNullOrBlank()) return
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
         val work = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(constraints)
+            .setInputData(
+                workDataOf(
+                    SyncWorker.KEY_BASE_URL to baseUrl,
+                    SyncWorker.KEY_TOKEN to token,
+                    SyncWorker.KEY_FULL_CACHE to false,
+                ),
+            )
             .addTag("pos_sync_on_action")
             .build()
-        WorkManager.getInstance(this).enqueue(work)
+        WorkManager.getInstance(this).enqueueUniqueWork(
+            "pos_sync_on_action",
+            ExistingWorkPolicy.KEEP,
+            work,
+        )
     }
 
     override fun onRequestPermissionsResult(
@@ -1265,15 +1332,6 @@ class MainActivity : AppCompatActivity() {
         if (s.effective_status != "trial") return
         withContext(Dispatchers.Main) {
             startActivity(Intent(this@MainActivity, SubscriptionActivity::class.java))
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (findViewById<View>(R.id.pos_container)?.isVisible == true) {
-            findViewById<android.widget.Button>(R.id.icon_notifications)?.let { refreshNotificationBadge(it) }
-            findViewById<View>(R.id.pos_container)?.let { refreshSubscriptionWarning(it) }
-            refreshSubscriptionFromServer()
         }
     }
 

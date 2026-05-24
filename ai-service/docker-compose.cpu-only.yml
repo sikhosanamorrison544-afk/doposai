@@ -1,0 +1,69 @@
+# CPU-only stack (no NVIDIA). Use on VPS without GPU — slow, for wiring tests only.
+# Usage: docker compose -f docker-compose.cpu-only.yml up -d --build
+#
+# In .env set:
+#   VLLM_MODEL=Qwen/Qwen2.5-1.5B-Instruct
+#   VLLM_SERVED_NAME=qwen2.5-1.5b
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - ai_net
+
+  vllm:
+    image: vllm/vllm-openai:latest
+    restart: unless-stopped
+    ipc: host
+    command: >
+      --model ${VLLM_MODEL:-Qwen/Qwen2.5-1.5B-Instruct}
+      --served-model-name ${VLLM_SERVED_NAME:-qwen2.5-1.5b}
+      --host 0.0.0.0
+      --port 8000
+      --max-model-len ${VLLM_MAX_MODEL_LEN:-4096}
+      --dtype auto
+      --device cpu
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+    volumes:
+      - huggingface_cache:/root/.cache/huggingface
+    expose:
+      - "8000"
+    networks:
+      - ai_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 600s
+
+  ai-api:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      VLLM_BASE_URL: http://vllm:8000/v1
+      VLLM_MODEL: ${VLLM_SERVED_NAME:-qwen2.5-1.5b}
+      REDIS_URL: redis://redis:6379/0
+      DISABLE_STARTUP_OLLAMA: "1"
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_started
+      vllm:
+        condition: service_healthy
+    networks:
+      - ai_net
+
+volumes:
+  redis_data:
+  huggingface_cache:
+
+networks:
+  ai_net:
+    driver: bridge

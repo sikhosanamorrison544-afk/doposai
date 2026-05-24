@@ -595,31 +595,62 @@ function ensureAdmin() {
 
 async function loadStoreSettings() {
     try {
-        const settings = await adminApi('/api/store-settings');
-        
-        // Only set values if elements exist (they're on /store-settings page, not /admin page)
-        const storeNameEl = document.getElementById('store-name');
-        if (storeNameEl) storeNameEl.value = settings.store_name || '';
-        
-        const storePhoneEl = document.getElementById('store-phone');
-        if (storePhoneEl) storePhoneEl.value = settings.store_phone || '';
-        
-        const storeLocationEl = document.getElementById('store-location');
-        if (storeLocationEl) storeLocationEl.value = settings.store_location || '';
-        
-        const notificationEmailEl = document.getElementById('notification-email');
-        if (notificationEmailEl) notificationEmailEl.value = settings.notification_email || '';
-        
-        const lowStockEmailEnabledEl = document.getElementById('low-stock-email-enabled');
-        if (lowStockEmailEnabledEl) lowStockEmailEnabledEl.checked = settings.low_stock_email_enabled || false;
-        
-        const defaultLowStockThresholdEl = document.getElementById('default-low-stock-threshold');
-        if (defaultLowStockThresholdEl) defaultLowStockThresholdEl.value = settings.default_low_stock_threshold || 10;
+        const settings = await adminApi('/api/store-settings', { cache: 'no-store' });
+        applyStoreSettingsToForm(settings);
     } catch (e) {
         console.error('Failed to load store settings:', e);
         const settingsMessageEl = document.getElementById('settings-message');
         if (settingsMessageEl) {
             settingsMessageEl.textContent = 'Failed to load settings';
+        }
+    }
+}
+
+function applyStoreSettingsToForm(settings) {
+    if (!settings || typeof settings !== 'object') return;
+    const storeNameEl = document.getElementById('store-name');
+    if (storeNameEl) storeNameEl.value = settings.store_name || '';
+
+    const storePhoneEl = document.getElementById('store-phone');
+    if (storePhoneEl) storePhoneEl.value = settings.store_phone || '';
+
+    const storeLocationEl = document.getElementById('store-location');
+    if (storeLocationEl) storeLocationEl.value = settings.store_location || '';
+
+    const notificationEmailEl = document.getElementById('notification-email');
+    if (notificationEmailEl) notificationEmailEl.value = settings.notification_email || '';
+
+    const lowStockEmailEnabledEl = document.getElementById('low-stock-email-enabled');
+    if (lowStockEmailEnabledEl) lowStockEmailEnabledEl.checked = settings.low_stock_email_enabled || false;
+
+    const defaultLowStockThresholdEl = document.getElementById('default-low-stock-threshold');
+    if (defaultLowStockThresholdEl) {
+        defaultLowStockThresholdEl.value = settings.default_low_stock_threshold || 10;
+    }
+}
+
+function applyStoreSettingsGlobally(settings) {
+    if (!settings || typeof settings !== 'object') return;
+    applyStoreSettingsToForm(settings);
+    if (window.posReceipt && typeof window.posReceipt.setStoreSettings === 'function') {
+        window.posReceipt.setStoreSettings(settings);
+    }
+    if (window.PosBranding) {
+        if (typeof window.PosBranding.clearCache === 'function') {
+            window.PosBranding.clearCache();
+        }
+        if (typeof window.PosBranding.apply === 'function' && settings.store_name) {
+            window.PosBranding.apply(settings.store_name);
+        }
+        if (typeof window.PosBranding.refresh === 'function') {
+            window.PosBranding.refresh().catch(function () { /* ignore */ });
+        }
+    }
+    if (typeof PosAndroidSettings !== 'undefined' && PosAndroidSettings.applyStoreSettings) {
+        try {
+            PosAndroidSettings.applyStoreSettings(JSON.stringify(settings));
+        } catch (e) {
+            console.warn('PosAndroidSettings.applyStoreSettings failed', e);
         }
     }
 }
@@ -650,17 +681,31 @@ async function saveStoreSettings() {
     };
 
     try {
-        await adminApi('/api/store-settings', {
+        const saved = await adminApi('/api/store-settings', {
             method: 'PUT',
             body: JSON.stringify(payload),
+            cache: 'no-store',
         });
-        if (window.posReceipt && typeof window.posReceipt.setStoreSettings === 'function') {
-            window.posReceipt.setStoreSettings(payload);
+        if (saved && saved.offline_queued) {
+            applyStoreSettingsGlobally(payload);
+            msg.textContent = 'Saved on this device — will sync to the server when online';
+            return;
         }
-        msg.textContent = 'Settings saved successfully';
+        applyStoreSettingsGlobally(saved || payload);
+        msg.textContent = 'Settings saved — synced to all devices';
     } catch (e) {
         console.error(e);
-        msg.textContent = 'Save failed';
+        let detail = 'Save failed';
+        try {
+            const parsed = JSON.parse(e.message || '');
+            detail = parsed.detail || detail;
+        } catch (_) {
+            if (e.message) detail = e.message;
+        }
+        if (String(detail).toLowerCase().includes('admin') || String(detail).includes('403')) {
+            detail = 'Only admin accounts can change store settings';
+        }
+        msg.textContent = detail;
     }
 }
 

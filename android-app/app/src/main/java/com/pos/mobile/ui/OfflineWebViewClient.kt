@@ -7,7 +7,6 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.pos.mobile.data.local.AppDatabase
-import com.pos.mobile.data.local.entity.OfflineMutationEntity
 import com.pos.mobile.sync.NetworkUtils
 import com.pos.mobile.sync.OfflineCacheKeys
 import kotlinx.coroutines.runBlocking
@@ -15,8 +14,7 @@ import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 
 /**
- * Serves cached master-DB API/HTML snapshots when offline so WebView pages match Render data.
- * Queues POST/PUT mutations for replay on next sync.
+ * Serves cached API snapshots when offline. Mutations use offline-fetch.js (with POST body).
  */
 class OfflineWebViewClient(
     private val context: Context,
@@ -34,10 +32,8 @@ class OfflineWebViewClient(
         if (!NetworkUtils.isOnline(context)) {
             if (req.method == "GET") {
                 loadCachedGet(uri)?.let { return it }
-            } else if (req.method in MUTATION_METHODS) {
-                queueMutation(req)
-                return offlineQueuedResponse()
             }
+            // POST/PUT/PATCH/DELETE: handled by offline-fetch.js + PosAndroidOffline (needs body).
         }
         return delegate.shouldInterceptRequest(view, request)
     }
@@ -69,37 +65,7 @@ class OfflineWebViewClient(
         )
     }
 
-    private fun queueMutation(req: WebResourceRequest) = runBlocking {
-        val path = req.url.encodedPath ?: return@runBlocking
-        val query = req.url.encodedQuery
-        val fullPath = if (query.isNullOrBlank()) path else "$path?$query"
-        if (!fullPath.startsWith("/api/")) return@runBlocking
-        db.offlineMutationDao().insert(
-            OfflineMutationEntity(
-                method = req.method,
-                path = fullPath,
-                requestBody = null,
-                contentType = req.requestHeaders["Content-Type"],
-                createdAt = System.currentTimeMillis(),
-            )
-        )
-    }
-
-    private fun offlineQueuedResponse(): WebResourceResponse {
-        val body = """{"ok":true,"offline_queued":true,"message":"Saved offline; will sync when online"}"""
-        return WebResourceResponse(
-            "application/json",
-            "utf-8",
-            202,
-            "Accepted",
-            emptyMap(),
-            ByteArrayInputStream(body.toByteArray(StandardCharsets.UTF_8)),
-        )
-    }
-
     companion object {
-        private val MUTATION_METHODS = setOf("POST", "PUT", "PATCH", "DELETE")
-
         private val OFFLINE_BANNER_JS = """
             (function(){
               if(document.getElementById('pos-offline-banner')) return;

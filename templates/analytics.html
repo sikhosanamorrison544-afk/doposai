@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Sales Analytics - {{ store_name }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="platform-motto" content="{{ platform_motto or 'Pecunia Non Olet' }}">
     <script>
         // CRITICAL: Apply theme INSTANTLY - must be first script, runs synchronously
         (function() {
@@ -1711,7 +1712,7 @@
         window.addEventListener('resize', enforceAIPanelDimensions);
     })();
 </script>
-<script src="/static/js/store-branding.js?v=1"></script>
+<script src="/static/js/store-branding.js?v=3"></script>
 </body>
 </html>
 

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>{{ store_name }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="platform-motto" content="{{ platform_motto or 'Pecunia Non Olet' }}">
     <!-- Fallback: same as web POS so app never shows black -->
     <style id="fallback-bg">html,body{min-height:100vh;margin:0;padding:0;background:linear-gradient(135deg,#667eea 0%,#764ba2 25%,#f093fb 50%,#4facfe 75%,#00f2fe 100%);background-size:400% 400%;color:#1a1a2e;}</style>
     <script>
@@ -152,6 +153,7 @@
 <div id="app">
     <div id="login-screen" class="screen active">
         <h1 id="login-screen-title" data-default-title="{{ store_name }}">{{ store_name }}</h1>
+        <p class="platform-motto platform-motto--login">{{ platform_motto or 'Pecunia Non Olet' }}</p>
         <p class="login-screen-switch login-screen-cta-top"><a href="#" id="link-show-register-top">Create / register your business</a></p>
         <form autocomplete="off" onsubmit="return false;">
             <div id="login-form-card" class="card">
@@ -201,7 +203,10 @@
     <div id="pos-screen" class="screen">
         <header class="top-bar">
             <span id="user-info" style="color: #1a1a1a !important;"></span>
-            <div class="shop-name" style="color: #1a1a1a !important;">{{ store_name }}</div>
+            <div class="top-bar-brand">
+                <div class="shop-name" style="color: #1a1a1a !important;">{{ store_name }}</div>
+                <span class="platform-motto">{{ platform_motto or 'Pecunia Non Olet' }}</span>
+            </div>
             <div class="top-bar-right" style="position: relative;">
                 <button id="btn-admin" class="small" style="display:none; color: #1a1a1a !important;">Admin</button>
                 <button id="btn-billing" class="small" style="display:none; background: rgba(16, 185, 129, 0.85); color: #1a1a1a !important;" type="button">Billing</button>
@@ -517,7 +522,7 @@
 <script src="/static/js/role-permissions.js?v=1"></script>
 <script src="/static/js/app.js?v=12"></script>
 <script src="/static/js/background3d.js?v=5"></script>
-<script src="/static/js/store-branding.js?v=1"></script>
+<script src="/static/js/store-branding.js?v=3"></script>
 </body>
 </html>
 

@@ -4,6 +4,18 @@
     const TOKEN_KEY = 'pos_token';
     const CACHE_KEY = 'pos_store_branding';
     const TTL_MS = 5 * 60 * 1000;
+    const DEFAULT_MOTTO = 'Pecunia Non Olet';
+
+    function readMottoMeta() {
+        const meta = document.querySelector('meta[name="platform-motto"]');
+        if (!meta || !meta.content) return '';
+        return meta.content.trim();
+    }
+
+    function resolveMotto(preferred) {
+        const candidate = (preferred || readMottoMeta() || DEFAULT_MOTTO).trim();
+        return candidate || DEFAULT_MOTTO;
+    }
 
     function applyName(name) {
         if (!name || typeof name !== 'string') return;
@@ -25,6 +37,53 @@
                 document.title = `${currentTitle} | ${clean}`;
             }
         } catch (_) { /* ignore title failures */ }
+    }
+
+    function applyMotto(motto) {
+        const text = resolveMotto(motto);
+        window.__PLATFORM_MOTTO__ = text;
+
+        document.querySelectorAll('.platform-motto').forEach(function (el) {
+            if (!el.textContent || !el.textContent.trim()) {
+                el.textContent = text;
+            }
+        });
+
+        document.querySelectorAll('.top-bar').forEach(function (bar) {
+            if (bar.querySelector('.platform-motto')) return;
+            const shop = bar.querySelector('.shop-name');
+            if (!shop) return;
+            let brand = shop.parentElement;
+            if (!brand || !brand.classList.contains('top-bar-brand')) {
+                brand = document.createElement('div');
+                brand.className = 'top-bar-brand';
+                shop.parentNode.insertBefore(brand, shop);
+                brand.appendChild(shop);
+            }
+            const span = document.createElement('span');
+            span.className = 'platform-motto';
+            span.textContent = text;
+            brand.appendChild(span);
+        });
+
+        document.querySelectorAll('.pa-mobile-header').forEach(function (hdr) {
+            if (hdr.querySelector('.platform-motto')) return;
+            const sub = hdr.querySelector('.pa-mobile-subtitle');
+            if (!sub) return;
+            const p = document.createElement('p');
+            p.className = 'platform-motto platform-motto--mobile';
+            p.textContent = text;
+            sub.insertAdjacentElement('afterend', p);
+        });
+
+        const login = document.getElementById('login-screen');
+        if (login && !login.querySelector('.platform-motto')) {
+            const p = document.createElement('p');
+            p.className = 'platform-motto platform-motto--login';
+            p.textContent = text;
+            const h1 = login.querySelector('h1');
+            if (h1) h1.insertAdjacentElement('afterend', p);
+        }
     }
 
     function readCache() {
@@ -53,6 +112,16 @@
         return cache && cache.ts && (Date.now() - cache.ts) < TTL_MS;
     }
 
+    async function fetchPlatformInfo() {
+        try {
+            const res = await fetch('/api/platform-info', { credentials: 'same-origin' });
+            if (!res.ok) return null;
+            return await res.json();
+        } catch (_) {
+            return null;
+        }
+    }
+
     async function fetchFresh() {
         const token = localStorage.getItem(TOKEN_KEY);
         if (!token) return null;
@@ -74,6 +143,13 @@
     }
 
     async function refresh() {
+        applyMotto();
+
+        const platform = await fetchPlatformInfo();
+        if (platform && platform.motto) {
+            applyMotto(platform.motto);
+        }
+
         const cached = readCache();
         if (cached && cached.store_name) {
             applyName(cached.store_name);
@@ -87,6 +163,7 @@
     window.PosBranding = {
         refresh,
         apply: applyName,
+        applyMotto,
         clearCache: function () {
             try { localStorage.removeItem(CACHE_KEY); } catch (_) { /* noop */ }
         },

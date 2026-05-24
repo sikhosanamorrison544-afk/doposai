@@ -9,7 +9,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import BackgroundTasks, Body, Depends, FastAPI, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import BackgroundTasks, Body, Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
@@ -34,6 +34,8 @@ from .backup_service import get_backup_service
 from .config import (
     BASE_DIR,
     DATABASE_URL,
+    PLATFORM_BRAND_NAME,
+    PLATFORM_MOTTO,
     STORE_NAME,
     STORE_PHONE,
     STORE_LOCATION,
@@ -124,6 +126,15 @@ app = FastAPI(title="Raspberry Pi Offline POS", docs_url=None, redoc_url=None)
 def health():
     """Liveness probe without DB access. Use as Render health check path so deploys don't fail if DB is slow to connect."""
     return {"status": "ok"}
+
+
+@app.get("/api/platform-info")
+def platform_info():
+    """Public branding (motto, name) for login and headers — no auth required."""
+    return {
+        "brand_name": PLATFORM_BRAND_NAME,
+        "motto": PLATFORM_MOTTO,
+    }
 
 
 _cors_origins, _cors_credentials = get_cors_origins_and_credentials()
@@ -312,6 +323,12 @@ async def favicon():
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+templates.env.globals["platform_motto"] = PLATFORM_MOTTO
+
+
+def _page_ctx(request: Request, **kwargs):
+    """Template context for HTML pages (always includes platform motto)."""
+    return {"request": request, "platform_motto": PLATFORM_MOTTO, **kwargs}
 
 
 @app.exception_handler(HTTPException)
@@ -349,7 +366,7 @@ async def index(request: Request, db: Session = Depends(get_db)):
         store_name = store_settings.store_name.upper()
     else:
         store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("index.html", {"request": request, "store_name": store_name})
+    return templates.TemplateResponse("index.html", _page_ctx(request, store_name=store_name))
 
 
 @app.get("/accounting", response_class=HTMLResponse)
@@ -362,7 +379,7 @@ async def accounting_page(request: Request, db: Session = Depends(get_db)):
         store_name = STORE_NAME.upper()
     return templates.TemplateResponse(
         "accounting.html",
-        {"request": request, "store_name": store_name}
+        _page_ctx(request, store_name=store_name)
     )
 
 
@@ -375,7 +392,7 @@ async def admin_page(request: Request, db: Session = Depends(get_db)):
         store_name = store_settings.store_name.upper()
     else:
         store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("admin.html", {"request": request, "store_name": store_name})
+    return templates.TemplateResponse("admin.html", _page_ctx(request, store_name=store_name))
 
 
 @app.get("/platform/tenants", response_class=HTMLResponse)
@@ -388,7 +405,7 @@ async def platform_tenants_page(request: Request, db: Session = Depends(get_db))
         store_name = STORE_NAME.upper()
     return templates.TemplateResponse(
         "platform-tenants.html",
-        {"request": request, "store_name": store_name},
+        _page_ctx(request, store_name=store_name),
     )
 
 
@@ -407,7 +424,7 @@ async def store_settings_page(request: Request, db: Session = Depends(get_db)):
         store_name = store_settings.store_name.upper()
     else:
         store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("store-settings.html", {"request": request, "store_name": store_name})
+    return templates.TemplateResponse("store-settings.html", _page_ctx(request, store_name=store_name))
 
 
 @app.get("/quotations", response_class=HTMLResponse)
@@ -418,7 +435,7 @@ async def quotations_page(request: Request, db: Session = Depends(get_db)):
         store_name = store_settings.store_name.upper()
     else:
         store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("quotations.html", {"request": request, "store_name": store_name})
+    return templates.TemplateResponse("quotations.html", _page_ctx(request, store_name=store_name))
 
 
 @app.get("/reset-password", response_class=HTMLResponse)
@@ -435,7 +452,7 @@ async def reset_password_page(request: Request, db: Session = Depends(get_db)):
         store_name = STORE_NAME.upper()
     return templates.TemplateResponse(
         "reset-password.html",
-        {"request": request, "store_name": store_name},
+        _page_ctx(request, store_name=store_name),
     )
 
 
@@ -1619,7 +1636,7 @@ async def pending_collection_page(request: Request, db: Session = Depends(get_db
     """Pending collection items page."""
     store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
     store_name = store_settings.store_name if store_settings else "POS System"
-    return templates.TemplateResponse("pending_collection.html", {"request": request, "store_name": store_name})
+    return templates.TemplateResponse("pending_collection.html", _page_ctx(request, store_name=store_name))
 
 
 def print_receipt_background(sale_id: int):
@@ -1775,13 +1792,14 @@ class StoreSettingsUpdate(BaseModel):
 
 @app.get("/api/store-settings", response_model=StoreSettingsRead)
 async def get_store_settings(
+    response: Response,
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
 ):
     """Get store settings. Creates default if none exists."""
+    response.headers["Cache-Control"] = "no-store"
     settings = tenant_scope.filter_store_settings(db, current_user).first()
     if not settings:
-        # Create default settings
         settings = StoreSettings(
             store_name=STORE_NAME,
             store_phone=STORE_PHONE if STORE_PHONE else None,
@@ -1797,10 +1815,12 @@ async def get_store_settings(
 @app.put("/api/store-settings", response_model=StoreSettingsRead)
 async def update_store_settings(
     settings_data: StoreSettingsUpdate,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_admin_user),
 ):
     """Update store settings. Admin only."""
+    response.headers["Cache-Control"] = "no-store"
     settings = tenant_scope.filter_store_settings(db, current_user).first()
     if not settings:
         settings = StoreSettings(
@@ -3143,7 +3163,7 @@ async def layby_page(request: Request, db: Session = Depends(get_db)):
         store_name = store_settings.store_name.upper()
     else:
         store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("layby.html", {"request": request, "store_name": store_name})
+    return templates.TemplateResponse("layby.html", _page_ctx(request, store_name=store_name))
 
 
 @app.get("/debts/outstanding", response_class=HTMLResponse)
@@ -3154,7 +3174,7 @@ async def outstanding_debts_page(request: Request, db: Session = Depends(get_db)
         store_name = store_settings.store_name.upper()
     else:
         store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("outstanding_debts.html", {"request": request, "store_name": store_name})
+    return templates.TemplateResponse("outstanding_debts.html", _page_ctx(request, store_name=store_name))
 
 
 @app.get("/withdrawals/history", response_class=HTMLResponse)
@@ -3165,7 +3185,7 @@ async def withdrawal_history_page(request: Request, db: Session = Depends(get_db
         store_name = store_settings.store_name.upper()
     else:
         store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("withdrawal_history.html", {"request": request, "store_name": store_name})
+    return templates.TemplateResponse("withdrawal_history.html", _page_ctx(request, store_name=store_name))
 
 
 @app.get("/refunds", response_class=HTMLResponse)
@@ -3176,7 +3196,7 @@ async def refunds_page(request: Request, db: Session = Depends(get_db)):
         store_name = store_settings.store_name.upper()
     else:
         store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("refunds.html", {"request": request, "store_name": store_name})
+    return templates.TemplateResponse("refunds.html", _page_ctx(request, store_name=store_name))
 
 
 @app.get("/billing", response_class=HTMLResponse)
@@ -3184,7 +3204,7 @@ async def billing_page(request: Request, db: Session = Depends(get_db)):
     """Subscription management & Paynow / EcoCash billing."""
     store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
     store_name = store_settings.store_name.upper() if store_settings else STORE_NAME.upper()
-    return templates.TemplateResponse("billing.html", {"request": request, "store_name": store_name})
+    return templates.TemplateResponse("billing.html", _page_ctx(request, store_name=store_name))
 
 
 @app.get("/enterprise", response_class=HTMLResponse)
@@ -3192,7 +3212,7 @@ async def enterprise_hub_page(request: Request, db: Session = Depends(get_db)):
     """Enterprise inventory: suppliers, purchasing, branches, audit."""
     store_settings = tenant_scope.first_store_settings_for_tenant(db, None)
     store_name = store_settings.store_name.upper() if store_settings else STORE_NAME.upper()
-    return templates.TemplateResponse("enterprise.html", {"request": request, "store_name": store_name})
+    return templates.TemplateResponse("enterprise.html", _page_ctx(request, store_name=store_name))
 
 
 @app.get("/analytics", response_class=HTMLResponse)
@@ -3203,7 +3223,7 @@ async def analytics_page(request: Request, db: Session = Depends(get_db)):
         store_name = store_settings.store_name.upper()
     else:
         store_name = STORE_NAME.upper()
-    return templates.TemplateResponse("analytics.html", {"request": request, "store_name": store_name})
+    return templates.TemplateResponse("analytics.html", _page_ctx(request, store_name=store_name))
 
 
 @app.get("/layby/customer/{customer_id}", response_class=HTMLResponse)
@@ -3226,12 +3246,12 @@ async def customer_history_page(
     
     return templates.TemplateResponse(
         "customer_history.html",
-        {
-            "request": request,
-            "store_name": store_name,
-            "customer_id": customer_id,
-            "customer_name": customer.name,
-        },
+        _page_ctx(
+            request,
+            store_name=store_name,
+            customer_id=customer_id,
+            customer_name=customer.name,
+        ),
     )
 
 
@@ -3257,11 +3277,7 @@ async def transaction_payment_history_page(
     
     return templates.TemplateResponse(
         "transaction_payment_history.html",
-        {
-            "request": request,
-            "store_name": store_name,
-            "transaction_id": transaction_id,
-        },
+        _page_ctx(request, store_name=store_name, transaction_id=transaction_id),
     )
 
 

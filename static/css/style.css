@@ -101,6 +101,55 @@ h1 {
     color: #1a1a1a !important;
 }
 
+.platform-motto {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    font-style: italic;
+    letter-spacing: 0.06em;
+    color: #4b5563;
+    opacity: 0.92;
+}
+
+.platform-motto--login {
+    text-align: center;
+    margin: -6px auto 14px;
+    max-width: 360px;
+    font-size: 15px;
+    color: #374151 !important;
+}
+
+#login-screen .platform-motto {
+    display: block !important;
+    visibility: visible !important;
+}
+
+.top-bar-brand {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    gap: 2px;
+}
+
+.top-bar-brand .shop-name {
+    flex: none;
+    margin: 0;
+}
+
+.top-bar .platform-motto {
+    font-size: 12px;
+    line-height: 1.25;
+}
+
+.platform-motto--mobile {
+    text-align: center;
+    margin: 0 0 8px;
+    font-size: 13px;
+}
+
 h2, h3, h4, h5, h6 {
     color: #1a1a2e;
     font-weight: 600;

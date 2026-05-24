@@ -21,6 +21,15 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.pos.mobile.BuildConfig
 import com.pos.mobile.R
+import com.pos.mobile.auth.SessionStore
+import com.pos.mobile.data.sync.SyncWorker
+import com.pos.mobile.sync.NetworkUtils
+import androidx.work.Constraints
+import androidx.work.NetworkType
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.pos.mobile.printer.BluetoothPermissionDelegate
 import com.pos.mobile.printer.PrinterPermissionHelper
 import com.pos.mobile.billing.PlanFeatures
@@ -78,6 +87,7 @@ class WebViewActivity : AppCompatActivity() {
     private lateinit var importFileLauncher: androidx.activity.result.ActivityResultLauncher<Intent>
     /** URL we are loading; when it finishes we inject auth into that origin then reload so the page sees the token. */
     private var injectThenReloadUrl: String? = null
+    private var pagePath: String = "/"
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -98,11 +108,12 @@ class WebViewActivity : AppCompatActivity() {
             ?: BuildConfig.DEFAULT_API_BASE_URL
 
         val path = intent.getStringExtra(EXTRA_PATH) ?: "/"
+        pagePath = path
         val titleText = intent.getStringExtra(EXTRA_TITLE) ?: path.trimStart('/').ifEmpty { "POS" }
         supportActionBar?.title = titleText.replaceFirstChar { it.uppercase() }
 
         val url = baseUrl.trimEnd('/') + path
-        val token = prefs.getString("token", null)
+        val token = SessionStore(this).getAccessToken() ?: prefs.getString("token", null)
         val username = prefs.getString("username", "") ?: ""
         val role = prefs.getString("role", "cashier") ?: "cashier"
 
@@ -450,6 +461,16 @@ class WebViewActivity : AppCompatActivity() {
             Log.w("WebViewActivity", "WebView cache purge failed", e)
         } finally {
             prefs.edit().putInt(key, current).apply()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (pagePath == "/store-settings" && ::webView.isInitialized && NetworkUtils.isOnline(this)) {
+            webView.evaluateJavascript(
+                "if(typeof loadStoreSettings==='function'){loadStoreSettings();}",
+                null,
+            )
         }
     }
 }

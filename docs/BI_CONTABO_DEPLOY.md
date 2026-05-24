@@ -92,6 +92,24 @@ Interfaces in `ai-service/app/rag/interfaces.py` for Qdrant, embeddings, and ten
 | vLLM OOM | Use smaller quant model or `Qwen/Qwen2.5-7B-Instruct` |
 | Slow first response | Model load + cold GPU; cache repeats |
 
-## 9. CPU-only fallback
+## 9. CPU-only fallback (no NVIDIA GPU)
 
-Remove GPU `deploy` block in `docker-compose.yml` and use a smaller model; expect slower inference.
+On a CPU VPS, **do not** use `docker-compose.yml` alone — it requests `nvidia` and vLLM will fail with:
+
+`could not select device driver "nvidia" with capabilities: [[gpu]]`
+
+Use the standalone CPU stack and a tiny model in `.env`:
+
+```bash
+cd /opt/doposai/ai-service
+# .env: VLLM_MODEL=Qwen/Qwen2.5-1.5B-Instruct, VLLM_SERVED_NAME=qwen2.5-1.5b
+docker compose down
+docker compose -f docker-compose.cpu-only.yml up -d --build
+docker compose -f docker-compose.cpu-only.yml ps
+curl -s http://127.0.0.1:8080/ai/health
+ufw allow 8080/tcp   # if using UFW; restrict to Render IPs in production
+```
+
+First boot downloads the model (10–30+ minutes on CPU). On Render set `AI_SERVICE_TIMEOUT_SEC=120`.
+
+Expect slow inference; use a **GPU Cloud** VPS for real Qwen3-14B AWQ.

@@ -6,6 +6,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.pos.mobile.ui.PosAndroidImportBridge
 import com.pos.mobile.ui.PosAndroidOfflineBridge
+import com.pos.mobile.ui.PosAndroidSettingsBridge
 import com.pos.mobile.ui.PosAndroidUiBridge
 
 object WebViewPrintSupport {
@@ -29,6 +30,10 @@ object WebViewPrintSupport {
         webView.addJavascriptInterface(
             PosAndroidOfflineBridge(activity.applicationContext),
             "PosAndroidOffline",
+        )
+        webView.addJavascriptInterface(
+            PosAndroidSettingsBridge(activity.applicationContext),
+            "PosAndroidSettings",
         )
     }
 
