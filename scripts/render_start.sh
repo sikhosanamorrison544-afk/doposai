@@ -43,5 +43,22 @@ else
   echo "[migrate] SKIP_STARTUP_MIGRATIONS=1 — skipped"
 fi
 
-echo "[start] uvicorn on 0.0.0.0:${PORT:-8000}"
-exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --proxy-headers --forwarded-allow-ips='*'
+PORT="${PORT:-8000}"
+WORKERS="${WEB_CONCURRENCY:-2}"
+
+if [ "${USE_UVICORN_ONLY:-0}" = "1" ]; then
+  echo "[start] uvicorn only (USE_UVICORN_ONLY=1) on 0.0.0.0:${PORT}"
+  exec uvicorn app.main:app --host 0.0.0.0 --port "$PORT" --proxy-headers --forwarded-allow-ips='*'
+fi
+
+echo "[start] gunicorn + uvicorn workers=${WORKERS} on 0.0.0.0:${PORT}"
+exec gunicorn app.main:app \
+  -k uvicorn.workers.UvicornWorker \
+  -w "$WORKERS" \
+  -b "0.0.0.0:${PORT}" \
+  --timeout 120 \
+  --graceful-timeout 30 \
+  --keep-alive 5 \
+  --forwarded-allow-ips='*' \
+  --access-logfile - \
+  --error-logfile -

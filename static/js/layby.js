@@ -37,6 +37,20 @@ async function ensureAuthenticated() {
 }
 
 async function laybyApi(path, options = {}) {
+    const method = (options.method || 'GET').toUpperCase();
+    if (
+        method === 'GET' &&
+        typeof posFetchAllListPages === 'function' &&
+        typeof posIsListCollectionPath === 'function' &&
+        posIsListCollectionPath(path)
+    ) {
+        const savedToken = localStorage.getItem('pos_token');
+        if (savedToken && savedToken.trim()) laybyToken = savedToken.trim();
+        const headers = options.headers || {};
+        headers['Content-Type'] = 'application/json';
+        if (laybyToken) headers['Authorization'] = 'Bearer ' + laybyToken.trim();
+        return posFetchAllListPages(path, { headers, credentials: options.credentials });
+    }
     // Always refresh token from localStorage to ensure we have the latest
     const savedToken = localStorage.getItem('pos_token');
     if (savedToken && savedToken.trim()) {
@@ -1273,12 +1287,10 @@ function applyTheme(themeName) {
     document.body.classList.remove(...themeClasses);
     document.documentElement.classList.remove(...themeClasses);
     
-    // Add selected theme class to both body and html elements
-    if (themeName && themeName !== 'default') {
-        const themeClass = 'theme-' + themeName;
-        document.body.classList.add(themeClass);
-        document.documentElement.classList.add(themeClass);
-    }
+    const theme = ['default', 'light', 'classic'].includes(themeName) ? themeName : 'default';
+    const themeClass = 'theme-' + theme;
+    document.body.classList.add(themeClass);
+    document.documentElement.classList.add(themeClass);
     
     if (themeName === 'light') {
         if (typeof window.playLightThemeVideo === 'function') window.playLightThemeVideo();

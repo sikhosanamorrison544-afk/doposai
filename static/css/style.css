@@ -3,6 +3,29 @@ html {
     font-size: 18px;
 }
 
+/* Input tokens — default/classic use light fields; light theme overrides below */
+:root {
+    --input-bg: #ffffff;
+    --input-bg-hover: #f9fafb;
+    --input-bg-focus: #ffffff;
+    --input-text: #1a1a2e;
+    --input-placeholder: rgba(17, 24, 39, 0.45);
+    --input-border: rgba(0, 0, 0, 0.15);
+    --input-focus-border: #667eea;
+    --input-focus-ring: rgba(102, 126, 234, 0.25);
+}
+
+body.theme-light {
+    --input-bg: #141414;
+    --input-bg-hover: #1f1f1f;
+    --input-bg-focus: #0a0a0a;
+    --input-text: #f3f4f6;
+    --input-placeholder: rgba(255, 255, 255, 0.45);
+    --input-border: rgba(255, 255, 255, 0.22);
+    --input-focus-border: #667eea;
+    --input-focus-ring: rgba(102, 126, 234, 0.35);
+}
+
 /* 3D Background Canvas - behind everything */
 #bg3d-canvas {
     position: fixed !important;
@@ -183,24 +206,24 @@ h2, h3, h4, h5, h6 {
     color: #1a1a1a !important;
 }
 
-/* Login inputs - transparent with white text */
+/* Login inputs — dark fields */
 #login-screen input,
 #login-screen .card input {
-    background: #fff !important;
-    border: 1px solid rgba(0, 0, 0, 0.2) !important;
-    color: #1a1a1a !important;
+    background: var(--input-bg) !important;
+    border: 1px solid var(--input-border) !important;
+    color: var(--input-text) !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
 }
 
 #login-screen input::placeholder {
-    color: rgba(0, 0, 0, 0.5) !important;
+    color: var(--input-placeholder) !important;
 }
 
 #login-screen input:focus {
-    background: #fff !important;
-    border-color: rgba(0, 0, 0, 0.35) !important;
-    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1) !important;
+    background: var(--input-bg-focus) !important;
+    border-color: var(--input-focus-border) !important;
+    box-shadow: 0 0 0 3px var(--input-focus-ring) !important;
 }
 
 /* Login button */
@@ -299,23 +322,23 @@ label {
     margin-bottom: 4px;
 }
 
-input {
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]) {
     width: calc(100% - 32px);
     max-width: 300px;
     padding: 10px 12px;
     margin: 0 auto;
     display: block;
     border-radius: 8px;
-    border: 1px solid rgba(0, 0, 0, 0.2);
-    background: #ffffff;
-    color: #1a1a2e;
+    border: 1px solid var(--input-border);
+    background: var(--input-bg);
+    color: var(--input-text);
     font-size: 18px;
     transition: all 0.3s ease;
 }
 
-input:hover {
-    background: rgba(255, 255, 255, 1);
-    border-color: rgba(0, 0, 0, 0.15);
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):hover {
+    background: var(--input-bg-hover);
+    border-color: rgba(255, 255, 255, 0.3);
 }
 
 /* Add breathing room between stacked inputs */
@@ -325,15 +348,15 @@ input:hover {
     margin-right: auto;
 }
 
-input:focus {
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):focus {
     outline: none;
-    border-color: #667eea;
-    background: #ffffff;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+    border-color: var(--input-focus-border);
+    background: var(--input-bg-focus);
+    box-shadow: 0 0 0 3px var(--input-focus-ring);
 }
 
 input::placeholder {
-    color: #9ca3af;
+    color: var(--input-placeholder);
 }
 
 select, textarea {
@@ -343,24 +366,24 @@ select, textarea {
     margin: 0 auto;
     display: block;
     border-radius: 8px;
-    border: 1px solid rgba(0, 0, 0, 0.2);
-    background: #ffffff;
-    color: #1a1a2e;
+    border: 1px solid var(--input-border);
+    background: var(--input-bg);
+    color: var(--input-text);
     font-size: 18px;
     transition: all 0.3s ease;
     font-family: inherit;
 }
 
 select:hover, textarea:hover {
-    background: rgba(255, 255, 255, 1);
-    border-color: rgba(0, 0, 0, 0.15);
+    background: var(--input-bg-hover);
+    border-color: rgba(255, 255, 255, 0.3);
 }
 
 select:focus, textarea:focus {
     outline: none;
-    border-color: #667eea;
-    background: #ffffff;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+    border-color: var(--input-focus-border);
+    background: var(--input-bg-focus);
+    box-shadow: 0 0 0 3px var(--input-focus-ring);
 }
 
 textarea {
@@ -601,7 +624,7 @@ html body.theme-light #products-table thead {
 .product-form-card h2,
 .product-form-card h3,
 .product-form-card label,
-.product-form-card input,
+.product-form-card input:not([type="checkbox"]):not([type="radio"]),
 .product-form-card select,
 .product-form-card textarea,
 .product-form-card td,
@@ -610,6 +633,14 @@ html body.theme-light #products-table thead {
 .product-form-card span,
 .product-form-card #prod-message {
     color: #1a1a2e !important;
+}
+
+.product-form-card input:not([type="checkbox"]):not([type="radio"]),
+.product-form-card select,
+.product-form-card textarea {
+    background: var(--input-bg) !important;
+    color: var(--input-text) !important;
+    border-color: var(--input-border) !important;
 }
 
 /* Buttons in product-form-card should keep their original colors (save button = white text) */
@@ -902,13 +933,29 @@ html body:not(.theme-classic) #btn-toggle-fullscreen {
     background: rgba(158, 240, 210, 1) !important;
 }
 
-.payment-panel .totals {
+/* Checkout totals — default/classic: solid card; light theme: frosted glass */
+body.theme-default .payment-panel .totals,
+body.theme-classic .payment-panel .totals {
     margin-bottom: 16px;
     padding: 12px;
-    background: #ffffff;
+    background: #f3f4f6 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
     border-radius: 12px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e5e7eb !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+    color: #1a1a2e !important;
+}
+
+body.theme-light .payment-panel .totals {
+    margin-bottom: 16px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.22);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
 .payment-panel .totals > div {
@@ -920,10 +967,10 @@ html body:not(.theme-classic) #btn-toggle-fullscreen {
 .payment-panel .totals .grand {
     font-size: 1.3em;
     font-weight: bold;
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
     margin-top: 8px;
     padding-top: 12px;
-    color: #1a1a2e;
+    color: inherit;
 }
 
 .payment-panel .payments {
@@ -2071,108 +2118,82 @@ body.theme-default .floating-panel {
     border: 1px solid rgba(255, 255, 255, 0.3) !important;
 }
 
-/* Payment panel frosted glass for default theme.
-   Use a dark tint so the white labels/values render with strong contrast. */
-body.theme-default .payment-panel {
-    background: rgba(17, 24, 39, 0.62) !important;
-    backdrop-filter: blur(15px) saturate(180%) !important;
-    -webkit-backdrop-filter: blur(15px) saturate(180%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.18) !important;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35) !important;
-}
-
-/* Inner totals block sits on top of the panel — a touch lighter than the
-   parent so it still reads as a distinct sub-panel against the dark glass. */
-body.theme-default .payment-panel .totals {
-    background: rgba(17, 24, 39, 0.48) !important;
-    backdrop-filter: blur(10px) saturate(180%) !important;
-    -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.14) !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22) !important;
-}
-
-/* Light theme: dark checkout/payment panel so labels stay readable on video background */
-html body.theme-light .payment-panel,
-html body.theme-light #payment-panel.payment-panel,
-html body.theme-light #payment-panel.floating-panel.payment-panel {
-    background: rgba(17, 24, 39, 0.9) !important;
-    backdrop-filter: blur(16px) saturate(180%) !important;
-    -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.22) !important;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4) !important;
-    color: #f1f5f9 !important;
-}
-
-html body.theme-light .payment-panel .floating-panel-header {
-    border-bottom-color: rgba(255, 255, 255, 0.2) !important;
-}
-
-html body.theme-light .payment-panel .floating-panel-header h2 {
-    color: #f8fafc !important;
-}
-
-html body.theme-light .payment-panel .totals {
-    background: rgba(30, 41, 59, 0.85) !important;
-    border: 1px solid rgba(255, 255, 255, 0.18) !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
-    color: #f1f5f9 !important;
-}
-
-html body.theme-light .payment-panel .totals > div,
-html body.theme-light .payment-panel .totals span,
-html body.theme-light .payment-panel .totals .grand {
-    color: #f1f5f9 !important;
-}
-
-html body.theme-light .payment-panel .payments label,
-html body.theme-light .payment-panel label,
-html body.theme-light .payment-panel h3,
-html body.theme-light .payment-panel h4,
-html body.theme-light .payment-panel .layby-section,
-html body.theme-light .payment-panel .layby-create-section {
-    color: #e2e8f0 !important;
-}
-
-html body.theme-light .payment-panel .info,
-html body.theme-light .payment-panel #pos-message,
-html body.theme-light .payment-panel #new-layby-customer-message {
-    color: #cbd5e1 !important;
-}
-
-html body.theme-light .payment-panel small {
-    color: rgba(226, 232, 240, 0.9) !important;
-}
-
-html body.theme-light .payment-panel input,
-html body.theme-light .payment-panel select,
-html body.theme-light .payment-panel textarea {
+/* Default theme checkout: solid white panel (not light-theme frosted glass) */
+body.theme-default #payment-panel.floating-panel.payment-panel,
+body.theme-default #payment-panel.payment-panel {
     background: #ffffff !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
     color: #1a1a2e !important;
-    border: 1px solid rgba(0, 0, 0, 0.15) !important;
 }
 
-html body.theme-light .payment-panel button.primary,
-html body.theme-light .payment-panel #btn-complete-sale {
-    background: rgba(102, 126, 234, 0.45) !important;
-    border: 1px solid #a5b4fc !important;
-    color: #f8fafc !important;
+body.theme-default #payment-panel .floating-panel-header,
+body.theme-default #payment-panel .floating-panel-header h2,
+body.theme-default #payment-panel label,
+body.theme-default #payment-panel h3,
+body.theme-default #payment-panel small,
+body.theme-default #payment-panel .payments label {
+    color: #1a1a2e !important;
 }
 
-html body.theme-light .payment-panel button.primary:hover,
-html body.theme-light .payment-panel #btn-complete-sale:hover {
-    background: rgba(102, 126, 234, 0.65) !important;
+body.theme-default #payment-panel .payment-panel-hint {
+    color: #6b7280 !important;
 }
 
-html body.theme-light .payment-panel .close-btn {
+body.theme-default #payment-panel input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="hidden"]),
+body.theme-default #payment-panel select,
+body.theme-default #payment-panel textarea {
+    background: var(--input-bg) !important;
+    color: var(--input-text) !important;
+    border-color: var(--input-border) !important;
+}
+
+body.theme-default #payment-panel button.primary,
+body.theme-default #payment-panel #btn-complete-sale,
+body.theme-default #payment-panel #btn-toggle-layby,
+body.theme-default #payment-panel #btn-add-new-layby-customer,
+body.theme-default #payment-panel #btn-record-layby-payment {
+    background: transparent !important;
+    border-color: #667eea !important;
+    color: #667eea !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3) !important;
+}
+
+/* Light theme checkout — frosted glass (same as settings panel; NOT dark navy) */
+body.theme-light #payment-panel.floating-panel.payment-panel,
+body.theme-light #payment-panel.payment-panel,
+html.theme-light body.theme-light #payment-panel.floating-panel.payment-panel,
+html.theme-light body.theme-light #payment-panel.payment-panel,
+html body.theme-light #payment-panel.floating-panel.payment-panel,
+html body.theme-light #payment-panel.payment-panel,
+html body.theme-light .floating-panel.payment-panel#payment-panel {
+    background: rgba(255, 255, 255, 0.35) !important;
+    background-color: rgba(255, 255, 255, 0.35) !important;
+    background-image: none !important;
+    backdrop-filter: blur(25px) saturate(200%) !important;
+    -webkit-backdrop-filter: blur(25px) saturate(200%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
     color: #ffffff !important;
 }
 
-html body.theme-light .payment-panel #layby-outstanding-info {
-    color: #e2e8f0 !important;
-}
-
-html body.theme-light .payment-panel #layby-outstanding-info span {
-    color: inherit !important;
+body.theme-light #payment-panel .totals,
+html.theme-light body.theme-light #payment-panel .totals,
+html body.theme-light #payment-panel .totals,
+html body.theme-light .payment-panel .totals {
+    background: rgba(255, 255, 255, 0.2) !important;
+    background-color: rgba(255, 255, 255, 0.2) !important;
+    backdrop-filter: blur(20px) saturate(200%) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(200%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
+    color: #ffffff !important;
 }
 
 body.theme-default .top-bar {
@@ -2182,10 +2203,12 @@ body.theme-default .top-bar {
     border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
 }
 
-body.theme-default input,
+body.theme-default input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="hidden"]),
 body.theme-default select,
 body.theme-default textarea {
-    background: #ffffff !important;
+    background: var(--input-bg) !important;
+    color: var(--input-text) !important;
+    border-color: var(--input-border) !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
 }
@@ -3461,17 +3484,17 @@ html body.theme-light .store-settings-page-content #notification-email + .help-t
 html body.theme-light .store-settings-page-content input,
 html body.theme-light .store-settings-page-content textarea,
 html body.theme-light .store-settings-page-content select {
-    background: rgba(255, 255, 255, 0.7) !important;
-    backdrop-filter: blur(15px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(15px) saturate(200%) !important;
-    border: 1px solid rgba(0, 0, 0, 0.25) !important;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+    background: var(--input-bg) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: 1px solid var(--input-border) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
     padding: clamp(0.5rem, 1vw, 0.65rem) clamp(0.6rem, 1.2vw, 0.75rem) !important;
     margin: clamp(0.25rem, 0.5vw, 0.375rem) auto !important;
     border-radius: clamp(0.375rem, 0.75vw, 0.5rem) !important;
     min-height: clamp(1.75rem, 3.5vw, 2.5rem) !important;
     font-size: clamp(0.95rem, 1.65vw, 1.15rem) !important;
-    color: #111827 !important;
+    color: var(--input-text) !important;
     width: clamp(240px, 50vw, 420px) !important;
     max-width: clamp(240px, 50vw, 420px) !important;
     box-sizing: border-box !important;
@@ -3517,10 +3540,10 @@ html body.theme-light .store-settings-page-content input[type="radio"] {
 html body.theme-light .store-settings-page-content input:focus,
 html body.theme-light .store-settings-page-content textarea:focus,
 html body.theme-light .store-settings-page-content select:focus {
-    background: rgba(255, 255, 255, 0.85) !important;
-    border-color: rgba(59, 130, 246, 0.6) !important;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2), 0 4px 12px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
-    color: #111827 !important;
+    background: var(--input-bg-focus) !important;
+    border-color: var(--input-focus-border) !important;
+    box-shadow: 0 0 0 3px var(--input-focus-ring), 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+    color: var(--input-text) !important;
 }
 
 .store-settings-page-content input:focus,
@@ -5012,29 +5035,32 @@ body.theme-light .top-bar {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1) !important;
 }
 
-/* Inputs with glassmorphism */
-body.theme-light input,
+/* Light theme: dark text fields (readable on glass panels / video background) */
+body.theme-light input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="hidden"]),
 body.theme-light select,
 body.theme-light textarea {
-    background: rgba(255, 255, 255, 0.3) !important;
-    backdrop-filter: blur(15px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(15px) saturate(200%) !important;
-    border: 1px solid rgba(0, 0, 0, 0.2) !important;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
-    color: #ffffff !important;
+    background: var(--input-bg) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: 1px solid var(--input-border) !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2) !important;
+    color: var(--input-text) !important;
 }
 
-body.theme-light input:focus,
+body.theme-light input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="hidden"]):focus,
 body.theme-light select:focus,
 body.theme-light textarea:focus {
-    background: rgba(255, 255, 255, 0.4) !important;
-    backdrop-filter: blur(20px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(20px) saturate(200%) !important;
-    border-color: rgba(59, 130, 246, 0.6) !important;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2), 0 4px 12px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+    background: var(--input-bg-focus) !important;
+    border-color: var(--input-focus-border) !important;
+    box-shadow: 0 0 0 3px var(--input-focus-ring), 0 4px 12px rgba(0, 0, 0, 0.2) !important;
     outline: none !important;
     transform: translateY(-1px) !important;
     transition: all 0.2s ease !important;
+}
+
+body.theme-light input::placeholder,
+body.theme-light textarea::placeholder {
+    color: var(--input-placeholder) !important;
 }
 
 /* Buttons with glassmorphism */
@@ -5069,6 +5095,50 @@ body.theme-light button.primary:hover {
     border-color: rgba(59, 130, 246, 0.7) !important;
     box-shadow: 0 6px 16px rgba(59, 130, 246, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
     transform: translateY(-2px) !important;
+}
+
+/* Checkout panel: white glass buttons (overrides blue primary above) */
+body.theme-light #payment-panel button.primary,
+body.theme-light #payment-panel button,
+body.theme-light #payment-panel #btn-complete-sale,
+body.theme-light #payment-panel #btn-toggle-layby,
+body.theme-light #payment-panel #btn-add-new-layby-customer,
+body.theme-light #payment-panel #btn-record-layby-payment,
+body.theme-light #payment-panel #btn-record-payment,
+html body.theme-light #payment-panel button.primary,
+html body.theme-light #payment-panel button,
+html body.theme-light #payment-panel #btn-complete-sale,
+html body.theme-light #payment-panel #btn-toggle-layby,
+html body.theme-light #payment-panel #btn-add-new-layby-customer,
+html body.theme-light #payment-panel #btn-record-layby-payment,
+html body.theme-light .payment-panel button.primary {
+    background: rgba(255, 255, 255, 0.25) !important;
+    background-color: rgba(255, 255, 255, 0.25) !important;
+    background-image: none !important;
+    border: 1px solid rgba(255, 255, 255, 0.35) !important;
+    border-color: rgba(255, 255, 255, 0.35) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+    color: #ffffff !important;
+    text-shadow: none !important;
+}
+
+body.theme-light #payment-panel button.primary:hover,
+body.theme-light #payment-panel button:hover,
+body.theme-light #payment-panel #btn-complete-sale:hover,
+body.theme-light #payment-panel #btn-toggle-layby:hover,
+body.theme-light #payment-panel #btn-add-new-layby-customer:hover,
+body.theme-light #payment-panel #btn-record-layby-payment:hover,
+body.theme-light #payment-panel #btn-record-payment:hover {
+    background: rgba(255, 255, 255, 0.35) !important;
+    background-color: rgba(255, 255, 255, 0.35) !important;
+    border-color: rgba(255, 255, 255, 0.45) !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+    color: #ffffff !important;
+}
+
+body.theme-light #payment-panel #layby-toggle-icon {
+    color: #ffffff !important;
+    text-shadow: none !important;
 }
 
 /* Withdraw Money - make the action button compact and readable */
@@ -5112,12 +5182,12 @@ body.theme-classic .top-bar {
     -webkit-backdrop-filter: none !important;
 }
 
-body.theme-classic input,
+body.theme-classic input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="hidden"]),
 body.theme-classic select,
 body.theme-classic textarea {
-    background: #fff !important;
-    border: 1px solid #aaa !important;
-    color: #1a1a1a !important;
+    background: var(--input-bg) !important;
+    border: 1px solid var(--input-border) !important;
+    color: var(--input-text) !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     font-size: 19px !important;
@@ -5202,30 +5272,6 @@ body.theme-light #btn-process-withdrawal {
 
 body.theme-light #btn-process-withdrawal:hover {
     color: #ffffff !important;
-}
-
-/* More vibrant text colors for specific buttons in light theme */
-body.theme-light #btn-complete-sale,
-body.theme-light #btn-toggle-layby,
-body.theme-light #btn-add-new-layby-customer,
-body.theme-light #btn-record-layby-payment {
-    color: #2563eb !important; /* More vibrant blue */
-    text-shadow: 0 2px 4px rgba(37, 99, 235, 0.4) !important;
-    font-weight: 700 !important;
-}
-
-body.theme-light #btn-complete-sale:hover,
-body.theme-light #btn-toggle-layby:hover,
-body.theme-light #btn-add-new-layby-customer:hover,
-body.theme-light #btn-record-layby-payment:hover {
-    color: #1d4ed8 !important; /* Even more vibrant on hover */
-    text-shadow: 0 3px 6px rgba(29, 78, 216, 0.5) !important;
-}
-
-/* Ensure the dropdown arrow in Layby button is also vibrant */
-body.theme-light #btn-toggle-layby #layby-toggle-icon {
-    color: #2563eb !important;
-    text-shadow: 0 2px 4px rgba(37, 99, 235, 0.4) !important;
 }
 
 body.theme-light button.danger {
@@ -6836,6 +6882,156 @@ html.theme-light body.theme-light:not(.pos-android-app) #login-screen .login-scr
 html.theme-light body.theme-light:not(.pos-android-app) #login-screen .error {
     color: #fecaca !important;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* =============================================================================
+   Light theme — Checkout & Payment panel: same frosted glass as other floating panels
+   ============================================================================= */
+html.theme-light body.theme-light #payment-panel.floating-panel.payment-panel,
+html.theme-light body.theme-light #payment-panel.payment-panel,
+html.theme-light body.theme-light .floating-panel.payment-panel#payment-panel,
+html body.theme-light #payment-panel.floating-panel.payment-panel,
+html body.theme-light #payment-panel.payment-panel {
+    background: rgba(255, 255, 255, 0.35) !important;
+    background-color: rgba(255, 255, 255, 0.35) !important;
+    background-image: none !important;
+    backdrop-filter: blur(25px) saturate(200%) !important;
+    -webkit-backdrop-filter: blur(25px) saturate(200%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+    color: #ffffff !important;
+}
+
+html.theme-light body.theme-light #payment-panel .floating-panel-header {
+    background: transparent !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+html.theme-light body.theme-light #payment-panel .floating-panel-header h2,
+html.theme-light body.theme-light #payment-panel .close-btn {
+    color: #ffffff !important;
+}
+
+html.theme-light body.theme-light #payment-panel .totals,
+html body.theme-light #payment-panel .totals {
+    background: rgba(255, 255, 255, 0.2) !important;
+    background-color: rgba(255, 255, 255, 0.2) !important;
+    backdrop-filter: blur(20px) saturate(200%) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(200%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.28) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
+    color: #ffffff !important;
+}
+
+html.theme-light body.theme-light #payment-panel .totals > div,
+html.theme-light body.theme-light #payment-panel .totals span,
+html.theme-light body.theme-light #payment-panel .totals .grand {
+    color: #ffffff !important;
+}
+
+html.theme-light body.theme-light #payment-panel label,
+html.theme-light body.theme-light #payment-panel h3,
+html.theme-light body.theme-light #payment-panel h4,
+html.theme-light body.theme-light #payment-panel .payments label,
+html.theme-light body.theme-light #payment-panel .layby-section,
+html.theme-light body.theme-light #payment-panel .layby-create-section,
+html.theme-light body.theme-light #payment-panel .info,
+html.theme-light body.theme-light #payment-panel #pos-message,
+html.theme-light body.theme-light #payment-panel #layby-message,
+html.theme-light body.theme-light #payment-panel #new-layby-customer-message,
+html.theme-light body.theme-light #payment-panel small,
+html.theme-light body.theme-light #payment-panel .payment-panel-hint,
+html.theme-light body.theme-light #payment-panel #layby-outstanding-info,
+html.theme-light body.theme-light #payment-panel #layby-outstanding-info span {
+    color: #ffffff !important;
+}
+
+/* Dark fields inside glass panel (inputs only — not the panel chrome) */
+html.theme-light body.theme-light #payment-panel input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="hidden"]),
+html.theme-light body.theme-light #payment-panel select,
+html.theme-light body.theme-light #payment-panel textarea,
+html body.theme-light #payment-panel input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="hidden"]),
+html body.theme-light #payment-panel select,
+html body.theme-light #payment-panel textarea {
+    background: rgba(10, 10, 10, 0.78) !important;
+    background-color: rgba(10, 10, 10, 0.78) !important;
+    color: #f3f4f6 !important;
+    border: 1px solid rgba(255, 255, 255, 0.28) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    -webkit-box-shadow: 0 0 0 1000px rgba(10, 10, 10, 0.78) inset !important;
+    box-shadow: 0 0 0 1000px rgba(10, 10, 10, 0.78) inset !important;
+}
+
+html.theme-light body.theme-light #payment-panel input::placeholder,
+html.theme-light body.theme-light #payment-panel textarea::placeholder {
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Buttons: white frosted glass (not blue) — matches settings / withdrawal panels */
+html.theme-light body.theme-light #payment-panel button,
+html.theme-light body.theme-light #payment-panel button.primary,
+html.theme-light body.theme-light #payment-panel #btn-complete-sale,
+html.theme-light body.theme-light #payment-panel #btn-toggle-layby,
+html.theme-light body.theme-light #payment-panel #btn-add-new-layby-customer,
+html.theme-light body.theme-light #payment-panel #btn-record-layby-payment,
+html.theme-light body.theme-light #payment-panel #btn-record-payment,
+html body.theme-light #payment-panel button,
+html body.theme-light #payment-panel button.primary,
+html body.theme-light #payment-panel #btn-complete-sale,
+html body.theme-light #payment-panel #btn-toggle-layby,
+html body.theme-light .payment-panel button.primary {
+    background: rgba(255, 255, 255, 0.25) !important;
+    background-color: rgba(255, 255, 255, 0.25) !important;
+    background-image: none !important;
+    backdrop-filter: blur(15px) saturate(200%) !important;
+    -webkit-backdrop-filter: blur(15px) saturate(200%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.35) !important;
+    border-color: rgba(255, 255, 255, 0.35) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+    color: #ffffff !important;
+    text-shadow: none !important;
+}
+
+html.theme-light body.theme-light #payment-panel button:hover,
+html.theme-light body.theme-light #payment-panel button.primary:hover,
+html.theme-light body.theme-light #payment-panel #btn-complete-sale:hover,
+html.theme-light body.theme-light #payment-panel #btn-toggle-layby:hover,
+html.theme-light body.theme-light #payment-panel #btn-add-new-layby-customer:hover,
+html.theme-light body.theme-light #payment-panel #btn-record-layby-payment:hover,
+html.theme-light body.theme-light #payment-panel #btn-record-payment:hover {
+    background: rgba(255, 255, 255, 0.35) !important;
+    background-color: rgba(255, 255, 255, 0.35) !important;
+    border-color: rgba(255, 255, 255, 0.45) !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+    color: #ffffff !important;
+}
+
+html.theme-light body.theme-light #payment-panel #layby-toggle-icon {
+    color: #ffffff !important;
+    text-shadow: none !important;
+}
+
+/* Layby / inline blocks that used blue or dark tints */
+html.theme-light body.theme-light #payment-panel #layby-outstanding-info,
+html.theme-light body.theme-light #payment-panel div[style*="rgba(59, 130, 246"],
+html.theme-light body.theme-light #payment-panel div[style*="rgba(17, 24, 39"] {
+    background: rgba(255, 255, 255, 0.15) !important;
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    backdrop-filter: blur(15px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(15px) saturate(180%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    box-shadow: none !important;
+    color: #ffffff !important;
+}
+
+html.theme-light body.theme-light #payment-panel #layby-outstanding-info span {
+    color: #ffffff !important;
+}
+
+html.theme-light body.theme-light #payment-panel #layby-outstanding-info span[style*="color: #fbbf24"],
+html.theme-light body.theme-light #payment-panel #layby-outstanding-info span[style*="color:#fbbf24"] {
+    color: #fde68a !important;
 }
 
 

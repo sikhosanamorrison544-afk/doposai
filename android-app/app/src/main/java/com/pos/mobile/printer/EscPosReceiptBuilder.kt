@@ -34,6 +34,7 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
         collectionStatus: String,
         cashierName: String?,
         saleId: Int? = null,
+        saleLocalId: Long? = null,
         footer: String = "Thank you for shopping with us!",
         storePhone: String? = null,
         storeLocation: String? = null,
@@ -50,7 +51,7 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
         }
         return buildSaleReceiptFromLines(
             storeName, lines, subtotal, discountTotal, total, payments,
-            customerName, collectionStatus, cashierName, saleId, footer,
+            customerName, collectionStatus, cashierName, saleId, saleLocalId, footer,
             storePhone, storeLocation,
         )
     }
@@ -66,6 +67,7 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
         collectionStatus: String,
         cashierName: String?,
         saleId: Int? = null,
+        saleLocalId: Long? = null,
         footer: String = "Thank you for shopping with us!",
         storePhone: String? = null,
         storeLocation: String? = null,
@@ -74,7 +76,7 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
         initPrinter()
         writeHeader(storeName, storeLocation, storePhone)
         writeLine('=')
-        writeSaleInfo(saleId, cashierName, customerName, collectionStatus)
+        writeSaleInfo(saleId, saleLocalId, cashierName, customerName, collectionStatus)
         writeLine('-')
         writeText("ITEMS:\n")
         for (line in lines) {
@@ -233,7 +235,14 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
                 val p = paymentsArr.getJSONObject(i)
                 payments.add(p.optString("method", "cash") to p.optDouble("amount", 0.0))
             }
-            val saleId = if (json.has("saleId")) json.optInt("saleId") else null
+            val saleId = parsePositiveInt(
+                json,
+                "saleId", "sale_id", "id",
+            )
+            val saleLocalId = parsePositiveLong(
+                json,
+                "saleLocalId", "sale_local_id", "localId", "local_id",
+            )
             return builder.buildSaleReceiptFromLines(
                 storeName = storeName,
                 lines = lines,
@@ -245,9 +254,30 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
                 collectionStatus = json.optString("collectionStatus", json.optString("collection_status", "collected")),
                 cashierName = json.optString("cashierName", json.optString("cashier_name", null)),
                 saleId = saleId,
+                saleLocalId = saleLocalId,
                 storePhone = store?.optString("store_phone"),
                 storeLocation = store?.optString("store_location"),
             )
+        }
+
+        private fun parsePositiveInt(json: JSONObject, vararg keys: String): Int? {
+            for (key in keys) {
+                if (json.has(key) && !json.isNull(key)) {
+                    val v = json.optInt(key)
+                    if (v > 0) return v
+                }
+            }
+            return null
+        }
+
+        private fun parsePositiveLong(json: JSONObject, vararg keys: String): Long? {
+            for (key in keys) {
+                if (json.has(key) && !json.isNull(key)) {
+                    val v = json.optLong(key)
+                    if (v > 0L) return v
+                }
+            }
+            return null
         }
 
         fun parseWithdrawalJson(json: JSONObject, paperWidth: Int = PrinterPreferences.DEFAULT_PAPER_WIDTH): ByteArray {
@@ -274,14 +304,18 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
 
     private fun writeSaleInfo(
         saleId: Int?,
+        saleLocalId: Long?,
         cashierName: String?,
         customerName: String?,
         collectionStatus: String,
     ) {
         val df = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
-        if (saleId != null) {
-            writeText("Sale #: $saleId\n")
+        boldOn()
+        for (line in SaleReceiptIds.lines(saleId, saleLocalId)) {
+            writeText("$line\n")
         }
+        boldOff()
+        writeText("(Keep receipt for refunds)\n")
         writeText("Date:   ${df.format(Date())}\n")
         if (!cashierName.isNullOrBlank()) {
             writeText("Cashier: ${cashierName.take(width - 9)}\n")

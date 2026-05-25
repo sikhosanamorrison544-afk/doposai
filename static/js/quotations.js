@@ -39,6 +39,18 @@ async function checkAuth() {
 }
 
 async function quotationsApi(path, options = {}) {
+    const method = (options.method || 'GET').toUpperCase();
+    if (
+        method === 'GET' &&
+        typeof posFetchAllListPages === 'function' &&
+        typeof posIsListCollectionPath === 'function' &&
+        posIsListCollectionPath(path)
+    ) {
+        const headers = options.headers || {};
+        headers['Content-Type'] = 'application/json';
+        if (quotationsToken) headers['Authorization'] = 'Bearer ' + quotationsToken;
+        return posFetchAllListPages(path, { headers, credentials: options.credentials });
+    }
     const headers = options.headers || {};
     headers['Content-Type'] = 'application/json';
     if (quotationsToken) {

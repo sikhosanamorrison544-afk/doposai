@@ -6,6 +6,19 @@ let adminCashiers = [];
 let editingCashierId = null;
 
 async function adminApi(path, options = {}) {
+    const method = (options.method || 'GET').toUpperCase();
+    if (
+        method === 'GET' &&
+        typeof posFetchAllListPages === 'function' &&
+        typeof posIsListCollectionPath === 'function' &&
+        posIsListCollectionPath(path)
+    ) {
+        const headers = options.headers || {};
+        headers['Content-Type'] = 'application/json';
+        const tok = adminToken || localStorage.getItem('pos_token');
+        if (tok) headers['Authorization'] = 'Bearer ' + tok;
+        return posFetchAllListPages(path, { headers, credentials: options.credentials });
+    }
     const headers = options.headers || {};
     headers['Content-Type'] = 'application/json';
     if (adminToken) {
@@ -3241,11 +3254,9 @@ function applyTheme(themeName) {
     const themeClasses = ['theme-default', 'theme-light', 'theme-classic'];
     document.body.classList.remove(...themeClasses);
     document.documentElement.classList.remove(...themeClasses);
-    if (theme !== 'default') {
-        const cls = 'theme-' + theme;
-        document.body.classList.add(cls);
-        document.documentElement.classList.add(cls);
-    }
+    const cls = 'theme-' + theme;
+    document.body.classList.add(cls);
+    document.documentElement.classList.add(cls);
     
     if (theme === 'light') {
         if (typeof window.playLightThemeVideo === 'function') window.playLightThemeVideo();

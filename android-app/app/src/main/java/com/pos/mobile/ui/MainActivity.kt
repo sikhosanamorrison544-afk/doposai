@@ -797,6 +797,15 @@ class MainActivity : AppCompatActivity() {
                 viewModel.saleEvents.collect { event ->
                     when (event) {
                         is SaleUiEvent.Success -> {
+                            lifecycleScope.launch {
+                                val toPrint = event.receipt?.withSaleIds(
+                                    event.serverSaleId,
+                                    event.saleLocalId,
+                                ) ?: event.receiptForIdsOnly(this@MainActivity)
+                                if (toPrint != null) {
+                                    ReceiptPrinter.printSaleAwait(this@MainActivity, toPrint)
+                                }
+                            }
                             activePaymentDialog?.dismiss()
                             activePaymentDialog = null
                             Toast.makeText(this@MainActivity, event.message, Toast.LENGTH_LONG).show()
@@ -1110,39 +1119,25 @@ class MainActivity : AppCompatActivity() {
             val storePhone = prefs.getString("store_phone", "") ?: ""
             val storeLocation = prefs.getString("store_location", "") ?: ""
             val cashier = prefs.getString("username", null)
-            val receipt = if (paid + 0.01 >= receiptTotal) {
-                ReceiptPrinter.SaleReceiptRequest(
-                    storeName = storeName,
-                    cartLines = cart,
-                    subtotal = viewModel.subtotal,
-                    discountTotal = viewModel.discountTotal,
-                    total = receiptTotal,
-                    payments = receiptPayments,
-                    customerName = receiptCustomer,
-                    collectionStatus = status,
-                    cashierName = cashier,
-                    storePhone = storePhone,
-                    storeLocation = storeLocation,
-                )
-            } else {
-                null
-            }
+            val receipt = ReceiptPrinter.SaleReceiptRequest(
+                storeName = storeName,
+                cartLines = cart,
+                subtotal = viewModel.subtotal,
+                discountTotal = viewModel.discountTotal,
+                total = receiptTotal,
+                payments = receiptPayments,
+                customerName = receiptCustomer,
+                collectionStatus = status,
+                cashierName = cashier,
+                storePhone = storePhone,
+                storeLocation = storeLocation,
+            )
             val session = SessionStore(this)
             val token = session.getAccessToken() ?: prefs.getString("token", null)
             val cashierId = session.getUserId().takeIf { it > 0 } ?: 1
+            btnComplete.isEnabled = false
+            btnComplete.text = getString(R.string.sale_processing)
             lifecycleScope.launch {
-                if (receipt != null) {
-                    btnComplete.isEnabled = false
-                    btnComplete.text = getString(R.string.printing_receipt)
-                    val printed = ReceiptPrinter.printSaleAwait(this@MainActivity, receipt)
-                    btnComplete.text = getString(R.string.complete_sale)
-                    if (!printed) {
-                        btnComplete.isEnabled = true
-                        messageTv.text = getString(R.string.receipt_print_required)
-                        messageTv.visibility = View.VISIBLE
-                        return@launch
-                    }
-                }
                 viewModel.completeSale(
                     authToken = token,
                     cashierId = cashierId,
@@ -1153,7 +1148,7 @@ class MainActivity : AppCompatActivity() {
                     credit = credit,
                     collectionStatus = status,
                     notes = null,
-                    receipt = null,
+                    receipt = receipt,
                 )
             }
         }

@@ -6,6 +6,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.pos.mobile.data.sync.SyncWorker
 import java.util.concurrent.TimeUnit
 
@@ -40,6 +41,9 @@ class PosApplication : Application() {
             .build()
         val request = PeriodicWorkRequestBuilder<SyncWorker>(15, TimeUnit.MINUTES)
             .setConstraints(constraints)
+            .setInputData(
+                workDataOf(SyncWorker.KEY_FULL_CACHE to false),
+            )
             .addTag("pos_sync")
             .build()
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(

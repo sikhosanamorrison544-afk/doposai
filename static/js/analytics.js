@@ -389,12 +389,10 @@ function applyTheme(themeName) {
     document.body.classList.remove(...themeClasses);
     document.documentElement.classList.remove(...themeClasses);
     
-    // Add selected theme class to both body and html elements
-    if (themeName && themeName !== 'default') {
-        const themeClass = 'theme-' + themeName;
-        document.body.classList.add(themeClass);
-        document.documentElement.classList.add(themeClass);
-    }
+    const theme = ['default', 'light', 'classic'].includes(themeName) ? themeName : 'default';
+    const themeClass = 'theme-' + theme;
+    document.body.classList.add(themeClass);
+    document.documentElement.classList.add(themeClass);
     
     if (themeName === 'light') {
         if (typeof window.playLightThemeVideo === 'function') window.playLightThemeVideo();

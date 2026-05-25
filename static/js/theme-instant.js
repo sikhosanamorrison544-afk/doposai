@@ -11,7 +11,7 @@
                 localStorage.setItem('pos-theme', validTheme);
             } catch (e) {}
         }
-        const themeClass = validTheme !== 'default' ? 'theme-' + validTheme : '';
+        const themeClass = 'theme-' + validTheme;
         const themeBackgrounds = {
             default:
                 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)',

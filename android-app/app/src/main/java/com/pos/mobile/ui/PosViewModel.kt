@@ -171,7 +171,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         _isCompletingSale.value = true
         viewModelScope.launch {
             try {
-                val synced = withContext(Dispatchers.IO) {
+                val completion = withContext(Dispatchers.IO) {
                     if (online && !authToken.isNullOrBlank()) {
                         refreshProductsFromServer(authToken)
                     }
@@ -213,7 +213,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                     if (cardAmt > 0) payments.add(PaymentEntity(saleLocalId = saleLocalId, method = "card", amount = cardAmt))
                     if (creditAmt > 0) payments.add(PaymentEntity(saleLocalId = saleLocalId, method = "credit", amount = creditAmt))
                     paymentDao.insertAll(payments)
-                    syncQueueDao.insert(
+                    val queueId = syncQueueDao.insert(
                         SyncQueueEntity(
                             saleLocalId = saleLocalId,
                             createdAt = now,
@@ -225,25 +225,55 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     var syncedNow = false
+                    var serverSaleId: Int? = null
                     if (online && !authToken.isNullOrBlank()) {
                         val prefs = getApplication<Application>().getSharedPreferences("pos", android.content.Context.MODE_PRIVATE)
                         val baseUrl = prefs.getString("base_url", BuildConfig.DEFAULT_API_BASE_URL)
                             ?: BuildConfig.DEFAULT_API_BASE_URL
                         val api = SyncWorker.createApi(baseUrl)
                         val repo = SyncWorker.createRepository(getApplication(), baseUrl, api, db)
-                        syncedNow = repo.pushPendingSales(authToken) > 0
+                        val queueItem = SyncQueueEntity(
+                            id = queueId,
+                            saleLocalId = saleLocalId,
+                            createdAt = now,
+                            status = SyncQueueEntity.STATUS_PENDING,
+                        )
+                        repo.pushSale(authToken, queueItem).onSuccess {
+                            serverSaleId = it
+                            syncedNow = true
+                        }
+                        if (serverSaleId == null) {
+                            repo.pushSale(authToken, queueItem).onSuccess {
+                                serverSaleId = it
+                                syncedNow = true
+                            }
+                        }
                     }
-                    syncedNow
+                    val saved = saleDao.getByLocalId(saleLocalId)
+                    if (serverSaleId == null) {
+                        serverSaleId = saved?.serverId
+                    }
+                    val syncedId = serverSaleId
+                    if (syncedId != null && syncedId > 0 && saved?.serverId == null) {
+                        saleDao.markSynced(saleLocalId, syncedId, System.currentTimeMillis())
+                    }
+                    SaleCompletion(syncedNow, serverSaleId, saleLocalId)
                 }
                 _cart.value = emptyList()
                 _posMessage.value = null
+                val receiptForPrint = receipt?.copy(
+                    saleId = completion.serverSaleId,
+                    saleLocalId = completion.saleLocalId,
+                )
                 _saleEvents.emit(
                     SaleUiEvent.Success(
                         message = getApplication<Application>().getString(
-                            if (synced) com.pos.mobile.R.string.sale_synced_online
+                            if (completion.synced) com.pos.mobile.R.string.sale_synced_online
                             else com.pos.mobile.R.string.sale_saved_offline,
                         ),
-                        receipt = receipt,
+                        receipt = receiptForPrint,
+                        serverSaleId = completion.serverSaleId,
+                        saleLocalId = completion.saleLocalId,
                     ),
                 )
             } catch (e: Exception) {
@@ -295,6 +325,12 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         if (code.isEmpty()) return@withContext null
         productDao.findByBarcode(code) ?: productDao.findByBarcodeAny(code)
     }
+
+    private data class SaleCompletion(
+        val synced: Boolean,
+        val serverSaleId: Int?,
+        val saleLocalId: Long,
+    )
 
     suspend fun searchProducts(query: String): List<ProductEntity> = withContext(Dispatchers.IO) {
         val q = query.trim().lowercase()

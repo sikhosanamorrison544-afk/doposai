@@ -20,12 +20,16 @@ interface ApiService {
 
     @GET("api/products")
     suspend fun getProducts(
-        @Header("Authorization") token: String
+        @Header("Authorization") token: String,
+        @Query("limit") limit: Int = 500,
+        @Query("offset") offset: Int = 0,
     ): Response<List<ProductDto>>
 
     @GET("api/customers")
     suspend fun getCustomers(
-        @Header("Authorization") token: String
+        @Header("Authorization") token: String,
+        @Query("limit") limit: Int = 500,
+        @Query("offset") offset: Int = 0,
     ): Response<List<CustomerDto>>
 
     @POST("api/customers")

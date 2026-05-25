@@ -245,12 +245,10 @@ function applyTheme(themeName) {
     document.body.classList.remove(...themeClasses);
     document.documentElement.classList.remove(...themeClasses);
     
-    // Add selected theme class
-    if (themeName && themeName !== 'default') {
-        const cls = 'theme-' + themeName;
-        document.body.classList.add(cls);
-        document.documentElement.classList.add(cls);
-    }
+    const theme = ['default', 'light', 'classic'].includes(themeName) ? themeName : 'default';
+    const cls = 'theme-' + theme;
+    document.body.classList.add(cls);
+    document.documentElement.classList.add(cls);
     
     if (themeName === 'light') {
         if (typeof window.playLightThemeVideo === 'function') window.playLightThemeVideo();

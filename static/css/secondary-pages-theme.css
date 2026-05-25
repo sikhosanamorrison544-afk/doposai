@@ -35,9 +35,9 @@ body.theme-light.page-refunds table td {
 body.theme-light.page-refunds input,
 body.theme-light.page-refunds select,
 body.theme-light.page-refunds textarea {
-    background: rgba(255, 255, 255, 0.9) !important;
-    color: #1a1a2e !important;
-    border: 1px solid rgba(0, 0, 0, 0.15) !important;
+    background: var(--input-bg) !important;
+    color: var(--input-text) !important;
+    border: 1px solid var(--input-border) !important;
 }
 
 body.theme-classic.page-refunds .refund-card,
@@ -88,8 +88,9 @@ body.theme-light.page-enterprise a {
 
 body.theme-light.page-enterprise .enterprise-actions input,
 body.theme-light.page-enterprise .enterprise-actions select {
-    background: rgba(255, 255, 255, 0.9) !important;
-    color: #1a1a2e !important;
+    background: var(--input-bg) !important;
+    color: var(--input-text) !important;
+    border: 1px solid var(--input-border) !important;
 }
 
 body.theme-classic.page-enterprise .enterprise-card {

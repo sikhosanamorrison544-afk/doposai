@@ -8,12 +8,10 @@ function applyTheme(themeName) {
     document.documentElement.classList.remove(...themeClasses);
     document.body.classList.remove(...themeClasses);
     
-    // Add selected theme class to both html and body
-    if (themeName && themeName !== 'default') {
-        const themeClass = 'theme-' + themeName;
-        document.documentElement.classList.add(themeClass);
-        document.body.classList.add(themeClass);
-    }
+    const theme = ['default', 'light', 'classic'].includes(themeName) ? themeName : 'default';
+    const themeClass = 'theme-' + theme;
+    document.documentElement.classList.add(themeClass);
+    document.body.classList.add(themeClass);
     
     // Handle 3D background canvas (only for default theme)
     const canvas = document.getElementById('bg3d-canvas');

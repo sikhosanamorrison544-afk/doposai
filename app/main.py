@@ -75,6 +75,7 @@ from .models import (
 )
 
 from . import tenant_scope
+from .pagination import DEFAULT_LIST_LIMIT, paginate_orm_query
 from .analytics_page_data import (
     build_analytics_bootstrap,
     build_dashboard_summary,
@@ -137,6 +138,10 @@ def platform_info():
     }
 
 
+from .slow_request_middleware import SlowRequestLogMiddleware
+
+app.add_middleware(SlowRequestLogMiddleware)
+
 _cors_origins, _cors_credentials = get_cors_origins_and_credentials()
 app.add_middleware(
     CORSMiddleware,
@@ -144,6 +149,7 @@ app.add_middleware(
     allow_credentials=_cors_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Total-Count"],
 )
 
 from starlette.middleware.gzip import GZipMiddleware
@@ -514,15 +520,19 @@ class ProductRead(ProductCreate):
 
 @app.get("/api/products", response_model=List[ProductRead])
 async def list_products(
+    response: Response,
+    limit: int = Query(DEFAULT_LIST_LIMIT, ge=1, le=2000),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
 ):
-    products = (
+    query = (
         tenant_scope.filter_products(db, current_user)
         .filter(Product.is_active == True)  # noqa: E712
         .order_by(Product.name)
-        .all()
     )
+    products, total = paginate_orm_query(db, query, limit=limit, offset=offset)
+    response.headers["X-Total-Count"] = str(total)
     return products
 
 
@@ -1095,10 +1105,15 @@ class CustomerRead(CustomerCreate):
 
 @app.get("/api/customers", response_model=List[CustomerRead])
 async def list_customers(
+    response: Response,
+    limit: int = Query(DEFAULT_LIST_LIMIT, ge=1, le=2000),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
 ):
-    customers = tenant_scope.filter_customers(db, current_user).order_by(Customer.name).all()
+    query = tenant_scope.filter_customers(db, current_user).order_by(Customer.name)
+    customers, total = paginate_orm_query(db, query, limit=limit, offset=offset)
+    response.headers["X-Total-Count"] = str(total)
     return customers
 
 

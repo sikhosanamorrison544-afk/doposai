@@ -15,7 +15,10 @@ object PrinterPreferences {
     const val KEY_USB_VENDOR_ID = "usb_printer_vendor_id"
     const val KEY_USB_PRODUCT_ID = "usb_printer_product_id"
     const val KEY_USB_DEVICE_NAME = "usb_printer_device_name"
-    const val DEFAULT_PAPER_WIDTH = 32
+    /** Character width for 58mm thermal paper (default). Use 48 for 80mm. */
+    const val CHAR_WIDTH_58MM = 32
+    const val CHAR_WIDTH_80MM = 48
+    const val DEFAULT_PAPER_WIDTH = CHAR_WIDTH_58MM
 
     fun prefs(context: Context): SharedPreferences =
         context.getSharedPreferences("pos", Context.MODE_PRIVATE)
@@ -66,23 +69,31 @@ object PrinterPreferences {
         prefs(context).getInt(KEY_PAPER_WIDTH, DEFAULT_PAPER_WIDTH).coerceIn(32, 48)
 
     fun saveBluetoothPrinter(context: Context, mac: String, name: String) {
-        prefs(context).edit()
+        val p = prefs(context)
+        val editor = p.edit()
             .putString(KEY_TRANSPORT, "bluetooth")
             .putString(KEY_PREFERRED_TRANSPORT, "bluetooth")
             .putString(KEY_PRINTER_MAC, mac)
             .putString(KEY_PRINTER_NAME, name)
-            .apply()
+        if (!p.contains(KEY_PAPER_WIDTH)) {
+            editor.putInt(KEY_PAPER_WIDTH, DEFAULT_PAPER_WIDTH)
+        }
+        editor.apply()
     }
 
     fun saveUsbPrinter(context: Context, device: UsbDevice) {
-        prefs(context).edit()
+        val p = prefs(context)
+        val editor = p.edit()
             .putString(KEY_TRANSPORT, "usb")
             .putString(KEY_PREFERRED_TRANSPORT, "usb")
             .putInt(KEY_USB_DEVICE_ID, device.deviceId)
             .putInt(KEY_USB_VENDOR_ID, device.vendorId)
             .putInt(KEY_USB_PRODUCT_ID, device.productId)
             .putString(KEY_USB_DEVICE_NAME, device.deviceName ?: "USB printer")
-            .apply()
+        if (!p.contains(KEY_PAPER_WIDTH)) {
+            editor.putInt(KEY_PAPER_WIDTH, DEFAULT_PAPER_WIDTH)
+        }
+        editor.apply()
     }
 
     fun setPreferredTransport(context: Context, transport: String) {

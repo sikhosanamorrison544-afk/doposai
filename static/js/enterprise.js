@@ -34,6 +34,21 @@
     }
 
     async function apiRoot(path, options) {
+        const method = ((options && options.method) || 'GET').toUpperCase();
+        if (
+            method === 'GET' &&
+            typeof posFetchAllListPages === 'function' &&
+            typeof posIsListCollectionPath === 'function' &&
+            posIsListCollectionPath(path)
+        ) {
+            const token = localStorage.getItem('pos_token') || sessionStorage.getItem('pos_token');
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers.Authorization = 'Bearer ' + token;
+            return posFetchAllListPages(path, {
+                headers: { ...headers, ...(options && options.headers) },
+                credentials: options && options.credentials,
+            });
+        }
         const token = localStorage.getItem('pos_token') || sessionStorage.getItem('pos_token');
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers.Authorization = 'Bearer ' + token;

@@ -9,11 +9,9 @@
         const themeClasses = ['theme-default', 'theme-light', 'theme-classic'];
         document.body.classList.remove(...themeClasses);
         document.documentElement.classList.remove(...themeClasses);
-        if (theme !== 'default') {
-            const cls = 'theme-' + theme;
-            document.body.classList.add(cls);
-            document.documentElement.classList.add(cls);
-        }
+        const cls = 'theme-' + theme;
+        document.body.classList.add(cls);
+        document.documentElement.classList.add(cls);
         if (theme === 'light') {
             if (typeof window.playLightThemeVideo === 'function') window.playLightThemeVideo();
         } else if (typeof window.hideLightThemeVideo === 'function') {

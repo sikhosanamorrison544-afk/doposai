@@ -10,6 +10,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.pos.mobile.R
 import com.pos.mobile.printer.EscPosReceiptBuilder
+import com.pos.mobile.printer.SaleReceiptIds
 import com.pos.mobile.printer.PrinterPreferences
 import com.pos.mobile.printer.PrinterSetupDialog
 import com.pos.mobile.printer.PrinterTransport
@@ -42,6 +43,7 @@ object ReceiptPrinter {
         val collectionStatus: String,
         val cashierName: String?,
         val saleId: Int? = null,
+        val saleLocalId: Long? = null,
         val storePhone: String? = null,
         val storeLocation: String? = null,
     )
@@ -128,6 +130,7 @@ object ReceiptPrinter {
                 collectionStatus = request.collectionStatus,
                 cashierName = request.cashierName,
                 saleId = request.saleId,
+                saleLocalId = request.saleLocalId,
                 storePhone = request.storePhone,
                 storeLocation = request.storeLocation,
             )
@@ -212,6 +215,7 @@ object ReceiptPrinter {
                 collectionStatus = request.collectionStatus,
                 cashierName = request.cashierName,
                 saleId = request.saleId,
+                saleLocalId = request.saleLocalId,
                 storePhone = request.storePhone,
                 storeLocation = request.storeLocation,
             )
@@ -274,7 +278,7 @@ object ReceiptPrinter {
         lines.add((request.storeLocation ?: "").ifBlank { "" })
         lines.add("Tel: ${request.storePhone ?: ""}")
         lines.add("=" .repeat(32))
-        if (request.saleId != null) lines.add("Sale #: ${request.saleId}")
+        SaleReceiptIds.lines(request.saleId, request.saleLocalId).forEach { lines.add(it) }
         lines.add("Date: ${df.format(Date())}")
         if (!request.cashierName.isNullOrBlank()) lines.add("Cashier: ${request.cashierName}")
         if (!request.customerName.isNullOrBlank()) lines.add("Customer: ${request.customerName}")
@@ -311,6 +315,7 @@ object ReceiptPrinter {
             lines.add("CHANGE:       ${"%.2f".format(Locale.US, change).padStart(10)}")
         }
         lines.add("=" .repeat(32))
+        lines.add("(Keep receipt for refunds)")
         lines.add("Thank you for shopping with us!")
         return lines
     }
@@ -447,4 +452,33 @@ object ReceiptPrinter {
             }
         }
     }
+}
+
+/** Merge server/local ids so every printed receipt shows refund identifiers. */
+fun ReceiptPrinter.SaleReceiptRequest.withSaleIds(serverSaleId: Int?, saleLocalId: Long): ReceiptPrinter.SaleReceiptRequest =
+    copy(
+        saleId = serverSaleId?.takeIf { it > 0 } ?: saleId,
+        saleLocalId = saleLocalId.takeIf { it > 0 } ?: saleLocalId,
+    )
+
+/** Minimal receipt when only ids are available (fallback print). */
+fun SaleUiEvent.Success.receiptForIdsOnly(context: Context): ReceiptPrinter.SaleReceiptRequest? {
+    if (!SaleReceiptIds.hasAnyId(serverSaleId, saleLocalId)) return null
+    val prefs = context.getSharedPreferences("pos", Context.MODE_PRIVATE)
+    return ReceiptPrinter.SaleReceiptRequest(
+        storeName = prefs.getString("store_name", context.getString(R.string.store_name))
+            ?: context.getString(R.string.store_name),
+        cartLines = emptyList(),
+        subtotal = 0.0,
+        discountTotal = 0.0,
+        total = 0.0,
+        payments = emptyList(),
+        customerName = null,
+        collectionStatus = "collected",
+        cashierName = prefs.getString("username", null),
+        saleId = serverSaleId,
+        saleLocalId = saleLocalId.takeIf { it > 0 },
+        storePhone = prefs.getString("store_phone", "") ?: "",
+        storeLocation = prefs.getString("store_location", "") ?: "",
+    )
 }

@@ -42,14 +42,51 @@ class SyncRepository(
 ) {
     companion object {
         private const val TAG = "SyncRepository"
+        private const val PAGE_SIZE = 500
+        private const val MAX_LIST_ROWS = 20_000
+    }
+
+    private suspend fun fetchAllProducts(auth: String): Result<List<com.pos.mobile.data.remote.ProductDto>> {
+        val all = mutableListOf<com.pos.mobile.data.remote.ProductDto>()
+        var offset = 0
+        while (offset < MAX_LIST_ROWS) {
+            val res = api.getProducts(auth, limit = PAGE_SIZE, offset = offset)
+            if (!res.isSuccessful) {
+                return Result.failure(Exception(res.errorBody()?.string() ?: "HTTP ${res.code()}"))
+            }
+            val batch = res.body() ?: emptyList()
+            if (batch.isEmpty()) break
+            all.addAll(batch)
+            offset += batch.size
+            if (batch.size < PAGE_SIZE) break
+        }
+        return Result.success(all)
+    }
+
+    private suspend fun fetchAllCustomers(auth: String): Result<List<com.pos.mobile.data.remote.CustomerDto>> {
+        val all = mutableListOf<com.pos.mobile.data.remote.CustomerDto>()
+        var offset = 0
+        while (offset < MAX_LIST_ROWS) {
+            val res = api.getCustomers(auth, limit = PAGE_SIZE, offset = offset)
+            if (!res.isSuccessful) {
+                return Result.failure(Exception(res.errorBody()?.string() ?: "HTTP ${res.code()}"))
+            }
+            val batch = res.body() ?: emptyList()
+            if (batch.isEmpty()) break
+            all.addAll(batch)
+            offset += batch.size
+            if (batch.size < PAGE_SIZE) break
+        }
+        return Result.success(all)
     }
 
     suspend fun pullProductsAndCustomers(token: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val now = System.currentTimeMillis()
-            val productsRes = api.getProducts("Bearer $token")
-            if (!productsRes.isSuccessful) {
-                val err = productsRes.errorBody()?.string() ?: "HTTP ${productsRes.code()}"
+            val auth = "Bearer $token"
+            val productsResult = fetchAllProducts(auth)
+            if (productsResult.isFailure) {
+                val err = productsResult.exceptionOrNull()?.message ?: "Product sync failed"
                 syncMetadataDao.insert(
                     SyncMetadataEntity(
                         key = SyncMetadataEntity.KEY_PRODUCTS,
@@ -59,7 +96,7 @@ class SyncRepository(
                 )
                 return@withContext Result.failure(Exception(err))
             }
-            val list = productsRes.body() ?: emptyList()
+            val list = productsResult.getOrThrow()
             val entities = list.map { p ->
                 ProductEntity(
                     id = p.id,
@@ -86,9 +123,9 @@ class SyncRepository(
                 )
             )
 
-            val customersRes = api.getCustomers("Bearer $token")
-            if (customersRes.isSuccessful) {
-                val customers = customersRes.body() ?: emptyList()
+            val customersResult = fetchAllCustomers(auth)
+            if (customersResult.isSuccess) {
+                val customers = customersResult.getOrThrow()
                 customerDao.deleteAll()
                 if (customers.isNotEmpty()) {
                     val customerEntities = customers.map { c ->

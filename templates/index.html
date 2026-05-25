@@ -73,7 +73,7 @@
     </script>
     <!-- Preload 3D model for faster loading -->
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
-    <link rel="stylesheet" href="/static/css/style.css?v=20260525">
+    <link rel="stylesheet" href="/static/css/style.css?v=20260530">
     <script>
         // Immediately prevent password saving before page fully loads
         (function() {
@@ -406,7 +406,7 @@
             <option value="collected">Collected (Items taken immediately)</option>
             <option value="to_collect">To Collect (Reserve items for later pickup)</option>
         </select>
-        <small style="color:rgba(255,255,255,0.7);font-size:11px;display:block;margin-top:4px;">
+        <small class="payment-panel-hint" style="font-size:11px;display:block;margin-top:4px;">
             "To Collect" reserves items - they won't be available for other sales until collected
         </small>
     </div>
@@ -478,7 +478,7 @@
                     <option value="">Select Transaction</option>
                 </select>
                 
-                <div id="layby-outstanding-info" style="display: none; padding: 8px; background: rgba(59, 130, 246, 0.2); border-radius: 8px; margin: 8px 0;">
+                <div id="layby-outstanding-info" style="display: none; padding: 8px; border-radius: 8px; margin: 8px 0;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                         <span>Total Amount:</span>
                         <span id="layby-total-amount">0.00</span>
@@ -520,7 +520,8 @@
 <script src="/static/js/receipt.js?v=4"></script>
 <script src="/static/js/plan-features.js?v=1"></script>
 <script src="/static/js/role-permissions.js?v=1"></script>
-<script src="/static/js/app.js?v=12"></script>
+<script src="/static/js/list-fetch.js?v=1"></script>
+<script src="/static/js/app.js?v=13"></script>
 <script src="/static/js/background3d.js?v=5"></script>
 <script src="/static/js/store-branding.js?v=4"></script>
 </body>
