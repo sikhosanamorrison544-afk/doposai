@@ -51,6 +51,10 @@
     <string name="sync_complete">Sync complete: %1$d products, %2$d sale(s) uploaded, %3$d pending</string>
     <string name="sync_partial">Sync finished with issues: %1$d sale(s) uploaded, %2$d still pending</string>
     <string name="sync_master_failed">Could not refresh products from server</string>
+    <string name="sync_products_failed_hint">Sales may have uploaded; check Server URL and try again.</string>
+    <string name="sync_check_server_url">Check Server URL matches your web login (e.g. https://api.doposai.com/).</string>
+    <string name="printing_receipt">Printing receipt…</string>
+    <string name="receipt_print_required">Receipt did not print. Set up printer (printer icon), then try again.</string>
     <string name="status_offline">Offline</string>
     <string name="status_synced">Synced</string>
     <string name="sale_saved_offline">Sale saved locally. Will sync to the server when online (up to 3 days offline).</string>

@@ -2091,6 +2091,90 @@ body.theme-default .payment-panel .totals {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22) !important;
 }
 
+/* Light theme: dark checkout/payment panel so labels stay readable on video background */
+html body.theme-light .payment-panel,
+html body.theme-light #payment-panel.payment-panel,
+html body.theme-light #payment-panel.floating-panel.payment-panel {
+    background: rgba(17, 24, 39, 0.9) !important;
+    backdrop-filter: blur(16px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4) !important;
+    color: #f1f5f9 !important;
+}
+
+html body.theme-light .payment-panel .floating-panel-header {
+    border-bottom-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+html body.theme-light .payment-panel .floating-panel-header h2 {
+    color: #f8fafc !important;
+}
+
+html body.theme-light .payment-panel .totals {
+    background: rgba(30, 41, 59, 0.85) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+    color: #f1f5f9 !important;
+}
+
+html body.theme-light .payment-panel .totals > div,
+html body.theme-light .payment-panel .totals span,
+html body.theme-light .payment-panel .totals .grand {
+    color: #f1f5f9 !important;
+}
+
+html body.theme-light .payment-panel .payments label,
+html body.theme-light .payment-panel label,
+html body.theme-light .payment-panel h3,
+html body.theme-light .payment-panel h4,
+html body.theme-light .payment-panel .layby-section,
+html body.theme-light .payment-panel .layby-create-section {
+    color: #e2e8f0 !important;
+}
+
+html body.theme-light .payment-panel .info,
+html body.theme-light .payment-panel #pos-message,
+html body.theme-light .payment-panel #new-layby-customer-message {
+    color: #cbd5e1 !important;
+}
+
+html body.theme-light .payment-panel small {
+    color: rgba(226, 232, 240, 0.9) !important;
+}
+
+html body.theme-light .payment-panel input,
+html body.theme-light .payment-panel select,
+html body.theme-light .payment-panel textarea {
+    background: #ffffff !important;
+    color: #1a1a2e !important;
+    border: 1px solid rgba(0, 0, 0, 0.15) !important;
+}
+
+html body.theme-light .payment-panel button.primary,
+html body.theme-light .payment-panel #btn-complete-sale {
+    background: rgba(102, 126, 234, 0.45) !important;
+    border: 1px solid #a5b4fc !important;
+    color: #f8fafc !important;
+}
+
+html body.theme-light .payment-panel button.primary:hover,
+html body.theme-light .payment-panel #btn-complete-sale:hover {
+    background: rgba(102, 126, 234, 0.65) !important;
+}
+
+html body.theme-light .payment-panel .close-btn {
+    color: #ffffff !important;
+}
+
+html body.theme-light .payment-panel #layby-outstanding-info {
+    color: #e2e8f0 !important;
+}
+
+html body.theme-light .payment-panel #layby-outstanding-info span {
+    color: inherit !important;
+}
+
 body.theme-default .top-bar {
     background: rgba(255, 255, 255, 0.92) !important;
     backdrop-filter: none !important;

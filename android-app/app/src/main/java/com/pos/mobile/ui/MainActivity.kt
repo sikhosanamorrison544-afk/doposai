@@ -588,11 +588,11 @@ class MainActivity : AppCompatActivity() {
         return db.productDao().countActive() > 0 || db.apiCacheDao().count() > 0
     }
 
-    private fun createSyncRepository(): SyncRepository {
+    private fun createSyncRepository(readTimeoutSec: Long = 25): SyncRepository {
         val db = AppDatabase.getInstance(this)
         val prefs = getSharedPreferences("pos", MODE_PRIVATE)
         val baseUrl = prefs.getString("base_url", BuildConfig.DEFAULT_API_BASE_URL) ?: BuildConfig.DEFAULT_API_BASE_URL
-        val api = SyncWorker.createApi(baseUrl)
+        val api = SyncWorker.createApi(baseUrl, readTimeoutSec)
         return SyncWorker.createRepository(this, baseUrl, api, db)
     }
 
@@ -801,18 +801,6 @@ class MainActivity : AppCompatActivity() {
                             activePaymentDialog = null
                             Toast.makeText(this@MainActivity, event.message, Toast.LENGTH_LONG).show()
                             triggerSyncWhenOnline()
-                            val toPrint = event.receipt
-                            if (toPrint != null) {
-                                window.decorView.postDelayed({
-                                    if (!isFinishing && !isDestroyed) {
-                                        ReceiptPrinter.printSale(
-                                            context = this@MainActivity,
-                                            request = toPrint,
-                                            scope = lifecycleScope,
-                                        )
-                                    }
-                                }, 400)
-                            }
                         }
                         is SaleUiEvent.Failed -> {
                             Toast.makeText(this@MainActivity, event.message, Toast.LENGTH_LONG).show()
@@ -1142,18 +1130,32 @@ class MainActivity : AppCompatActivity() {
             val session = SessionStore(this)
             val token = session.getAccessToken() ?: prefs.getString("token", null)
             val cashierId = session.getUserId().takeIf { it > 0 } ?: 1
-            viewModel.completeSale(
-                authToken = token,
-                cashierId = cashierId,
-                customerName = receiptCustomer,
-                cash = cash,
-                mobile = mobile,
-                card = card,
-                credit = credit,
-                collectionStatus = status,
-                notes = null,
-                receipt = receipt,
-            )
+            lifecycleScope.launch {
+                if (receipt != null) {
+                    btnComplete.isEnabled = false
+                    btnComplete.text = getString(R.string.printing_receipt)
+                    val printed = ReceiptPrinter.printSaleAwait(this@MainActivity, receipt)
+                    btnComplete.text = getString(R.string.complete_sale)
+                    if (!printed) {
+                        btnComplete.isEnabled = true
+                        messageTv.text = getString(R.string.receipt_print_required)
+                        messageTv.visibility = View.VISIBLE
+                        return@launch
+                    }
+                }
+                viewModel.completeSale(
+                    authToken = token,
+                    cashierId = cashierId,
+                    customerName = receiptCustomer,
+                    cash = cash,
+                    mobile = mobile,
+                    card = card,
+                    credit = credit,
+                    collectionStatus = status,
+                    notes = null,
+                    receipt = null,
+                )
+            }
         }
         dialog.show()
     }
@@ -1220,11 +1222,15 @@ class MainActivity : AppCompatActivity() {
             manualSyncInProgress = false
             syncButton.isEnabled = true
             val msg = when {
-                !outcome.masterOk && outcome.salesPushed == 0 && outcome.salesPending > 0 ->
+                outcome.salesPushed > 0 && !outcome.masterOk ->
+                    getString(R.string.sync_partial, outcome.salesPushed, outcome.salesPending) +
+                        " " + getString(R.string.sync_products_failed_hint)
+                !outcome.masterOk && outcome.salesPending > 0 ->
                     getString(R.string.sync_master_failed) +
-                        " " + getString(R.string.sync_partial, 0, outcome.salesPending)
+                        " " + getString(R.string.sync_partial, outcome.salesPushed, outcome.salesPending)
                 !outcome.masterOk ->
-                    getString(R.string.sync_master_failed)
+                    getString(R.string.sync_master_failed) +
+                        " " + getString(R.string.sync_check_server_url)
                 else ->
                     getString(
                         R.string.sync_complete,
@@ -1239,21 +1245,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     private suspend fun performManualSync(token: String): ManualSyncOutcome {
-        val repo = createSyncRepository()
+        val bearer = token.trim().let { if (it.startsWith("Bearer ")) it else "Bearer $it" }
+        val rawToken = bearer.removePrefix("Bearer ").trim()
+        val repo = createSyncRepository(readTimeoutSec = 60)
         val db = AppDatabase.getInstance(this)
         var pushed = 0
         for (item in db.syncQueueDao().getByStatus(SyncQueueEntity.STATUS_PENDING)) {
-            repo.pushSale(token, item).onSuccess { pushed++ }
+            repo.pushSale(rawToken, item).onSuccess { pushed++ }
         }
-        repo.pushOfflineMutations(token)
-        val masterOk = repo.syncMasterDatabase(this@MainActivity, token, fullCache = true).isSuccess
-        if (masterOk) {
+        repo.pushOfflineMutations(rawToken)
+        val productsOk = repo.pullProductsAndCustomers(rawToken).isSuccess
+        if (productsOk) {
+            repo.persistStoreSettings(this@MainActivity, rawToken)
             SessionStore(this).recordOfflineAnchor()
         }
         val stillPending = db.syncQueueDao().getByStatus(SyncQueueEntity.STATUS_PENDING).size
         val productCount = db.productDao().countActive()
         return ManualSyncOutcome(
-            masterOk = masterOk,
+            masterOk = productsOk,
             productCount = productCount,
             salesPushed = pushed,
             salesPending = stillPending,

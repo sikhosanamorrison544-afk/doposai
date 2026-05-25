@@ -362,7 +362,11 @@ class SyncRepository(
         withContext(Dispatchers.IO) {
             try {
                 syncEssentials(context, token).getOrElse { return@withContext Result.failure(it) }
-                prefetchApiCache(token, fullCache)
+                val cache = prefetchApiCache(token, fullCache).getOrElse { e ->
+                    Log.w(TAG, "Optional cache prefetch failed (essentials OK)", e)
+                    MasterSyncResult(0, 0, 0, 0)
+                }
+                Result.success(cache)
             } catch (e: Exception) {
                 Log.e(TAG, "syncMasterDatabase failed", e)
                 Result.failure(e)

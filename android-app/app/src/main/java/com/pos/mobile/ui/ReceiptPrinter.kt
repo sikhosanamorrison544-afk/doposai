@@ -18,7 +18,11 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlin.coroutines.resume
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -65,6 +69,102 @@ object ReceiptPrinter {
             scope,
         )
     }
+
+    /**
+     * Print receipt and wait for result. Use before completing a sale (print first, then charge).
+     */
+    suspend fun printSaleAwait(activity: AppCompatActivity, request: SaleReceiptRequest): Boolean {
+        if (activity.isFinishing || activity.isDestroyed) return false
+        if (!PrinterPreferences.isConfigured(activity)) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(
+                    activity,
+                    activity.getString(R.string.printer_none_selected),
+                    Toast.LENGTH_LONG,
+                ).show()
+                PrinterSetupDialog.show(activity, activity.lifecycleScope, request.storeName)
+            }
+            return false
+        }
+        return try {
+            withTimeout(45_000) {
+                suspendCancellableCoroutine { cont ->
+                    val handler = CoroutineExceptionHandler { _, e ->
+                        Log.e(TAG, "printSaleAwait failed", e)
+                        if (cont.isActive) cont.resume(false)
+                    }
+                    val startPrint: () -> Unit = {
+                        activity.lifecycleScope.launch(handler) {
+                            val ok = printSaleThermalResult(activity, request)
+                            if (cont.isActive) cont.resume(ok)
+                        }
+                    }
+                    if (PrinterPreferences.getTransport(activity) == PrinterTransport.BLUETOOTH) {
+                        PrinterSetupDialog.runWithBluetoothPermission(activity, startPrint)
+                    } else {
+                        startPrint()
+                    }
+                }
+            }
+        } catch (_: TimeoutCancellationException) {
+            withContext(Dispatchers.Main) {
+                showError(activity, activity.getString(R.string.printer_failed, "timed out"))
+            }
+            false
+        }
+    }
+
+    private suspend fun printSaleThermalResult(activity: Activity, request: SaleReceiptRequest): Boolean {
+        return try {
+            val width = PrinterPreferences.getPaperWidth(activity)
+            val data = EscPosReceiptBuilder(width).buildSaleReceipt(
+                storeName = request.storeName,
+                cartLines = request.cartLines,
+                subtotal = request.subtotal,
+                discountTotal = request.discountTotal,
+                total = request.total,
+                payments = request.payments,
+                customerName = request.customerName,
+                collectionStatus = request.collectionStatus,
+                cashierName = request.cashierName,
+                saleId = request.saleId,
+                storePhone = request.storePhone,
+                storeLocation = request.storeLocation,
+            )
+            val result = ThermalPrintService.print(activity, data)
+            if (result.isSuccess) return true
+            val msg = result.exceptionOrNull()?.message ?: "Print failed"
+            Log.w(TAG, "Thermal print failed: $msg")
+            withContext(Dispatchers.Main) { showError(activity, msg) }
+            printSaleSystemBlocking(activity, request)
+        } catch (e: Exception) {
+            Log.e(TAG, "printSaleThermalResult error", e)
+            withContext(Dispatchers.Main) { showError(activity, e.message ?: "Print failed") }
+            false
+        }
+    }
+
+    /** Best-effort system print when thermal fails (native POS only). */
+    private suspend fun printSaleSystemBlocking(activity: Activity, request: SaleReceiptRequest): Boolean =
+        withContext(Dispatchers.Main) {
+            if (activity.isFinishing || activity.isDestroyed) return@withContext false
+            try {
+                val printManager = activity.getSystemService(Context.PRINT_SERVICE) as? PrintManager
+                    ?: return@withContext false
+                val lines = buildReceiptTextLines(request)
+                val adapter = ReceiptPrintDocumentAdapter(
+                    activity.applicationContext,
+                    "Sale receipt",
+                    lines,
+                )
+                printManager.print("Sale receipt", adapter, PrintAttributes.Builder().build())
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "System print failed", e)
+                showError(activity, e.message ?: "Print failed")
+                false
+            }
+        }
 
     fun printSale(
         context: Context,
