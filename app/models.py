@@ -68,7 +68,7 @@ class Product(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(120), index=True)
+    name: Mapped[str] = mapped_column(String(255), index=True)
     barcode: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
     category_id: Mapped[Optional[int]] = mapped_column(ForeignKey("categories.id"))
     stock_qty: Mapped[float] = mapped_column(Float, default=0.0)

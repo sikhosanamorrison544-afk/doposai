@@ -537,6 +537,20 @@ async def list_products(
     return products
 
 
+@app.get("/api/products/count")
+async def count_products(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth.get_current_active_user),
+):
+    """Active product count for the current tenant (fast inventory total)."""
+    total = (
+        tenant_scope.filter_products(db, current_user)
+        .filter(Product.is_active == True)  # noqa: E712
+        .count()
+    )
+    return {"count": total}
+
+
 @app.get("/api/products/export/csv")
 async def export_products_csv(
     db: Session = Depends(get_db),

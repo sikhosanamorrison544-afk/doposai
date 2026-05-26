@@ -10,20 +10,36 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .inventory_csv import normalize_barcode_for_match, normalize_match_name, normalize_product_name
+from .inventory_csv import (
+    normalize_barcode_for_match,
+    normalize_match_name,
+    normalize_product_name as _csv_normalize_product_name,
+)
 from .models import InventoryMovement, Product, User
 from . import tenant_scope
 
 logger = logging.getLogger(__name__)
 
-
-def normalize_barcode(code: str) -> Optional[str]:
-    return normalize_barcode_for_match(code)
-
-
 IMPORT_COMMIT_BATCH = int(os.environ.get("IMPORT_COMMIT_BATCH", "500"))
 MAX_IMPORT_ERRORS_REPORTED = 50
 IMPORT_PROGRESS_EVERY = int(os.environ.get("IMPORT_PROGRESS_EVERY", "100"))
+PRODUCT_NAME_MAX_LEN = int(os.environ.get("PRODUCT_NAME_MAX_LEN", "255"))
+CATEGORY_NAME_MAX_LEN = int(os.environ.get("CATEGORY_NAME_MAX_LEN", "80"))
+
+
+def truncate_field(value: str, max_len: int) -> str:
+    v = " ".join((value or "").strip().split())
+    if len(v) <= max_len:
+        return v
+    return v[:max_len].rstrip()
+
+
+def normalize_product_name(name: str) -> str:
+    return truncate_field(_csv_normalize_product_name(name), PRODUCT_NAME_MAX_LEN)
+
+
+def normalize_barcode(code: str) -> Optional[str]:
+    return normalize_barcode_for_match(code)
 
 
 class ProductIndex:
@@ -279,21 +295,21 @@ def _create_product_from_import(
         attempts.append(None)
     for attempt_barcode in attempts:
         try:
-            product = _build(attempt_barcode)
-            db.add(product)
-            db.flush()
-            if record_movements and in_hand_stock > 0:
-                db.add(
-                    InventoryMovement(
-                        product_id=product.id,
-                        change_qty=in_hand_stock,
-                        reason="Initial stock (file import)",
-                    )
-                )
+            with db.begin_nested():
+                product = _build(attempt_barcode)
+                db.add(product)
                 db.flush()
-            return product
+                if record_movements and in_hand_stock > 0:
+                    db.add(
+                        InventoryMovement(
+                            product_id=product.id,
+                            change_qty=in_hand_stock,
+                            reason="Initial stock (file import)",
+                        )
+                    )
+                    db.flush()
+                return product
         except IntegrityError:
-            db.rollback()
             if attempt_barcode is None:
                 return None
             continue
@@ -310,7 +326,7 @@ def _resolve_category_id(
 
     if not category_name or not category_name.strip():
         return None
-    name = category_name.strip()
+    name = truncate_field(category_name.strip(), CATEGORY_NAME_MAX_LEN)
     if name in cache:
         return cache[name]
     cat = tenant_scope.filter_categories(db, current_admin).filter(Category.name == name).first()
@@ -356,6 +372,7 @@ def import_products_into_db(
         "merged_rows": 0,
         "file_merged_rows": file_merged,
         "skipped": 0,
+        "names_truncated": 0,
         "errors": [],
         "stock_mode": products_data[0].get("stock_mode", "add") if products_data else "add",
     }
@@ -402,7 +419,10 @@ def import_products_into_db(
     for row_num, product_data in enumerate(products_data, start=1):
         try:
             with db.begin_nested():
-                product_name = normalize_product_name(product_data.get("name", ""))
+                raw_name = _csv_normalize_product_name(product_data.get("name", ""))
+                if raw_name and len(raw_name) > PRODUCT_NAME_MAX_LEN:
+                    stats["names_truncated"] += 1
+                product_name = truncate_field(raw_name, PRODUCT_NAME_MAX_LEN)
                 if not product_name:
                     raise ValueError("Missing product name")
 
@@ -593,4 +613,9 @@ def import_products_into_db(
         stats["errors"].append(f"…and {extra} more row error(s)")
 
     stats["record_movements"] = record_movements
+    stats["inventory_total"] = (
+        tenant_scope.filter_products(db, current_admin)
+        .filter(Product.is_active == True)  # noqa: E712
+        .count()
+    )
     return stats

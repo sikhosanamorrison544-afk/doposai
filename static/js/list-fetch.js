@@ -49,6 +49,7 @@
             if (batch.length < pageSize) break;
             if (total !== null && offset >= total) break;
         }
+        all.totalCount = total !== null ? total : all.length;
         return all;
     }
 

@@ -147,11 +147,14 @@ body.page-admin.pos-android-app .admin-mobile-only {
 }
 
 .admin-mobile-product-count {
-    margin-top: 6px;
-    font-size: 13px;
-    font-weight: 600;
+    margin-top: 8px;
+    padding: 6px 10px;
+    font-size: 14px;
+    font-weight: 700;
     text-align: center;
-    opacity: 0.9;
+    color: #1e293b;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
 }
 
 .admin-mobile-search-wrap {

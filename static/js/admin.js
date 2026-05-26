@@ -8,7 +8,30 @@ function formatAdminProductCount(n) {
     const num = Number(n);
     if (Number.isNaN(num) || num < 0) return '—';
     const formatted = num.toLocaleString();
-    return num === 1 ? '1 product' : formatted + ' products';
+    return formatted + (num === 1 ? ' product in inventory' : ' products in inventory');
+}
+
+async function refreshAdminInventoryCount(hint) {
+    const hinted = hint != null ? Number(hint) : NaN;
+    if (!Number.isNaN(hinted) && hinted >= 0) {
+        adminProductTotalCount = hinted;
+        window.adminProductTotalCount = hinted;
+        updateAdminProductCount(hinted);
+        return hinted;
+    }
+    try {
+        const data = await adminApi('/api/products/count');
+        const count = data && data.count != null ? Number(data.count) : null;
+        if (count != null && !Number.isNaN(count) && count >= 0) {
+            adminProductTotalCount = count;
+            window.adminProductTotalCount = count;
+            updateAdminProductCount(count);
+            return count;
+        }
+    } catch (e) {
+        console.warn('Could not refresh inventory count:', e);
+    }
+    return adminProductTotalCount;
 }
 
 function updateAdminProductCount(count, state) {
@@ -2196,6 +2219,16 @@ function formatImportResultMessage(result) {
         message += `Duplicate rows merged during import: ${result.merged_rows}\n`;
     }
     message += `Rows skipped (errors): ${skipped}`;
+    if (result.inventory_total != null) {
+        message +=
+            '\nTotal products in inventory now: ' +
+            Number(result.inventory_total).toLocaleString();
+    }
+    if (result.names_truncated) {
+        message +=
+            '\nLong product names shortened to fit: ' +
+            Number(result.names_truncated).toLocaleString();
+    }
     if (result.file_merged_rows) {
         message += `\nDuplicate lines merged in file: ${result.file_merged_rows}`;
     }
@@ -2306,7 +2339,8 @@ async function applyImportResult(result, options) {
                 : 'rgba(34, 197, 94, 1)';
     }
 
-    if (result.created > 0 || result.updated > 0) {
+    await refreshAdminInventoryCount(result.inventory_total);
+    if (result.created > 0 || result.updated > 0 || result.inventory_total != null) {
         await loadAdminProducts();
         if (typeof window.renderAdminProductsMobile === 'function' && window.adminProducts) {
             window.renderAdminProductsMobile(window.adminProducts);
