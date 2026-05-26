@@ -17,6 +17,45 @@ function formatAdminProductCount(n) {
     return formatted + (num === 1 ? ' product in stock' : ' products in stock');
 }
 
+async function fetchAdminProductCountOnly() {
+    const tok = adminToken || localStorage.getItem('pos_token');
+    if (!tok) return null;
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer =
+        controller && setTimeout(function () {
+            controller.abort();
+        }, 15000);
+    try {
+        const res = await fetch('/api/products/count', {
+            method: 'GET',
+            headers: {
+                Authorization: 'Bearer ' + tok,
+                Accept: 'application/json',
+            },
+            credentials: 'same-origin',
+            signal: controller ? controller.signal : undefined,
+        });
+        if (!res.ok) {
+            if (res.status === 401) {
+                localStorage.removeItem('pos_token');
+                localStorage.removeItem('pos_user');
+                window.location.replace('/');
+            }
+            return null;
+        }
+        const data = await res.json();
+        const count = data && data.count != null ? Number(data.count) : null;
+        if (count != null && !Number.isNaN(count) && count >= 0) {
+            return count;
+        }
+    } catch (e) {
+        console.warn('Could not fetch inventory count:', e);
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
+    return null;
+}
+
 async function refreshAdminInventoryCount(hint) {
     const hinted = hint != null ? Number(hint) : NaN;
     if (!Number.isNaN(hinted) && hinted >= 0) {
@@ -25,17 +64,12 @@ async function refreshAdminInventoryCount(hint) {
         updateAdminProductCount(hinted);
         return hinted;
     }
-    try {
-        const data = await adminApi('/api/products/count');
-        const count = data && data.count != null ? Number(data.count) : null;
-        if (count != null && !Number.isNaN(count) && count >= 0) {
-            adminProductTotalCount = count;
-            window.adminProductTotalCount = count;
-            updateAdminProductCount(count);
-            return count;
-        }
-    } catch (e) {
-        console.warn('Could not refresh inventory count:', e);
+    const count = await fetchAdminProductCountOnly();
+    if (count != null) {
+        adminProductTotalCount = count;
+        window.adminProductTotalCount = count;
+        updateAdminProductCount(count);
+        return count;
     }
     return adminProductTotalCount;
 }
@@ -121,34 +155,74 @@ async function adminApi(path, options = {}) {
     return res.json();
 }
 
-async function loadAdminProducts() {
+const ADMIN_PRODUCTS_PAGE_SIZE = 500;
+let adminProductsTableDelegationBound = false;
+
+async function fetchAdminProductsPage(offset, limit) {
+    const headers = { 'Content-Type': 'application/json' };
+    const tok = adminToken || localStorage.getItem('pos_token');
+    if (tok) headers['Authorization'] = 'Bearer ' + tok;
+    const res = await fetch(
+        `/api/products?limit=${limit}&offset=${offset}`,
+        { headers, credentials: 'same-origin' }
+    );
+    if (!res.ok) {
+        if (res.status === 401) {
+            localStorage.removeItem('pos_token');
+            localStorage.removeItem('pos_user');
+            adminToken = null;
+            adminUser = null;
+            window.location.replace('/');
+            return Promise.reject(new Error('Unauthorized - redirecting to login'));
+        }
+        const text = await res.text();
+        throw new Error(text || res.statusText);
+    }
+    const items = await res.json();
+    let total = null;
+    const h = res.headers.get('X-Total-Count');
+    if (h) {
+        const n = parseInt(h, 10);
+        if (!Number.isNaN(n)) total = n;
+    }
+    return { items: Array.isArray(items) ? items : [], total: total };
+}
+
+function updateAdminProductsListHint(shown, total) {
+    const t = total != null && total >= 0 ? total : shown;
+    const text =
+        t <= shown
+            ? ''
+            : 'Showing ' +
+              shown.toLocaleString() +
+              ' of ' +
+              t.toLocaleString() +
+              ' products. Use search or export for the full list.';
+    ['admin-products-list-hint', 'admin-products-list-hint-mobile'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (!text) {
+            el.textContent = '';
+            el.hidden = true;
+        } else {
+            el.textContent = text;
+            el.hidden = false;
+        }
+    });
+}
+
+function paintAdminProductsTable(products) {
     const body = document.getElementById('products-body');
-    if (!body) {
-        // products-body only exists on /admin page, not on /store-settings page
+    if (!body) return;
+
+    body.innerHTML = '';
+    if (!products || products.length === 0) {
+        body.innerHTML =
+            '<tr><td colspan="8" style="text-align:center;padding:16px;color:#fbbf24;">No products found</td></tr>';
         return;
     }
-    console.log('=== loadAdminProducts STARTED ===');
-    updateAdminProductCount(null, 'loading');
-    body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:16px;">Loading products...</td></tr>';
 
-    try {
-        adminProducts = await adminApi('/api/products');
-        window.adminProducts = adminProducts;
-        adminProductTotalCount =
-            adminProducts.totalCount != null ? adminProducts.totalCount : adminProducts.length;
-        window.adminProductTotalCount = adminProductTotalCount;
-        updateAdminProductCount(adminProductTotalCount);
-        console.log(`Loaded ${adminProducts.length} products (${adminProductTotalCount} in system)`);
-        body.innerHTML = '';
-
-        if (adminProducts.length === 0) {
-            body.innerHTML =
-                '<tr><td colspan="8" style="text-align:center;padding:16px;color:#fbbf24;">No products found</td></tr>';
-            updateAdminProductCount(0);
-            return;
-        }
-        
-        adminProducts.forEach((p, index) => {
+    products.forEach((p) => {
             const tr = document.createElement('tr');
             const expiryDate = p.expiry_date ? new Date(p.expiry_date).toLocaleDateString() : '-';
             
@@ -204,87 +278,72 @@ async function loadAdminProducts() {
             // Add all cells to row
             cells.forEach(cell => tr.appendChild(cell));
             body.appendChild(tr);
-        });
-        
-        console.log('=== Setting up event delegation ===');
-        console.log('Total buttons created:', body.querySelectorAll('button').length);
-        
-        // Use event delegation on the table body with capture phase
-        body.addEventListener('click', function(e) {
-            console.log('Click detected on tbody, target:', e.target);
-            console.log('Target tag:', e.target.tagName);
-            console.log('Target class:', e.target.className);
-            
-            // Check if clicked element is a button
-            if (e.target.tagName === 'BUTTON' && e.target.hasAttribute('data-product-id')) {
-                const productId = parseInt(e.target.getAttribute('data-product-id'), 10);
-                e.preventDefault();
-                e.stopPropagation();
-                
-                try {
-                    const formCard = document.getElementById('product-form-card');
-                    if (formCard && typeof window.startEditProduct === 'function') {
-                        window.startEditProduct(productId);
-                    }
-                } catch (error) {
-                    console.error('ERROR:', error);
-                }
-                return false;
-            }
-        }, true); // Use capture phase
-        
-        // Also try on document level as ultimate fallback
-        document.addEventListener('click', function(e) {
-            if (e.target && e.target.classList && e.target.classList.contains('edit-product-btn')) {
-                const productId = parseInt(e.target.getAttribute('data-product-id'), 10);
-                e.preventDefault();
-                e.stopPropagation();
-                if (typeof window.startEditProduct === 'function') {
-                    window.startEditProduct(productId);
-                }
-                return false;
-            }
-        }, true);
-        
-        if (typeof window.renderAdminProductsMobile === 'function') {
-            window.renderAdminProductsMobile(adminProducts);
-        }
+    });
 
-        console.log('=== PRODUCTS LOADED ===');
-        console.log('Total rows:', adminProducts.length);
-        console.log('Edit buttons:', body.querySelectorAll('button').length);
-        console.log('window.startEditProduct type:', typeof window.startEditProduct);
-        
-        // ABSOLUTE FALLBACK: Force add onclick to every button after they're created
-        setTimeout(() => {
-            const allEditButtons = body.querySelectorAll('button');
-            console.log('=== SETTING UP BUTTON FALLBACK ===');
-            console.log('Found', allEditButtons.length, 'edit buttons to setup');
-            allEditButtons.forEach((btn, idx) => {
-                const productId = btn.getAttribute('data-product-id');
-                console.log(`Setting up button ${idx} for product ${productId}`);
-                // Remove any existing onclick first
-                btn.removeAttribute('onclick');
-                // Add inline onclick as absolute fallback
-                btn.onclick = function(e) {
+    if (!adminProductsTableDelegationBound) {
+        adminProductsTableDelegationBound = true;
+        body.addEventListener(
+            'click',
+            function (e) {
+                if (e.target.tagName === 'BUTTON' && e.target.hasAttribute('data-product-id')) {
+                    const productId = parseInt(e.target.getAttribute('data-product-id'), 10);
                     e.preventDefault();
                     e.stopPropagation();
                     if (typeof window.startEditProduct === 'function') {
-                        window.startEditProduct(parseInt(productId, 10));
+                        window.startEditProduct(productId);
                     }
                     return false;
-                };
-                // Also set onclick attribute
-                btn.setAttribute('onclick', `
-                    if (typeof window.startEditProduct === 'function') {
-                        window.startEditProduct(${productId});
-                    }
-                    return false;
-                `);
-                console.log(`Button ${idx} setup complete`);
-            });
-            console.log('=== ALL BUTTONS SETUP COMPLETE ===');
-        }, 500);
+                }
+            },
+            true
+        );
+    }
+
+    if (typeof window.renderAdminProductsMobile === 'function') {
+        window.renderAdminProductsMobile(products);
+    }
+}
+
+async function loadAdminProducts() {
+    const body = document.getElementById('products-body');
+    if (!body) {
+        return;
+    }
+    console.log('=== loadAdminProducts STARTED ===');
+    body.innerHTML =
+        '<tr><td colspan="8" style="text-align:center;padding:16px;">Loading products...</td></tr>';
+
+    try {
+        const pageSize = ADMIN_PRODUCTS_PAGE_SIZE;
+        const firstPage = await fetchAdminProductsPage(0, pageSize);
+
+        adminProducts = firstPage.items;
+        window.adminProducts = adminProducts;
+        if (firstPage.total != null && firstPage.total >= 0) {
+            adminProductTotalCount = firstPage.total;
+            window.adminProductTotalCount = firstPage.total;
+            updateAdminProductCount(adminProductTotalCount);
+        } else if (adminProductTotalCount != null) {
+            updateAdminProductCount(adminProductTotalCount);
+        }
+
+        console.log(
+            `Loaded ${adminProducts.length} products (${adminProductTotalCount} in system)`
+        );
+
+        const total =
+            firstPage.total != null && firstPage.total >= 0
+                ? firstPage.total
+                : adminProductTotalCount;
+        updateAdminProductsListHint(adminProducts.length, total);
+
+        if (adminProducts.length === 0 && (adminProductTotalCount === 0 || adminProductTotalCount == null)) {
+            updateAdminProductCount(0);
+            paintAdminProductsTable([]);
+            return;
+        }
+
+        paintAdminProductsTable(adminProducts);
     } catch (e) {
         console.error('Error loading products:', e);
         updateAdminProductCount(null, 'error');
@@ -293,7 +352,7 @@ async function loadAdminProducts() {
 }
 
 // Make startEditProduct globally accessible  
-window.startEditProduct = function startEditProduct(id) {
+window.startEditProduct = async function startEditProduct(id) {
     console.log('=== startEditProduct called with id:', id, '===');
     const adminSearch = document.getElementById('admin-product-search');
     if (
@@ -305,7 +364,23 @@ window.startEditProduct = function startEditProduct(id) {
         return;
     }
     try {
-    const p = adminProducts.find(x => x.id === id);
+    let p = adminProducts.find(x => x.id === id);
+        if (!p) {
+            try {
+                p = await fetch('/api/products/' + encodeURIComponent(id), {
+                    headers: {
+                        Authorization: 'Bearer ' + (adminToken || localStorage.getItem('pos_token') || ''),
+                        Accept: 'application/json',
+                    },
+                    credentials: 'same-origin',
+                }).then(function (res) {
+                    if (!res.ok) return null;
+                    return res.json();
+                });
+            } catch (fetchErr) {
+                console.warn('Could not load product by id:', fetchErr);
+            }
+        }
         if (!p) {
             console.error('Product not found with id:', id);
             return;
@@ -670,7 +745,16 @@ function ensureAdmin() {
     
     adminToken = token;
     adminUser = user;
-    
+
+    updateAdminProductCount(null, 'loading');
+    fetchAdminProductCountOnly().then(function (count) {
+        if (count != null) {
+            adminProductTotalCount = count;
+            window.adminProductTotalCount = count;
+            updateAdminProductCount(count);
+        }
+    });
+
     const adminUserInfoEl = document.getElementById('admin-user-info');
     if (adminUserInfoEl) {
         adminUserInfoEl.textContent = `${adminUser.username} (${adminUser.role})`;
@@ -3079,12 +3163,6 @@ window.addEventListener('load', async () => {
         })
     );
     
-    loadPromises.push(
-        refreshAdminInventoryCount().catch(e => {
-            console.warn('Failed to load inventory count:', e);
-        })
-    );
-
     loadPromises.push(
         loadAdminProducts().catch(e => {
             console.error('Failed to load products:', e);

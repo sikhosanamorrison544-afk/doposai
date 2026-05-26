@@ -164,6 +164,14 @@ body.page-admin.pos-android-app .admin-product-count-badge {
     font-weight: 800;
 }
 
+body.page-admin.pos-android-app .admin-products-list-hint {
+    margin: 4px 0 0;
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.92);
+    line-height: 1.35;
+}
+
 .admin-mobile-search-wrap {
     padding: 0 12px 8px;
 }

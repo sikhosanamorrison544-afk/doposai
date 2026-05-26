@@ -1900,6 +1900,14 @@ body.page-admin .admin-products-heading h2,
 body.page-admin .admin-products-title {
     line-height: 1.2;
 }
+body.page-admin .admin-products-list-hint {
+    margin: 4px 0 0;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.35;
+    opacity: 0.85;
+    max-width: 420px;
+}
 
 body.page-admin .price-list-download-status {
     flex: 0 0 100%;

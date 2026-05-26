@@ -82,6 +82,7 @@
             Products
             <span id="admin-mobile-product-count-badge" class="admin-product-count-badge" aria-live="polite">(—)</span>
         </h2>
+        <p id="admin-products-list-hint-mobile" class="admin-products-list-hint" hidden></p>
     </div>
     <div class="admin-mobile-search-wrap">
         <input type="text" id="admin-product-search" class="admin-mobile-search" placeholder="Search products…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" inputmode="search">
@@ -176,6 +177,7 @@
                         Products
                         <span id="admin-product-count-badge" class="admin-product-count-badge" aria-live="polite">(—)</span>
                     </h2>
+                    <p id="admin-products-list-hint" class="admin-products-list-hint" hidden></p>
                 </div>
             </div>
             <div class="card product-form-card" id="product-form-card" style="max-width:none;margin:4px 0;padding:8px 12px;display:none;flex-shrink:0;">
@@ -464,7 +466,7 @@
     <script src="/static/js/pos-android.js?v=3"></script>
     <script src="/static/js/plan-features.js?v=2"></script>
     <script src="/static/js/list-fetch.js?v=2"></script>
-    <script src="/static/js/admin.js?v=20"></script>
+    <script src="/static/js/admin.js?v=22"></script>
     <script src="/static/js/admin-android.js?v=6"></script>
     <script>
         // Disable 3D background on admin page for better performance
