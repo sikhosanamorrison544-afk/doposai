@@ -87,8 +87,18 @@
     function wireMobileToolbar() {
         const addMobile = document.getElementById('btn-show-product-form-mobile');
         const importMobile = document.getElementById('btn-import-inventory-mobile');
+        const priceListMobile = document.getElementById('btn-price-list-pdf-mobile');
 
         bindAndroidTap(addMobile, toggleAndroidProductForm);
+
+        bindAndroidTap(priceListMobile, function () {
+            if (typeof window.exportPriceListPDF === 'function') {
+                window.exportPriceListPDF();
+                return;
+            }
+            const btn = document.getElementById('btn-price-list-pdf');
+            if (btn) btn.click();
+        });
 
         bindAndroidTap(importMobile, function () {
             if (typeof window.showImportModal === 'function') {

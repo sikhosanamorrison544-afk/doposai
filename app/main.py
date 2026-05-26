@@ -558,6 +558,35 @@ async def export_products_csv(
     )
 
 
+@app.get("/api/products/export/price-list/pdf")
+async def export_price_list_pdf(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth.get_current_active_user),
+):
+    """Export active products as a PDF price list (name and selling price only)."""
+    from datetime import datetime
+
+    from .price_list_pdf import build_price_list_pdf
+
+    store_settings = tenant_scope.filter_store_settings(db, current_user).first()
+    store_name = store_settings.store_name if store_settings else STORE_NAME
+
+    products = (
+        tenant_scope.filter_products(db, current_user)
+        .filter(Product.is_active.is_(True))
+        .order_by(Product.name)
+        .all()
+    )
+    content = build_price_list_pdf(store_name, products)
+    filename = f"price_list_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 def generate_unique_barcode(db: Session, user: User) -> str:
     """Generate a unique auto-assigned barcode in format AUTO-XXXXXX (per-tenant)."""
     # Find the highest existing auto-generated barcode number in this tenant

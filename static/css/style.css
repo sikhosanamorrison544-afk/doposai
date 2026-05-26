@@ -1869,7 +1869,8 @@ td:nth-child(5) {
         min-height: 26px !important;
     }
     body.page-admin #btn-show-product-form,
-    body.page-admin #btn-import-inventory {
+    body.page-admin #btn-import-inventory,
+    body.page-admin #btn-price-list-pdf {
         font-size: 11px !important;
         padding: 4px 8px !important;
     }

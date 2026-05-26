@@ -72,6 +72,8 @@
             'admin-action-shifts': 'shifts',
             'btn-sync-withdrawals-backup': 'backup_sync',
             'btn-import-inventory': 'product_import',
+            'btn-price-list-pdf': 'product_export',
+            'btn-price-list-pdf-mobile': 'product_export',
         };
         Object.keys(map).forEach(function (id) {
             const el = document.getElementById(id);

@@ -2542,6 +2542,15 @@ function setupAdminEvents() {
         });
         console.log('Import button event listener added');
     }
+
+    const btnPriceList = document.getElementById('btn-price-list-pdf');
+    if (btnPriceList) {
+        btnPriceList.addEventListener('click', function (e) {
+            e.preventDefault();
+            exportPriceListPDF();
+            return false;
+        });
+    }
     // Note: btn-import-inventory only exists on /admin page, not on /store-settings page
     
     // Set up file input handlers (will be set up again when modal opens)
@@ -3155,6 +3164,62 @@ function triggerStoreSettingsCsvImport() {
 async function importFromBackup() {
     triggerStoreSettingsCsvImport();
 }
+
+async function exportPriceListPDF() {
+    const btn = document.getElementById('btn-price-list-pdf');
+    const btnMobile = document.getElementById('btn-price-list-pdf-mobile');
+    const targets = [btn, btnMobile].filter(Boolean);
+    try {
+        const token = localStorage.getItem('pos_token');
+        if (!token) {
+            alert('Not authenticated. Please log in again.');
+            return;
+        }
+        targets.forEach(function (el) {
+            el.disabled = true;
+        });
+
+        const response = await fetch('/api/products/export/price-list/pdf', {
+            method: 'GET',
+            headers: { Authorization: 'Bearer ' + token },
+        });
+
+        if (!response.ok) {
+            let detail = 'Export failed';
+            try {
+                const err = await response.json();
+                if (err && err.detail) detail = typeof err.detail === 'string' ? err.detail : detail;
+            } catch (_) { /* ignore */ }
+            throw new Error(detail);
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = 'price_list.pdf';
+        if (contentDisposition) {
+            const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+            if (filenameMatch) filename = filenameMatch[1];
+        }
+
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    } catch (e) {
+        console.error(e);
+        alert('Price list export failed: ' + (e.message || 'Unknown error'));
+    } finally {
+        targets.forEach(function (el) {
+            el.disabled = false;
+        });
+    }
+}
+window.exportPriceListPDF = exportPriceListPDF;
 
 async function exportProductsCSV() {
     try {
