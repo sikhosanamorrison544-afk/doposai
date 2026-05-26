@@ -31,6 +31,10 @@ body.theme-light {
     --glass-border: rgba(255, 255, 255, 0.3);
     --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4);
     --glass-text: #ffffff;
+    /* Checkout panel — readable white on glass */
+    --payment-glass-bg: rgba(255, 255, 255, 0.32);
+    --payment-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.88), 0 2px 10px rgba(0, 0, 0, 0.5);
+    --payment-text-shadow-strong: 0 1px 3px rgba(0, 0, 0, 0.95), 0 3px 14px rgba(0, 0, 0, 0.62);
 }
 
 /* 3D Background Canvas - behind everything */
@@ -6881,8 +6885,8 @@ html.theme-light body.theme-light #payment-panel.payment-panel,
 html body.theme-light #payment-panel,
 html body.theme-light #payment-panel.floating-panel.payment-panel,
 html body.theme-light #payment-panel.payment-panel {
-    background: var(--glass-bg) !important;
-    background-color: var(--glass-bg) !important;
+    background: var(--payment-glass-bg) !important;
+    background-color: var(--payment-glass-bg) !important;
     background-image: none !important;
     backdrop-filter: var(--glass-blur) !important;
     -webkit-backdrop-filter: var(--glass-blur) !important;
@@ -6899,6 +6903,8 @@ html.theme-light body.theme-light #payment-panel .floating-panel-header {
 html.theme-light body.theme-light #payment-panel .floating-panel-header h2,
 html.theme-light body.theme-light #payment-panel .close-btn {
     color: #ffffff !important;
+    text-shadow: var(--payment-text-shadow-strong) !important;
+    font-weight: 700 !important;
 }
 
 body.theme-light #payment-panel .totals,
@@ -6933,11 +6939,23 @@ html.theme-light body.theme-light #payment-panel div[style*="rgba(59, 130, 246"]
 }
 
 html.theme-light body.theme-light #payment-panel .totals > div,
-html.theme-light body.theme-light #payment-panel .totals span,
-html.theme-light body.theme-light #payment-panel .totals .grand {
+html.theme-light body.theme-light #payment-panel .totals span {
     color: #ffffff !important;
+    text-shadow: var(--payment-text-shadow) !important;
+    font-weight: 600 !important;
 }
 
+html.theme-light body.theme-light #payment-panel .totals .grand,
+html.theme-light body.theme-light #payment-panel .totals .grand span {
+    color: #ffffff !important;
+    text-shadow: var(--payment-text-shadow-strong) !important;
+    font-weight: 700 !important;
+}
+
+body.theme-light #payment-panel label,
+body.theme-light #payment-panel h3,
+body.theme-light #payment-panel h4,
+body.theme-light #payment-panel .payments label,
 html.theme-light body.theme-light #payment-panel label,
 html.theme-light body.theme-light #payment-panel h3,
 html.theme-light body.theme-light #payment-panel h4,
@@ -6951,8 +6969,20 @@ html.theme-light body.theme-light #payment-panel #new-layby-customer-message,
 html.theme-light body.theme-light #payment-panel small,
 html.theme-light body.theme-light #payment-panel .payment-panel-hint,
 html.theme-light body.theme-light #payment-panel #layby-outstanding-info,
-html.theme-light body.theme-light #payment-panel #layby-outstanding-info span {
+html.theme-light body.theme-light #payment-panel #layby-outstanding-info span,
+html body.theme-light #payment-panel label,
+html body.theme-light #payment-panel h3,
+html body.theme-light #payment-panel .payments label {
     color: #ffffff !important;
+    text-shadow: var(--payment-text-shadow) !important;
+    font-weight: 600 !important;
+}
+
+html.theme-light body.theme-light #payment-panel .payment-panel-hint,
+html.theme-light body.theme-light #payment-panel small {
+    color: rgba(255, 255, 255, 0.95) !important;
+    text-shadow: var(--payment-text-shadow) !important;
+    font-weight: 500 !important;
 }
 
 /* Dark fields inside glass panel (inputs only — not the panel chrome) */
@@ -7028,6 +7058,30 @@ html.theme-light body.theme-light #payment-panel #layby-outstanding-info span {
 html.theme-light body.theme-light #payment-panel #layby-outstanding-info span[style*="color: #fbbf24"],
 html.theme-light body.theme-light #payment-panel #layby-outstanding-info span[style*="color:#fbbf24"] {
     color: #fde68a !important;
+    text-shadow: var(--payment-text-shadow-strong) !important;
+    font-weight: 700 !important;
+}
+
+/* Payment panel buttons — legible white label on glass */
+body.theme-light #payment-panel button,
+body.theme-light #payment-panel button.primary,
+html.theme-light body.theme-light #payment-panel button,
+html.theme-light body.theme-light #payment-panel button.primary,
+html.theme-light body.theme-light #payment-panel #btn-complete-sale,
+html.theme-light body.theme-light #payment-panel #btn-toggle-layby,
+html body.theme-light #payment-panel button {
+    text-shadow: var(--payment-text-shadow) !important;
+    font-weight: 600 !important;
+}
+
+html.theme-light body.theme-light #payment-panel #btn-complete-sale,
+html.theme-light body.theme-light #payment-panel .primary.big {
+    font-weight: 700 !important;
+    text-shadow: var(--payment-text-shadow-strong) !important;
+}
+
+html.theme-light body.theme-light #payment-panel #layby-toggle-icon {
+    text-shadow: var(--payment-text-shadow) !important;
 }
 
 
