@@ -36,6 +36,9 @@ _run_migrations() {
     python3 migrate_product_name_length.py || {
       echo "WARN: migrate_product_name_length.py failed (non-fatal)"
     }
+    python3 migrate_products_list_index.py || {
+      echo "WARN: migrate_products_list_index.py failed (non-fatal)"
+    }
   fi
   echo "[migrate] background migrations finished"
 }

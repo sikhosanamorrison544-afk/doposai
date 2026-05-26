@@ -25,11 +25,22 @@ def paginate_orm_query(
     limit: int,
     offset: int,
     timeout_ms: int = LIST_STATEMENT_TIMEOUT_MS,
+    include_total: bool | None = None,
 ) -> Tuple[List[Any], int]:
-    """Return (rows, total_count) with Postgres statement timeout."""
+    """Return (rows, total_count) with Postgres statement timeout.
+
+    Total count runs only on the first page (offset=0) unless include_total is set.
+    Skipping count on later pages avoids N slow COUNT(*) queries when clients page
+    through large product lists.
+    """
     pg_statement_timeout(db, timeout_ms)
     limit = clamp_list_limit(limit)
     offset = max(0, int(offset))
-    total = int(query.count())
+    if include_total is None:
+        include_total = offset == 0
+    if include_total:
+        total = int(query.count())
+    else:
+        total = -1
     rows = query.offset(offset).limit(limit).all()
     return rows, int(total)

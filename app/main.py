@@ -533,7 +533,8 @@ async def list_products(
         .order_by(Product.name)
     )
     products, total = paginate_orm_query(db, query, limit=limit, offset=offset)
-    response.headers["X-Total-Count"] = str(total)
+    if total >= 0:
+        response.headers["X-Total-Count"] = str(total)
     return products
 
 
@@ -543,12 +544,18 @@ async def count_products(
     current_user: User = Depends(auth.get_current_active_user),
 ):
     """Active product count for the current tenant (fast inventory total)."""
-    total = (
+    from sqlalchemy import func, select
+
+    from .analytics_page_data import pg_statement_timeout
+    from .pagination import LIST_STATEMENT_TIMEOUT_MS
+
+    base = (
         tenant_scope.filter_products(db, current_user)
         .filter(Product.is_active == True)  # noqa: E712
-        .count()
     )
-    return {"count": total}
+    pg_statement_timeout(db, LIST_STATEMENT_TIMEOUT_MS)
+    total = db.scalar(select(func.count()).select_from(base.subquery())) or 0
+    return {"count": int(total)}
 
 
 @app.get("/api/products/export/csv")
@@ -1207,7 +1214,8 @@ async def list_customers(
 ):
     query = tenant_scope.filter_customers(db, current_user).order_by(Customer.name)
     customers, total = paginate_orm_query(db, query, limit=limit, offset=offset)
-    response.headers["X-Total-Count"] = str(total)
+    if total >= 0:
+        response.headers["X-Total-Count"] = str(total)
     return customers
 
 
