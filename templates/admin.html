@@ -44,7 +44,7 @@
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="/static/css/pos-android.css?v=4">
-    <link rel="stylesheet" href="/static/css/admin-android.css?v=7">
+    <link rel="stylesheet" href="/static/css/admin-android.css?v=8">
 </head>
 <body class="page-admin">
 <!-- 3D Background Canvas for Default Theme -->
@@ -77,9 +77,14 @@
         <button type="button" id="btn-price-list-pdf-mobile" class="btn-import">📄 Price List</button>
     </div>
     <div id="price-list-download-status-mobile" class="price-list-download-status admin-mobile-only" role="status" aria-live="polite" hidden></div>
+    <div class="admin-mobile-products-heading">
+        <h2 class="admin-mobile-products-title">
+            Products
+            <span id="admin-mobile-product-count-badge" class="admin-product-count-badge" aria-live="polite">(—)</span>
+        </h2>
+    </div>
     <div class="admin-mobile-search-wrap">
         <input type="text" id="admin-product-search" class="admin-mobile-search" placeholder="Search products…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" inputmode="search">
-        <div id="admin-mobile-product-count" class="admin-mobile-product-count" aria-live="polite" title="Total active products in your inventory">—</div>
     </div>
 </div>
 <div id="app" class="screen active">
@@ -167,8 +172,10 @@
                 </div>
                 <div id="price-list-download-status" class="price-list-download-status" role="status" aria-live="polite" hidden></div>
                 <div class="admin-products-heading" style="position:absolute;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;">
-                    <h2 style="margin:0;font-size:26px;">Products</h2>
-                    <div id="admin-product-count" class="admin-product-count" aria-live="polite">—</div>
+                    <h2 class="admin-products-title" style="margin:0;font-size:26px;">
+                        Products
+                        <span id="admin-product-count-badge" class="admin-product-count-badge" aria-live="polite">(—)</span>
+                    </h2>
                 </div>
             </div>
             <div class="card product-form-card" id="product-form-card" style="max-width:none;margin:4px 0;padding:8px 12px;display:none;flex-shrink:0;">
@@ -457,7 +464,7 @@
     <script src="/static/js/pos-android.js?v=3"></script>
     <script src="/static/js/plan-features.js?v=2"></script>
     <script src="/static/js/list-fetch.js?v=2"></script>
-    <script src="/static/js/admin.js?v=19"></script>
+    <script src="/static/js/admin.js?v=20"></script>
     <script src="/static/js/admin-android.js?v=6"></script>
     <script>
         // Disable 3D background on admin page for better performance

@@ -4,11 +4,17 @@ let adminProducts = [];
 let adminProductTotalCount = null;
 let editingProductId = null;
 
+function formatAdminProductCountBadge(n) {
+    const num = Number(n);
+    if (Number.isNaN(num) || num < 0) return '(—)';
+    return '(' + num.toLocaleString() + ')';
+}
+
 function formatAdminProductCount(n) {
     const num = Number(n);
     if (Number.isNaN(num) || num < 0) return '—';
     const formatted = num.toLocaleString();
-    return formatted + (num === 1 ? ' product in inventory' : ' products in inventory');
+    return formatted + (num === 1 ? ' product in stock' : ' products in stock');
 }
 
 async function refreshAdminInventoryCount(hint) {
@@ -35,16 +41,24 @@ async function refreshAdminInventoryCount(hint) {
 }
 
 function updateAdminProductCount(count, state) {
-    const text =
+    const badgeText =
         state === 'loading'
-            ? 'Loading…'
+            ? '(…)'
             : state === 'error'
-              ? '—'
-              : formatAdminProductCount(count);
-    ['admin-product-count', 'admin-mobile-product-count'].forEach(function (id) {
-        const el = document.getElementById(id);
-        if (el) el.textContent = text;
+              ? '(—)'
+              : formatAdminProductCountBadge(count);
+    document.querySelectorAll('.admin-product-count-badge').forEach(function (el) {
+        el.textContent = badgeText;
     });
+    const legacy = document.getElementById('admin-product-count');
+    if (legacy) {
+        legacy.textContent =
+            state === 'loading'
+                ? 'Loading…'
+                : state === 'error'
+                  ? '—'
+                  : formatAdminProductCount(count);
+    }
 }
 let adminCashiers = [];
 let editingCashierId = null;
@@ -3065,6 +3079,12 @@ window.addEventListener('load', async () => {
         })
     );
     
+    loadPromises.push(
+        refreshAdminInventoryCount().catch(e => {
+            console.warn('Failed to load inventory count:', e);
+        })
+    );
+
     loadPromises.push(
         loadAdminProducts().catch(e => {
             console.error('Failed to load products:', e);

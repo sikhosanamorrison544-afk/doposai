@@ -146,15 +146,22 @@ body.page-admin.pos-android-app .admin-mobile-only {
     border: 2px solid #667eea !important;
 }
 
-.admin-mobile-product-count {
-    margin-top: 8px;
-    padding: 6px 10px;
-    font-size: 14px;
+.admin-mobile-products-heading {
+    padding: 10px 14px 4px;
+}
+
+.admin-mobile-products-heading .admin-mobile-products-title {
+    margin: 0;
+    font-size: 22px;
     font-weight: 700;
-    text-align: center;
-    color: #1e293b;
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 8px;
+    color: #0f172a;
+    letter-spacing: 0.01em;
+}
+
+body.page-admin.pos-android-app .admin-product-count-badge {
+    color: #4f46e5;
+    font-size: 0.95em;
+    font-weight: 800;
 }
 
 .admin-mobile-search-wrap {
