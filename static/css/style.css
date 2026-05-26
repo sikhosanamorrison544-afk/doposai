@@ -24,6 +24,13 @@ body.theme-light {
     --input-border: rgba(255, 255, 255, 0.22);
     --input-focus-border: #667eea;
     --input-focus-ring: rgba(102, 126, 234, 0.35);
+    /* Frosted glass — shared by floating panels & checkout */
+    --glass-bg: rgba(255, 255, 255, 0.2);
+    --glass-bg-strong: rgba(255, 255, 255, 0.25);
+    --glass-blur: blur(25px) saturate(200%);
+    --glass-border: rgba(255, 255, 255, 0.3);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    --glass-text: #ffffff;
 }
 
 /* 3D Background Canvas - behind everything */
@@ -950,12 +957,14 @@ body.theme-classic .payment-panel .totals {
 body.theme-light .payment-panel .totals {
     margin-bottom: 16px;
     padding: 12px;
-    background: rgba(255, 255, 255, 0.22);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background: var(--glass-bg-strong) !important;
+    background-color: var(--glass-bg-strong) !important;
+    backdrop-filter: blur(20px) saturate(200%) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(200%) !important;
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.28);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    border: 1px solid var(--glass-border) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
+    color: var(--glass-text) !important;
 }
 
 .payment-panel .totals > div {
@@ -1271,18 +1280,23 @@ body.theme-classic .top-bar-right .floating-icons .more-button {
     max-height: min(85vh, calc(100vh - 140px)) !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
-    background: #ffffff !important;
     border-radius: 12px !important;
-    border: 1px solid rgba(0, 0, 0, 0.1) !important;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
     z-index: 9999 !important;
     padding: clamp(12px, 1.5vh, 24px) !important;
     display: none; /* Default hidden, will be overridden by inline style */
-    color: #1a1a2e !important;
     /* Ensure panel stays within viewport */
     box-sizing: border-box !important;
     /* Prevent panel from going off-screen at any zoom */
     margin: clamp(20px, 2vh, 40px) !important;
+}
+
+/* Solid panels — default & classic only (light theme uses frosted glass below) */
+body.theme-default .floating-panel,
+body.theme-classic .floating-panel {
+    background: #ffffff !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
+    color: #1a1a2e !important;
 }
 
 /* AI Insights Panel - Very wide and tall, leaving just a few mm from screen edges */
@@ -2165,37 +2179,6 @@ body.theme-default #payment-panel #btn-record-layby-payment {
     box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3) !important;
 }
 
-/* Light theme checkout — frosted glass (same as settings panel; NOT dark navy) */
-body.theme-light #payment-panel.floating-panel.payment-panel,
-body.theme-light #payment-panel.payment-panel,
-html.theme-light body.theme-light #payment-panel.floating-panel.payment-panel,
-html.theme-light body.theme-light #payment-panel.payment-panel,
-html body.theme-light #payment-panel.floating-panel.payment-panel,
-html body.theme-light #payment-panel.payment-panel,
-html body.theme-light .floating-panel.payment-panel#payment-panel {
-    background: rgba(255, 255, 255, 0.35) !important;
-    background-color: rgba(255, 255, 255, 0.35) !important;
-    background-image: none !important;
-    backdrop-filter: blur(25px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(25px) saturate(200%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.4) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
-    color: #ffffff !important;
-}
-
-body.theme-light #payment-panel .totals,
-html.theme-light body.theme-light #payment-panel .totals,
-html body.theme-light #payment-panel .totals,
-html body.theme-light .payment-panel .totals {
-    background: rgba(255, 255, 255, 0.2) !important;
-    background-color: rgba(255, 255, 255, 0.2) !important;
-    backdrop-filter: blur(20px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(20px) saturate(200%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.3) !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
-    color: #ffffff !important;
-}
-
 body.theme-default .top-bar {
     background: rgba(255, 255, 255, 0.92) !important;
     backdrop-filter: none !important;
@@ -2285,12 +2268,14 @@ html:not(.theme-light) #light-theme-video {
 /* Glassmorphism for cards and panels in light theme */
 body.theme-light .card,
 body.theme-light .floating-panel {
-    background: rgba(255, 255, 255, 0.2) !important;
-    backdrop-filter: blur(25px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(25px) saturate(200%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.3) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
-    color: #ffffff !important;
+    background: var(--glass-bg) !important;
+    background-color: var(--glass-bg) !important;
+    background-image: none !important;
+    backdrop-filter: var(--glass-blur) !important;
+    -webkit-backdrop-filter: var(--glass-blur) !important;
+    border: 1px solid var(--glass-border) !important;
+    box-shadow: var(--glass-shadow) !important;
+    color: var(--glass-text) !important;
 }
 
 /* Regular cards (not floating panels) in light theme */
@@ -6885,21 +6870,25 @@ html.theme-light body.theme-light:not(.pos-android-app) #login-screen .error {
 }
 
 /* =============================================================================
-   Light theme — Checkout & Payment panel: same frosted glass as other floating panels
+   Light theme — Checkout & Payment panel (frosted glass, matches Settings panel)
    ============================================================================= */
+body.theme-light #payment-panel,
+body.theme-light #payment-panel.floating-panel.payment-panel,
+body.theme-light #payment-panel.payment-panel,
+html.theme-light body.theme-light #payment-panel,
 html.theme-light body.theme-light #payment-panel.floating-panel.payment-panel,
 html.theme-light body.theme-light #payment-panel.payment-panel,
-html.theme-light body.theme-light .floating-panel.payment-panel#payment-panel,
+html body.theme-light #payment-panel,
 html body.theme-light #payment-panel.floating-panel.payment-panel,
 html body.theme-light #payment-panel.payment-panel {
-    background: rgba(255, 255, 255, 0.35) !important;
-    background-color: rgba(255, 255, 255, 0.35) !important;
+    background: var(--glass-bg) !important;
+    background-color: var(--glass-bg) !important;
     background-image: none !important;
-    backdrop-filter: blur(25px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(25px) saturate(200%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.4) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
-    color: #ffffff !important;
+    backdrop-filter: var(--glass-blur) !important;
+    -webkit-backdrop-filter: var(--glass-blur) !important;
+    border: 1px solid var(--glass-border) !important;
+    box-shadow: var(--glass-shadow) !important;
+    color: var(--glass-text) !important;
 }
 
 html.theme-light body.theme-light #payment-panel .floating-panel-header {
@@ -6912,15 +6901,35 @@ html.theme-light body.theme-light #payment-panel .close-btn {
     color: #ffffff !important;
 }
 
+body.theme-light #payment-panel .totals,
 html.theme-light body.theme-light #payment-panel .totals,
 html body.theme-light #payment-panel .totals {
-    background: rgba(255, 255, 255, 0.2) !important;
-    background-color: rgba(255, 255, 255, 0.2) !important;
+    background: var(--glass-bg-strong) !important;
+    background-color: var(--glass-bg-strong) !important;
     backdrop-filter: blur(20px) saturate(200%) !important;
     -webkit-backdrop-filter: blur(20px) saturate(200%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.28) !important;
+    border: 1px solid var(--glass-border) !important;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
-    color: #ffffff !important;
+    color: var(--glass-text) !important;
+}
+
+/* In-panel dropdowns / layby blocks — light frosted, not dark navy */
+body.theme-light #payment-panel .payment-panel-glass-inset,
+body.theme-light #payment-panel #layby-customer-results,
+body.theme-light #payment-panel #new-layby-product-results,
+body.theme-light #payment-panel #layby-outstanding-info,
+html.theme-light body.theme-light #payment-panel .payment-panel-glass-inset,
+html.theme-light body.theme-light #payment-panel #layby-customer-results,
+html.theme-light body.theme-light #payment-panel #new-layby-product-results,
+html.theme-light body.theme-light #payment-panel #layby-outstanding-info,
+html.theme-light body.theme-light #payment-panel div[style*="rgba(17, 24, 39"],
+html.theme-light body.theme-light #payment-panel div[style*="rgba(59, 130, 246"] {
+    background: var(--glass-bg-strong) !important;
+    background-color: var(--glass-bg-strong) !important;
+    backdrop-filter: blur(15px) saturate(200%) !important;
+    -webkit-backdrop-filter: blur(15px) saturate(200%) !important;
+    border: 1px solid var(--glass-border) !important;
+    color: var(--glass-text) !important;
 }
 
 html.theme-light body.theme-light #payment-panel .totals > div,
@@ -7010,19 +7019,6 @@ html.theme-light body.theme-light #payment-panel #btn-record-payment:hover {
 html.theme-light body.theme-light #payment-panel #layby-toggle-icon {
     color: #ffffff !important;
     text-shadow: none !important;
-}
-
-/* Layby / inline blocks that used blue or dark tints */
-html.theme-light body.theme-light #payment-panel #layby-outstanding-info,
-html.theme-light body.theme-light #payment-panel div[style*="rgba(59, 130, 246"],
-html.theme-light body.theme-light #payment-panel div[style*="rgba(17, 24, 39"] {
-    background: rgba(255, 255, 255, 0.15) !important;
-    background-color: rgba(255, 255, 255, 0.15) !important;
-    backdrop-filter: blur(15px) saturate(180%) !important;
-    -webkit-backdrop-filter: blur(15px) saturate(180%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.25) !important;
-    box-shadow: none !important;
-    color: #ffffff !important;
 }
 
 html.theme-light body.theme-light #payment-panel #layby-outstanding-info span {

@@ -73,7 +73,7 @@
     </script>
     <!-- Preload 3D model for faster loading -->
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
-    <link rel="stylesheet" href="/static/css/style.css?v=20260530">
+    <link rel="stylesheet" href="/static/css/style.css?v=20260601">
     <script>
         // Immediately prevent password saving before page fully loads
         (function() {
@@ -448,7 +448,7 @@
                 
                 <label for="new-layby-customer-item">Layby Item Name *</label>
                 <input type="text" id="new-layby-customer-item" name="new-layby-customer-item" placeholder="Search for product..." autocomplete="off" required>
-                <div id="new-layby-product-results" style="display: none; max-height: 200px; overflow-y: auto; background: rgba(17, 24, 39, 0.3); backdrop-filter: blur(10px) saturate(180%); -webkit-backdrop-filter: blur(10px) saturate(180%); border-radius: 8px; margin-top: 4px; padding: 4px; border: 1px solid rgba(255,255,255,0.2); position: relative; z-index: 10000;"></div>
+                <div id="new-layby-product-results" class="payment-panel-glass-inset" style="display: none; max-height: 200px; overflow-y: auto; border-radius: 8px; margin-top: 4px; padding: 4px; position: relative; z-index: 10000;"></div>
                 
                 <label for="new-layby-initial-payment">Initial Payment *</label>
                 <input type="number" id="new-layby-initial-payment" name="new-layby-initial-payment" step="0.01" min="0.01" placeholder="0.00" required>
@@ -471,7 +471,7 @@
             <div class="payments">
                 <label for="layby-customer-name">Customer Name *</label>
                 <input type="text" id="layby-customer-name" name="layby-customer-name" placeholder="Enter customer name" autocomplete="off">
-                <div id="layby-customer-results" style="display: none; max-height: 150px; overflow-y: auto; background: rgba(17, 24, 39, 0.3); backdrop-filter: blur(10px) saturate(180%); -webkit-backdrop-filter: blur(10px) saturate(180%); border-radius: 8px; margin-top: 4px; padding: 4px; border: 1px solid rgba(255,255,255,0.2);"></div>
+                <div id="layby-customer-results" class="payment-panel-glass-inset" style="display: none; max-height: 150px; overflow-y: auto; border-radius: 8px; margin-top: 4px; padding: 4px;"></div>
                 
                 <label for="layby-transaction-select" style="display: none;">Select Transaction</label>
                 <select id="layby-transaction-select" name="layby-transaction-select" style="display: none;">
