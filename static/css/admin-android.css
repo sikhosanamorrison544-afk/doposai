@@ -146,6 +146,14 @@ body.page-admin.pos-android-app .admin-mobile-only {
     border: 2px solid #667eea !important;
 }
 
+.admin-mobile-product-count {
+    margin-top: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    opacity: 0.9;
+}
+
 .admin-mobile-search-wrap {
     padding: 0 12px 8px;
 }
@@ -164,6 +172,16 @@ body.page-admin.pos-android-app .admin-mobile-only {
 .admin-mobile-search:focus {
     outline: 2px solid #667eea;
     border-color: #667eea;
+}
+
+/* While typing in search, product cards are not tappable (prevents ghost taps on Android). */
+body.page-admin.pos-android-app #products-mobile-list.admin-search-active .admin-product-card {
+    pointer-events: none;
+    opacity: 0.92;
+}
+
+body.page-admin.pos-android-app #products-mobile-list.admin-search-active .admin-product-card .edit-btn {
+    pointer-events: auto;
 }
 
 body.page-admin.pos-android-app .product-form-card {

@@ -44,7 +44,7 @@
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="/static/css/pos-android.css?v=4">
-    <link rel="stylesheet" href="/static/css/admin-android.css?v=5">
+    <link rel="stylesheet" href="/static/css/admin-android.css?v=6">
 </head>
 <body class="page-admin">
 <!-- 3D Background Canvas for Default Theme -->
@@ -78,7 +78,7 @@
     </div>
     <div id="price-list-download-status-mobile" class="price-list-download-status admin-mobile-only" role="status" aria-live="polite" hidden></div>
     <div class="admin-mobile-search-wrap">
-        <input type="search" id="admin-product-search" class="admin-mobile-search" placeholder="Search products…" autocomplete="off" enterkeyhint="search">
+        <input type="text" id="admin-product-search" class="admin-mobile-search" placeholder="Search products…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" inputmode="search">
         <div id="admin-mobile-product-count" class="admin-mobile-product-count" aria-live="polite">—</div>
     </div>
 </div>
@@ -457,8 +457,8 @@
     <script src="/static/js/pos-android.js?v=3"></script>
     <script src="/static/js/plan-features.js?v=2"></script>
     <script src="/static/js/list-fetch.js?v=2"></script>
-    <script src="/static/js/admin.js?v=17"></script>
-    <script src="/static/js/admin-android.js?v=5"></script>
+    <script src="/static/js/admin.js?v=18"></script>
+    <script src="/static/js/admin-android.js?v=6"></script>
     <script>
         // Disable 3D background on admin page for better performance
         // The admin page doesn't need the 3D background animation

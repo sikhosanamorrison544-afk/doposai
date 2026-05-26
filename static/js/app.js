@@ -939,7 +939,11 @@ function searchByName(query) {
     );
     console.log(`Found ${matches.length} matches`);
 
-    if (matches.length === 1) {
+    // On Android WebView, do not auto-add while typing — only one match is common and feels like accidental selection.
+    const autoPickSingle =
+        matches.length === 1 &&
+        !(typeof window.isPosAndroidWebView === 'function' && window.isPosAndroidWebView());
+    if (autoPickSingle) {
         addToCart(matches[0], 1);
         clearSearchResults();
         return;

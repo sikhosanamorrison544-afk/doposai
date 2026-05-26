@@ -199,14 +199,46 @@
         });
     }
 
+    function setAdminSearchActive(active) {
+        const list = document.getElementById('products-mobile-list');
+        if (list) list.classList.toggle('admin-search-active', !!active);
+    }
+
     function setupProductSearch() {
         const input = document.getElementById('admin-product-search');
         if (!input) return;
         if (input.dataset.posAndroidBound === '1') return;
         input.dataset.posAndroidBound = '1';
+
+        input.setAttribute('autocomplete', 'off');
+        input.setAttribute('autocorrect', 'off');
+        input.setAttribute('autocapitalize', 'off');
+        input.setAttribute('spellcheck', 'false');
+        input.setAttribute('enterkeyhint', 'done');
+
+        input.addEventListener('focus', function () {
+            setAdminSearchActive(true);
+        });
+        input.addEventListener('blur', function () {
+            setTimeout(function () {
+                setAdminSearchActive(false);
+            }, 250);
+        });
+
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                input.blur();
+            }
+        });
+
         input.addEventListener('input', function () {
             filterMobileProducts(input.value.trim().toLowerCase());
         });
+
+        input.addEventListener('touchstart', function (e) {
+            e.stopPropagation();
+        }, { passive: true });
     }
 
     function filterMobileProducts(query) {
@@ -253,9 +285,15 @@
 
             const editBtn = card.querySelector('.edit-btn');
             editBtn.setAttribute('data-product-id', String(p.id));
-            editBtn.addEventListener('click', function (e) {
-                e.preventDefault();
-                const pid = parseInt(this.getAttribute('data-product-id'), 10);
+            function openProductForEdit(e) {
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                setAdminSearchActive(false);
+                const search = document.getElementById('admin-product-search');
+                if (search) search.blur();
+                const pid = parseInt(editBtn.getAttribute('data-product-id'), 10);
                 if (typeof window.startEditProduct === 'function') {
                     window.startEditProduct(pid);
                     const formCard = document.getElementById('product-form-card');
@@ -264,7 +302,11 @@
                         formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }
                 }
+            }
+            editBtn.addEventListener('pointerdown', function (e) {
+                e.stopPropagation();
             });
+            editBtn.addEventListener('click', openProductForEdit);
 
             list.appendChild(card);
         });

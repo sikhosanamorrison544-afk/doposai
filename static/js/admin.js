@@ -258,6 +258,15 @@ async function loadAdminProducts() {
 // Make startEditProduct globally accessible  
 window.startEditProduct = function startEditProduct(id) {
     console.log('=== startEditProduct called with id:', id, '===');
+    const adminSearch = document.getElementById('admin-product-search');
+    if (
+        adminSearch &&
+        document.activeElement === adminSearch &&
+        typeof window.isPosAndroidApp === 'function' &&
+        window.isPosAndroidApp()
+    ) {
+        return;
+    }
     try {
     const p = adminProducts.find(x => x.id === id);
         if (!p) {
