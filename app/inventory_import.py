@@ -54,11 +54,12 @@ class ProductIndex:
         barcode = normalize_barcode(str(product.barcode or ""))
         if barcode:
             self.by_barcode[barcode.lower()] = product
-        key = normalize_match_name(product.name)
-        if key:
-            bucket = self.by_name_lower.setdefault(key, [])
-            if product not in bucket:
-                bucket.append(product)
+        clean = normalize_product_name(product.name)
+        if clean:
+            for key in {clean.lower(), normalize_match_name(product.name)}:
+                bucket = self.by_name_lower.setdefault(key, [])
+                if product not in bucket:
+                    bucket.append(product)
 
     def get(self, product_id: int) -> Optional[Product]:
         return self.by_id.get(int(product_id))
@@ -71,7 +72,11 @@ class ProductIndex:
         clean = normalize_product_name(name)
         if not clean:
             return None
-        matches = self.by_name_lower.get(normalize_match_name(name), [])
+        # DB match: case-insensitive exact name first (avoid over-merging distinct products).
+        key = clean.lower()
+        matches = self.by_name_lower.get(key, [])
+        if not matches:
+            matches = self.by_name_lower.get(normalize_match_name(name), [])
         if not matches:
             return None
         if len(matches) == 1:
@@ -345,6 +350,7 @@ def import_products_into_db(
 
     stats: Dict[str, Any] = {
         "total_rows": len(products_data),
+        "source_rows": len(products_data) + file_merged,
         "created": 0,
         "updated": 0,
         "merged_rows": 0,
@@ -410,13 +416,15 @@ def import_products_into_db(
                 stock_mode = str(product_data.get("stock_mode") or "add")
                 in_hand_stock = max(0.0, float(product_data.get("stock", 0.0)))
                 product_id = product_data.get("product_id")
+                has_product_id = bool(product_data.get("has_product_id"))
                 category_id = _resolve_category_id(
                     db, current_admin, category_name, category_ids
                 )
 
                 pending_id = _lookup_pending(pending, product_name, product_code)
 
-                if product_id is not None:
+                matched_by_id = False
+                if has_product_id and product_id is not None:
                     by_id = product_index.get(int(product_id))
                     if by_id:
                         _merge(
@@ -434,8 +442,11 @@ def import_products_into_db(
                         )
                         _finish_row(by_id, product_name, product_code)
                         stats["updated"] += 1
-                    else:
-                        raise ValueError(f"Product ID {product_id} not found")
+                        matched_by_id = True
+                    # Stale/wrong ID in file — create or match by name/barcode instead.
+
+                if matched_by_id:
+                    pass
                 elif pending_id is not None:
                     existing = product_index.get(pending_id)
                     if not existing:

@@ -134,12 +134,34 @@ def test_merge_same_name_different_punctuation_in_file():
     assert merged[0]["stock"] == 8.0
 
 
+def test_line_number_column_not_treated_as_product_id():
+    csv_text = (
+        "No,Product name,Product code,Selling price,In hand stock\n"
+        "1,Alpha,AAA,1.00,1\n"
+        "2,Beta,BBB,2.00,2\n"
+    )
+    products = extract_products_from_csv_bytes(csv_text.encode("utf-8"))
+    assert len(products) == 2
+    assert not products[0].get("has_product_id")
+    assert products[0].get("product_id") is None
+    cmap = infer_column_map(["No", "Product name", "Product code", "Selling price", "In hand stock"])
+    assert cmap.col("id") is None
+
+
+def test_export_id_column_still_maps():
+    csv_text = "ID,Name,Barcode,Stock Qty,Selling Price,Cost Price\n,New Item,99,1,5.00,2.00\n"
+    products = extract_products_from_csv_bytes(csv_text.encode("utf-8"))
+    assert len(products) == 1
+    assert not products[0].get("has_product_id")
+
+
 def test_large_csv_stream_merge():
     lines = ["Name,Barcode,Stock Qty,Selling Price,Cost Price\n"]
     for i in range(500):
         lines.append(f"Product {i},SKU{i},{i % 10},10.00,5.00\n")
     lines.append("Product 1,SKU1,3,10.00,5.00\n")
     products = extract_products_from_csv_bytes("".join(lines).encode("utf-8"))
-    assert len(products) == 500
-    p1 = next(p for p in products if p["name"] == "Product 1")
+    merged, _ = merge_import_rows(products)
+    assert len(merged) == 500
+    p1 = next(p for p in merged if p["name"] == "Product 1")
     assert p1["stock"] == 3.0

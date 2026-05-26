@@ -1,7 +1,28 @@
 let adminToken = null;
 let adminUser = null;
 let adminProducts = [];
+let adminProductTotalCount = null;
 let editingProductId = null;
+
+function formatAdminProductCount(n) {
+    const num = Number(n);
+    if (Number.isNaN(num) || num < 0) return '—';
+    const formatted = num.toLocaleString();
+    return num === 1 ? '1 product' : formatted + ' products';
+}
+
+function updateAdminProductCount(count, state) {
+    const text =
+        state === 'loading'
+            ? 'Loading…'
+            : state === 'error'
+              ? '—'
+              : formatAdminProductCount(count);
+    ['admin-product-count', 'admin-mobile-product-count'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+    });
+}
 let adminCashiers = [];
 let editingCashierId = null;
 
@@ -70,16 +91,23 @@ async function loadAdminProducts() {
         return;
     }
     console.log('=== loadAdminProducts STARTED ===');
-        body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:16px;">Loading products...</td></tr>';
-    
+    updateAdminProductCount(null, 'loading');
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:16px;">Loading products...</td></tr>';
+
     try {
         adminProducts = await adminApi('/api/products');
         window.adminProducts = adminProducts;
-        console.log(`Loaded ${adminProducts.length} products`);
+        adminProductTotalCount =
+            adminProducts.totalCount != null ? adminProducts.totalCount : adminProducts.length;
+        window.adminProductTotalCount = adminProductTotalCount;
+        updateAdminProductCount(adminProductTotalCount);
+        console.log(`Loaded ${adminProducts.length} products (${adminProductTotalCount} in system)`);
         body.innerHTML = '';
-        
+
         if (adminProducts.length === 0) {
-            body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:16px;color:#fbbf24;">No products found</td></tr>';
+            body.innerHTML =
+                '<tr><td colspan="8" style="text-align:center;padding:16px;color:#fbbf24;">No products found</td></tr>';
+            updateAdminProductCount(0);
             return;
         }
         
@@ -222,6 +250,7 @@ async function loadAdminProducts() {
         }, 500);
     } catch (e) {
         console.error('Error loading products:', e);
+        updateAdminProductCount(null, 'error');
         body.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:16px;color:#ef4444;">Error loading products: ${e.message}</td></tr>`;
     }
 }
@@ -2142,16 +2171,29 @@ window.handleImportUploadClick = function (e) {
 };
 
 function formatImportResultMessage(result) {
-    let message = 'Import completed!\n';
-    message += `Total rows: ${result.total_rows || 0}\n`;
-    message += `Created: ${result.created || 0}\n`;
-    message += `Updated: ${result.updated || 0}\n`;
-    if (result.merged_rows) {
-        message += `Duplicate rows merged in file: ${result.merged_rows}\n`;
+    const created = result.created || 0;
+    const updated = result.updated || 0;
+    const skipped = result.skipped || 0;
+    const inDb = created + updated;
+    let message = 'Import finished.\n';
+    if (result.source_rows != null && result.source_rows !== result.total_rows) {
+        message += `Lines in file (after merging duplicates): ${result.source_rows}\n`;
     }
-    message += `Skipped: ${result.skipped || 0}`;
+    message += `Unique products processed: ${result.total_rows || 0}\n`;
+    message += `New products created: ${created}\n`;
+    message += `Existing products updated: ${updated}\n`;
+    message += `Products touched in database: ${inDb}\n`;
+    if (result.merged_rows) {
+        message += `Duplicate rows merged during import: ${result.merged_rows}\n`;
+    }
+    message += `Rows skipped (errors): ${skipped}`;
     if (result.file_merged_rows) {
         message += `\nDuplicate lines merged in file: ${result.file_merged_rows}`;
+    }
+    if (skipped > 0 && result.errors && result.errors.length > 0) {
+        message += '\n\nSome rows failed — only successful rows appear in your product list.';
+    } else if (inDb > 0 && (result.total_rows || 0) > inDb && skipped === 0) {
+        message += '\n\nMany file rows updated the same existing products (matched by barcode or name).';
     }
     if (result.stock_mode) {
         message += `\nStock handling: ${result.stock_mode === 'set' ? 'set on-hand qty from file' : 'add qty to existing stock'}`;

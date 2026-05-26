@@ -25,13 +25,33 @@ _NON_NUMERIC_RE = re.compile(r"[^\d.,+\-]")
 # Minimum fuzzy score to assign a column to a field (0–100 scale).
 _MIN_COLUMN_SCORE = 12.0
 
+# Headers that look like row numbers — never treat as Product.id for import.
+_LINE_NUMBER_HEADERS = frozenset(
+    {
+        "no",
+        "num",
+        "lineno",
+        "linenumber",
+        "linenum",
+        "rownumber",
+        "rownum",
+        "line",
+        "seq",
+        "sequence",
+        "sno",
+        "srno",
+        "serialno",
+        "serial",
+        "index",
+        "#",
+    }
+)
+
 _FIELD_KEYWORDS: Dict[str, Tuple[str, ...]] = {
     "id": (
         "productid",
         "itemid",
         "id",
-        "no",
-        "num",
     ),
     "name": (
         "productname",
@@ -308,6 +328,8 @@ def _score_header_for_field(header: str, field: str) -> float:
         return 0.0
     if field == "id" and nk in _SKIP_AS_NAME and nk != "id":
         return 0.0
+    if field == "id" and nk in _LINE_NUMBER_HEADERS:
+        return 0.0
 
     if _HEADER_TO_FIELD.get(nk) == field:
         return 100.0
@@ -392,17 +414,22 @@ def row_to_product(row: Dict[str, Any], column_map: Optional[ColumnMap] = None) 
     name = _cell(row, cmap.col("name"))
     code = _cell(row, cmap.col("code"))
     category = _cell(row, cmap.col("category"))
-    id_raw = _cell(row, cmap.col("id"))
+    id_col = cmap.col("id")
+    id_raw = _cell(row, id_col)
     cost_raw = _cell(row, cmap.col("cost"))
     price_raw = _cell(row, cmap.col("price"))
     stock_raw = _cell(row, cmap.col("stock"))
 
     product_id: Optional[int] = None
-    if id_raw:
-        try:
-            product_id = int(float(id_raw))
-        except (ValueError, TypeError):
-            product_id = None
+    has_product_id = False
+    if id_col and id_raw:
+        id_header = _norm_key(id_col)
+        if id_header not in _LINE_NUMBER_HEADERS:
+            try:
+                product_id = int(float(id_raw))
+                has_product_id = True
+            except (ValueError, TypeError):
+                product_id = None
 
     if not name and code:
         name = code
@@ -415,6 +442,7 @@ def row_to_product(row: Dict[str, Any], column_map: Optional[ColumnMap] = None) 
 
     return {
         "product_id": product_id,
+        "has_product_id": has_product_id,
         "name": name,
         "code": code,
         "category": category,
@@ -429,9 +457,8 @@ def row_to_product(row: Dict[str, Any], column_map: Optional[ColumnMap] = None) 
 
 
 def _dedupe_key(product: Dict[str, Any]) -> str:
-    pid = product.get("product_id")
-    if pid is not None:
-        return f"id:{pid}"
+    if product.get("has_product_id") and product.get("product_id") is not None:
+        return f"id:{product['product_id']}"
     code = normalize_barcode_for_match(str(product.get("code") or ""))
     if code:
         return f"b:{code.lower()}"
@@ -463,8 +490,9 @@ def _merge_two_products(accum: Dict[str, Any], row: Dict[str, Any]) -> None:
         accum["category"] = row["category"]
     if row.get("code") and not accum.get("code"):
         accum["code"] = row["code"]
-    if row.get("product_id") is not None:
+    if row.get("has_product_id") and row.get("product_id") is not None:
         accum["product_id"] = row["product_id"]
+        accum["has_product_id"] = True
     # Prefer longer / more descriptive name
     if len((row.get("name") or "")) > len((accum.get("name") or "")):
         accum["name"] = row["name"]
@@ -603,12 +631,8 @@ def iter_products_from_csv_bytes(content: bytes):
 
 
 def extract_products_from_csv_bytes(content: bytes) -> List[dict]:
-    """Parse CSV bytes; merge duplicate lines in-file before DB import."""
-    raw = list(iter_products_from_csv_bytes(content))
-    if not raw:
-        return []
-    merged, _ = merge_import_rows(raw)
-    return merged
+    """Parse CSV bytes (per-row dedupe happens in import_products_into_db)."""
+    return list(iter_products_from_csv_bytes(content))
 
 
 def build_products_csv_bytes(rows: List[List[Any]]) -> bytes:
