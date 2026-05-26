@@ -397,7 +397,7 @@
         <button id="btn-close-import" class="close-btn">×</button>
     </div>
     <div class="card" style="max-width:none;margin:8px 0;">
-        <p style="margin-top:0;color:rgba(255,255,255,0.9);">Upload a CSV, PDF, or Word file to import inventory.</p>
+        <p style="margin-top:0;color:rgba(255,255,255,0.9);">Upload a CSV to merge inventory (large files supported). Duplicate barcodes or product names in the file are combined; existing products are updated, not duplicated. Stock from a <strong>Stock Qty</strong> column replaces on-hand; <strong>Qty received</strong> columns add to existing stock.</p>
         <div style="margin-top:16px;">
             <input type="file" id="inventory-file-input" accept=".csv,.CSV,text/csv,text/comma-separated-values,text/plain,application/vnd.ms-excel,application/csv,.pdf,.doc,.docx" style="display:none;" onchange="if(window.handleInventoryFileInputChange){window.handleInventoryFileInputChange(this);}">
             <div id="inventory-file-label" style="display:block;padding:12px;border:2px dashed rgba(255,255,255,0.3);border-radius:8px;text-align:center;cursor:pointer;background:rgba(255,255,255,0.05);transition:background 0.2s;" onclick="
@@ -453,7 +453,7 @@
     <script src="/static/js/pos-android.js?v=3"></script>
     <script src="/static/js/plan-features.js?v=2"></script>
     <script src="/static/js/list-fetch.js?v=1"></script>
-    <script src="/static/js/admin.js?v=14"></script>
+    <script src="/static/js/admin.js?v=15"></script>
     <script src="/static/js/admin-android.js?v=5"></script>
     <script>
         // Disable 3D background on admin page for better performance

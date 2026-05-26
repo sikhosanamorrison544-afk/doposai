@@ -122,6 +122,24 @@ body.page-admin.pos-android-app .admin-mobile-only {
     color: #fff;
 }
 
+.admin-mobile-only.price-list-download-status {
+    margin: 0 12px 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    line-height: 1.35;
+    border-radius: 8px;
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+}
+.admin-mobile-only.price-list-download-status.is-success {
+    background: rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.4);
+}
+.admin-mobile-only.price-list-download-status.is-error {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
 .admin-mobile-toolbar .btn-import {
     background: #fff;
     color: #667eea;

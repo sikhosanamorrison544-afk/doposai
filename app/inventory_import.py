@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 from decimal import Decimal
 from typing import Any, Callable, Dict, List, Optional
 
@@ -11,27 +10,15 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from .inventory_csv import normalize_barcode_for_match, normalize_match_name, normalize_product_name
 from .models import InventoryMovement, Product, User
 from . import tenant_scope
 
 logger = logging.getLogger(__name__)
 
 
-def normalize_product_name(name: str) -> str:
-    return " ".join((name or "").strip().split())
-
-
 def normalize_barcode(code: str) -> Optional[str]:
-    c = (code or "").strip()
-    if not c:
-        return None
-    # Excel often exports long numeric barcodes as scientific notation (e.g. 6.98E+12)
-    if re.match(r"^\d+\.?\d*[eE][+\-]?\d+$", c):
-        try:
-            c = str(int(float(c)))
-        except (ValueError, OverflowError):
-            pass
-    return c if c else None
+    return normalize_barcode_for_match(code)
 
 
 IMPORT_COMMIT_BATCH = int(os.environ.get("IMPORT_COMMIT_BATCH", "500"))
@@ -54,13 +41,20 @@ class ProductIndex:
             idx.register(product)
         return idx
 
+    def reload(self, products: List[Product]) -> None:
+        self.by_id.clear()
+        self.by_barcode.clear()
+        self.by_name_lower.clear()
+        for product in products:
+            self.register(product)
+
     def register(self, product: Product) -> None:
         if product.id is not None:
             self.by_id[int(product.id)] = product
         barcode = normalize_barcode(str(product.barcode or ""))
         if barcode:
-            self.by_barcode[barcode] = product
-        key = normalize_product_name(product.name).lower()
+            self.by_barcode[barcode.lower()] = product
+        key = normalize_match_name(product.name)
         if key:
             bucket = self.by_name_lower.setdefault(key, [])
             if product not in bucket:
@@ -71,13 +65,13 @@ class ProductIndex:
 
     def find(self, name: str, barcode: Optional[str]) -> Optional[Product]:
         if barcode:
-            hit = self.by_barcode.get(barcode)
+            hit = self.by_barcode.get(barcode.lower())
             if hit:
                 return hit
         clean = normalize_product_name(name)
         if not clean:
             return None
-        matches = self.by_name_lower.get(clean.lower(), [])
+        matches = self.by_name_lower.get(normalize_match_name(name), [])
         if not matches:
             return None
         if len(matches) == 1:
@@ -123,11 +117,11 @@ def find_existing_product(
 
 
 def _pending_name_key(name: str) -> str:
-    return f"n:{normalize_product_name(name).lower()}"
+    return f"n:{normalize_match_name(name)}"
 
 
 def _pending_barcode_key(barcode: str) -> str:
-    return f"b:{barcode}"
+    return f"b:{barcode.lower()}"
 
 
 def _register_pending(
@@ -199,7 +193,7 @@ def merge_product_from_import(
     if barcode and not existing.barcode:
         conflict = None
         if product_index:
-            other = product_index.by_barcode.get(barcode)
+            other = product_index.by_barcode.get(barcode.lower())
             if other and other.id != existing.id:
                 conflict = other
         else:
@@ -390,73 +384,64 @@ def import_products_into_db(
             **kwargs,
         )
 
+    def _commit_batch() -> None:
+        nonlocal rows_since_commit
+        if rows_since_commit <= 0:
+            return
+        db.commit()
+        rows_since_commit = 0
+        product_index.reload(pq.all())
+        pending.clear()
+
     for row_num, product_data in enumerate(products_data, start=1):
         try:
-            product_name = normalize_product_name(product_data.get("name", ""))
-            if not product_name:
-                raise ValueError("Missing product name")
+            with db.begin_nested():
+                product_name = normalize_product_name(product_data.get("name", ""))
+                if not product_name:
+                    raise ValueError("Missing product name")
 
-            product_code = normalize_barcode(str(product_data.get("code", "") or ""))
-            category_name = (product_data.get("category") or "").strip()
-            avg_cost = product_data.get("cost", Decimal("0.00"))
-            selling_price = product_data.get("price", Decimal("0.00"))
-            has_cost = bool(product_data.get("has_cost"))
-            has_price = bool(product_data.get("has_price"))
-            has_stock = bool(product_data.get("has_stock"))
-            stock_mode = str(product_data.get("stock_mode") or "add")
-            in_hand_stock = max(0.0, float(product_data.get("stock", 0.0)))
-            product_id = product_data.get("product_id")
-            category_id = _resolve_category_id(
-                db, current_admin, category_name, category_ids
-            )
-
-            pending_id = _lookup_pending(pending, product_name, product_code)
-
-            if product_id is not None:
-                by_id = product_index.get(int(product_id))
-                if by_id:
-                    _merge(
-                        by_id,
-                        name=product_name,
-                        category_id=category_id,
-                        avg_cost=avg_cost,
-                        selling_price=selling_price,
-                        has_cost=has_cost,
-                        has_price=has_price,
-                        has_stock=has_stock,
-                        stock_mode=stock_mode,
-                        stock_qty=in_hand_stock,
-                        barcode=product_code,
-                    )
-                    _finish_row(by_id, product_name, product_code)
-                    stats["updated"] += 1
-                else:
-                    raise ValueError(f"Product ID {product_id} not found")
-            elif pending_id is not None:
-                existing = product_index.get(pending_id)
-                if not existing:
-                    raise ValueError("Pending product row missing from database")
-                _merge(
-                    existing,
-                    name=product_name,
-                    category_id=category_id,
-                    avg_cost=avg_cost,
-                    selling_price=selling_price,
-                    has_cost=has_cost,
-                    has_price=has_price,
-                    has_stock=has_stock,
-                    stock_mode=stock_mode,
-                    stock_qty=in_hand_stock,
-                    barcode=product_code,
+                product_code = normalize_barcode(str(product_data.get("code", "") or ""))
+                category_name = (product_data.get("category") or "").strip()
+                avg_cost = product_data.get("cost", Decimal("0.00"))
+                selling_price = product_data.get("price", Decimal("0.00"))
+                has_cost = bool(product_data.get("has_cost"))
+                has_price = bool(product_data.get("has_price"))
+                has_stock = bool(product_data.get("has_stock"))
+                stock_mode = str(product_data.get("stock_mode") or "add")
+                in_hand_stock = max(0.0, float(product_data.get("stock", 0.0)))
+                product_id = product_data.get("product_id")
+                category_id = _resolve_category_id(
+                    db, current_admin, category_name, category_ids
                 )
-                _finish_row(existing, product_name, product_code)
-                stats["merged_rows"] += 1
-                stats["updated"] += 1
-            else:
-                existing_product = product_index.find(product_name, product_code)
-                if existing_product:
+
+                pending_id = _lookup_pending(pending, product_name, product_code)
+
+                if product_id is not None:
+                    by_id = product_index.get(int(product_id))
+                    if by_id:
+                        _merge(
+                            by_id,
+                            name=product_name,
+                            category_id=category_id,
+                            avg_cost=avg_cost,
+                            selling_price=selling_price,
+                            has_cost=has_cost,
+                            has_price=has_price,
+                            has_stock=has_stock,
+                            stock_mode=stock_mode,
+                            stock_qty=in_hand_stock,
+                            barcode=product_code,
+                        )
+                        _finish_row(by_id, product_name, product_code)
+                        stats["updated"] += 1
+                    else:
+                        raise ValueError(f"Product ID {product_id} not found")
+                elif pending_id is not None:
+                    existing = product_index.get(pending_id)
+                    if not existing:
+                        raise ValueError("Pending product row missing from database")
                     _merge(
-                        existing_product,
+                        existing,
                         name=product_name,
                         category_id=category_id,
                         avg_cost=avg_cost,
@@ -468,18 +453,58 @@ def import_products_into_db(
                         stock_qty=in_hand_stock,
                         barcode=product_code,
                     )
-                    _finish_row(existing_product, product_name, product_code)
+                    _finish_row(existing, product_name, product_code)
+                    stats["merged_rows"] += 1
                     stats["updated"] += 1
                 else:
-                    barcode = product_code
-                    merged = False
-                    if barcode:
-                        conflict = product_index.by_barcode.get(barcode)
-                        if conflict and conflict.name.strip().lower() != product_name.lower():
-                            by_name = product_index.find(product_name, None)
-                            if by_name:
+                    existing_product = product_index.find(product_name, product_code)
+                    if existing_product:
+                        _merge(
+                            existing_product,
+                            name=product_name,
+                            category_id=category_id,
+                            avg_cost=avg_cost,
+                            selling_price=selling_price,
+                            has_cost=has_cost,
+                            has_price=has_price,
+                            has_stock=has_stock,
+                            stock_mode=stock_mode,
+                            stock_qty=in_hand_stock,
+                            barcode=product_code,
+                        )
+                        _finish_row(existing_product, product_name, product_code)
+                        stats["updated"] += 1
+                    else:
+                        barcode = product_code
+                        merged = False
+                        if barcode:
+                            conflict = product_index.by_barcode.get(barcode.lower())
+                            if conflict and normalize_match_name(conflict.name) != normalize_match_name(
+                                product_name
+                            ):
+                                by_name = product_index.find(product_name, None)
+                                if by_name:
+                                    _merge(
+                                        by_name,
+                                        name=product_name,
+                                        category_id=category_id,
+                                        avg_cost=avg_cost,
+                                        selling_price=selling_price,
+                                        has_cost=has_cost,
+                                        has_price=has_price,
+                                        has_stock=has_stock,
+                                        stock_mode=stock_mode,
+                                        stock_qty=in_hand_stock,
+                                        barcode=None,
+                                    )
+                                    _finish_row(by_name, product_name, product_code)
+                                    stats["updated"] += 1
+                                    merged = True
+                                else:
+                                    barcode = None
+                            elif conflict:
                                 _merge(
-                                    by_name,
+                                    conflict,
                                     name=product_name,
                                     category_id=category_id,
                                     avg_cost=avg_cost,
@@ -489,87 +514,65 @@ def import_products_into_db(
                                     has_stock=has_stock,
                                     stock_mode=stock_mode,
                                     stock_qty=in_hand_stock,
-                                    barcode=None,
+                                    barcode=barcode,
                                 )
-                                _finish_row(by_name, product_name, product_code)
+                                _finish_row(conflict, product_name, product_code)
                                 stats["updated"] += 1
                                 merged = True
-                            else:
-                                barcode = None
-                        elif conflict:
-                            _merge(
-                                conflict,
-                                name=product_name,
-                                category_id=category_id,
-                                avg_cost=avg_cost,
-                                selling_price=selling_price,
-                                has_cost=has_cost,
-                                has_price=has_price,
-                                has_stock=has_stock,
-                                stock_mode=stock_mode,
-                                stock_qty=in_hand_stock,
-                                barcode=barcode,
-                            )
-                            _finish_row(conflict, product_name, product_code)
-                            stats["updated"] += 1
-                            merged = True
 
-                    if not merged:
-                        again = product_index.find(product_name, None)
-                        if again:
-                            _merge(
-                                again,
-                                name=product_name,
-                                category_id=category_id,
-                                avg_cost=avg_cost,
-                                selling_price=selling_price,
-                                has_cost=has_cost,
-                                has_price=has_price,
-                                has_stock=has_stock,
-                                stock_mode=stock_mode,
-                                stock_qty=in_hand_stock,
-                                barcode=product_code if not again.barcode else None,
-                            )
-                            _finish_row(again, product_name, product_code)
-                            stats["updated"] += 1
-                        else:
-                            created = _create_product_from_import(
-                                db,
-                                tenant_id=tenant_id,
-                                name=product_name,
-                                barcode=barcode,
-                                category_id=category_id,
-                                avg_cost=avg_cost,
-                                selling_price=selling_price,
-                                has_cost=has_cost,
-                                has_price=has_price,
-                                in_hand_stock=in_hand_stock,
-                                record_movements=record_movements,
-                            )
-                            if created is None:
-                                raise ValueError(
-                                    f"Could not create '{product_name}' "
-                                    "(duplicate barcode or database error)"
+                        if not merged:
+                            again = product_index.find(product_name, None)
+                            if again:
+                                _merge(
+                                    again,
+                                    name=product_name,
+                                    category_id=category_id,
+                                    avg_cost=avg_cost,
+                                    selling_price=selling_price,
+                                    has_cost=has_cost,
+                                    has_price=has_price,
+                                    has_stock=has_stock,
+                                    stock_mode=stock_mode,
+                                    stock_qty=in_hand_stock,
+                                    barcode=product_code if not again.barcode else None,
                                 )
-                            _finish_row(created, product_name, product_code)
-                            stats["created"] += 1
+                                _finish_row(again, product_name, product_code)
+                                stats["updated"] += 1
+                            else:
+                                created = _create_product_from_import(
+                                    db,
+                                    tenant_id=tenant_id,
+                                    name=product_name,
+                                    barcode=barcode,
+                                    category_id=category_id,
+                                    avg_cost=avg_cost,
+                                    selling_price=selling_price,
+                                    has_cost=has_cost,
+                                    has_price=has_price,
+                                    in_hand_stock=in_hand_stock,
+                                    record_movements=record_movements,
+                                )
+                                if created is None:
+                                    raise ValueError(
+                                        f"Could not create '{product_name}' "
+                                        "(duplicate barcode or database error)"
+                                    )
+                                _finish_row(created, product_name, product_code)
+                                stats["created"] += 1
 
             rows_since_commit += 1
             if rows_since_commit >= IMPORT_COMMIT_BATCH:
-                db.commit()
-                rows_since_commit = 0
+                _commit_batch()
                 if progress_callback:
                     progress_callback(row_num, total_rows)
             elif progress_callback and row_num % IMPORT_PROGRESS_EVERY == 0:
                 progress_callback(row_num, total_rows)
         except Exception as e:
-            db.rollback()
-            rows_since_commit = 0
             _record_import_error(stats, row_num, str(e))
             logger.error("Import row %s failed: %s", row_num, e, exc_info=True)
 
     if rows_since_commit > 0:
-        db.commit()
+        _commit_batch()
 
     if progress_callback:
         progress_callback(total_rows, total_rows)

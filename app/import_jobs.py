@@ -241,12 +241,11 @@ def _run_import_job(job_id: str) -> None:
 
         products_data, import_meta = _load_products_for_job(row)
 
-        import os
+        from .startup_config import MAX_IMPORT_ROWS
 
-        max_import_rows = int(os.environ.get("MAX_IMPORT_ROWS", "10000"))
-        if len(products_data) > max_import_rows:
+        if len(products_data) > MAX_IMPORT_ROWS:
             raise ValueError(
-                f"File has {len(products_data)} product rows; maximum is {max_import_rows}. "
+                f"File has {len(products_data)} product rows; maximum is {MAX_IMPORT_ROWS}. "
                 "Split the file into smaller CSVs."
             )
         if not products_data:

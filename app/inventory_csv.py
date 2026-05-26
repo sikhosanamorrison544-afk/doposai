@@ -260,6 +260,32 @@ def parse_float(value: Any) -> float:
         return 0.0
 
 
+def normalize_product_name(name: str) -> str:
+    return " ".join((name or "").strip().split())
+
+
+def normalize_match_name(name: str) -> str:
+    """Normalized key for duplicate detection (case/punctuation/spacing insensitive)."""
+    n = normalize_product_name(name).lower()
+    if not n:
+        return ""
+    n = re.sub(r"[^\w]", "", n, flags=re.UNICODE)
+    return n
+
+
+def normalize_barcode_for_match(code: str) -> Optional[str]:
+    """Normalize barcode/SKU for matching (Excel scientific notation, trim)."""
+    c = (code or "").strip()
+    if not c:
+        return None
+    if re.match(r"^\d+\.?\d*[eE][+\-]?\d+$", c):
+        try:
+            c = str(int(float(c)))
+        except (ValueError, OverflowError):
+            pass
+    return c
+
+
 @dataclass
 class ColumnMap:
     """Maps logical import fields to actual CSV column headers."""
@@ -406,17 +432,13 @@ def _dedupe_key(product: Dict[str, Any]) -> str:
     pid = product.get("product_id")
     if pid is not None:
         return f"id:{pid}"
-    code = (product.get("code") or "").strip()
+    code = normalize_barcode_for_match(str(product.get("code") or ""))
     if code:
-        nk = _norm_key(code)
-        if re.match(r"^\d+\.?\d*[eE][+\-]?\d+$", code):
-            try:
-                code = str(int(float(code)))
-            except (ValueError, OverflowError):
-                code = nk
         return f"b:{code.lower()}"
-    name = " ".join((product.get("name") or "").strip().split()).lower()
-    return f"n:{name}"
+    match_name = normalize_match_name(str(product.get("name") or ""))
+    if match_name:
+        return f"n:{match_name}"
+    return "n:"
 
 
 def _merge_two_products(accum: Dict[str, Any], row: Dict[str, Any]) -> None:
@@ -548,27 +570,28 @@ def parse_csv_import_meta(content: bytes) -> Dict[str, Any]:
     return {"columns_mapped": display, "stock_mode": cmap.stock_mode}
 
 
-def extract_products_from_csv_bytes(content: bytes) -> List[dict]:
-    """Parse CSV bytes into product dicts ready for DB import (merge done in import layer)."""
+def iter_products_from_csv_bytes(content: bytes):
+    """
+    Stream-parse CSV rows into product dicts (memory-efficient for large files).
+    Yields one product dict per valid data row.
+    """
     content_str = _decode_csv_text(content)
     if not content_str.strip():
-        return []
+        return
 
     dialect = _detect_csv_dialect(content_str)
     lines = content_str.splitlines()
     header_idx = _find_header_row(lines, dialect)
     body = "\n".join(lines[header_idx:])
     if not body.strip():
-        return []
+        return
 
     reader = csv.DictReader(io.StringIO(body), dialect=dialect)
     fieldnames = list(reader.fieldnames or [])
     if not fieldnames:
-        return []
+        return
 
     column_map = infer_column_map(fieldnames)
-    products: List[dict] = []
-
     for row in reader:
         if not row:
             continue
@@ -576,9 +599,16 @@ def extract_products_from_csv_bytes(content: bytes) -> List[dict]:
             continue
         product = row_to_product(row, column_map)
         if product:
-            products.append(product)
+            yield product
 
-    return products
+
+def extract_products_from_csv_bytes(content: bytes) -> List[dict]:
+    """Parse CSV bytes; merge duplicate lines in-file before DB import."""
+    raw = list(iter_products_from_csv_bytes(content))
+    if not raw:
+        return []
+    merged, _ = merge_import_rows(raw)
+    return merged
 
 
 def build_products_csv_bytes(rows: List[List[Any]]) -> bytes:

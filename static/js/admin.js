@@ -2208,19 +2208,21 @@ async function pollImportJob(jobId, options) {
         if (data.status === 'processing' || data.status === 'queued') {
             const total = data.total_rows || totalHint || '?';
             const done = data.processed || 0;
+            const parsing = Number(total) === 0 && done === 0;
             const pct =
-                total && total !== '?' && Number(total) > 0
+                !parsing && total && total !== '?' && Number(total) > 0
                     ? ' — ' + Math.min(100, Math.round((Number(done) / Number(total)) * 100)) + '%'
                     : '';
             if (messageEl) {
-                messageEl.textContent =
-                    'Import running in background… (' +
-                    done +
-                    '/' +
-                    total +
-                    ' rows' +
-                    pct +
-                    '). Keep this page open.';
+                messageEl.textContent = parsing
+                    ? 'Parsing CSV and merging duplicate lines… Keep this page open.'
+                    : 'Import running in background… (' +
+                      done +
+                      '/' +
+                      total +
+                      ' rows' +
+                      pct +
+                      '). Keep this page open.';
                 messageEl.style.color = 'rgba(255, 255, 255, 0.9)';
             }
             await importJobDelay(2000);

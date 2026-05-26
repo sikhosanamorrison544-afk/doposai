@@ -983,7 +983,11 @@ async def import_inventory(
     from . import import_jobs
     from . import tenant_scope
     from .inventory_upload import parse_inventory_upload
-    from .startup_config import IMPORT_ASYNC_MIN_BYTES
+    from .startup_config import (
+        IMPORT_ASYNC_MIN_BYTES,
+        MAX_IMPORT_ROWS,
+        SYNC_IMPORT_MAX_ROWS,
+    )
 
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
@@ -992,8 +996,9 @@ async def import_inventory(
     content = await file.read()
     tenant_id = tenant_scope.tenant_id_for_row(current_admin)
 
-    # Large uploads: persist bytes and return 202 before CSV/PDF parsing (avoids gateway timeout).
-    defer_parse = len(content) >= IMPORT_ASYNC_MIN_BYTES or file_ext in (
+    # CSV: always queue background job (parse + merge + import) — robust for large files.
+    # Other formats: defer parse when large or non-tabular.
+    defer_parse = file_ext == ".csv" or len(content) >= IMPORT_ASYNC_MIN_BYTES or file_ext in (
         ".pdf",
         ".doc",
         ".docx",
@@ -1035,17 +1040,16 @@ async def import_inventory(
     if not products_data:
         raise HTTPException(status_code=400, detail="No products found in file")
 
-    max_import_rows = int(os.environ.get("MAX_IMPORT_ROWS", "10000"))
-    if len(products_data) > max_import_rows:
+    if len(products_data) > MAX_IMPORT_ROWS:
         raise HTTPException(
             status_code=400,
             detail=(
-                f"File has {len(products_data)} product rows; maximum is {max_import_rows}. "
+                f"File has {len(products_data)} product rows; maximum is {MAX_IMPORT_ROWS}. "
                 "Split the file into smaller CSVs and import each one."
             ),
         )
 
-    sync_max = int(os.environ.get("SYNC_IMPORT_MAX_ROWS", "15"))
+    sync_max = SYNC_IMPORT_MAX_ROWS
     if len(products_data) > sync_max:
         job_id = import_jobs.create_job(
             db,

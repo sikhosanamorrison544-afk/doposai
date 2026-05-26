@@ -1874,6 +1874,54 @@ td:nth-child(5) {
         font-size: 11px !important;
         padding: 4px 8px !important;
     }
+    body.page-admin .price-list-download-status {
+        font-size: 11px !important;
+    }
+
+body.page-admin .price-list-download-status {
+    flex: 0 0 100%;
+    width: 100%;
+    margin: 0 0 4px 0;
+    padding: 6px 10px;
+    font-size: 13px;
+    line-height: 1.35;
+    border-radius: 8px;
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    color: inherit;
+    box-sizing: border-box;
+}
+body.page-admin .price-list-download-status.is-success {
+    background: rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.4);
+}
+body.page-admin .price-list-download-status.is-error {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.4);
+}
+body.page-admin .price-list-download-status .price-list-progress-track {
+    margin-top: 6px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+}
+body.page-admin .price-list-download-status .price-list-progress-bar {
+    height: 100%;
+    width: 35%;
+    border-radius: 999px;
+    background: rgba(59, 130, 246, 0.85);
+    animation: price-list-progress-indeterminate 1.1s ease-in-out infinite;
+}
+@keyframes price-list-progress-indeterminate {
+    0% { transform: translateX(-120%); }
+    100% { transform: translateX(320%); }
+}
+body.page-admin #btn-price-list-pdf.is-loading,
+body.page-admin #btn-price-list-pdf-mobile.is-loading {
+    opacity: 0.85;
+    cursor: wait;
+}
     body.page-admin .product-form-card {
         padding: 6px 8px !important;
         margin: 2px 0 !important;
