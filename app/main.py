@@ -3,6 +3,7 @@ import io
 import logging
 import os
 import tempfile
+import uuid
 from datetime import date, datetime, timedelta
 from typing import Optional as OptionalType
 from decimal import Decimal, InvalidOperation
@@ -985,6 +986,7 @@ async def import_inventory(
     from .inventory_upload import parse_inventory_upload
     from .startup_config import (
         IMPORT_ASYNC_MIN_BYTES,
+        IMPORT_MAX_UPLOAD_BYTES,
         MAX_IMPORT_ROWS,
         SYNC_IMPORT_MAX_ROWS,
     )
@@ -993,37 +995,68 @@ async def import_inventory(
         raise HTTPException(status_code=400, detail="No file provided")
 
     file_ext = Path(file.filename).suffix.lower()
-    content = await file.read()
     tenant_id = tenant_scope.tenant_id_for_row(current_admin)
 
-    # CSV: always queue background job (parse + merge + import) — robust for large files.
-    # Other formats: defer parse when large or non-tabular.
-    defer_parse = file_ext == ".csv" or len(content) >= IMPORT_ASYNC_MIN_BYTES or file_ext in (
+    job_id = str(uuid.uuid4())
+    import_jobs.ensure_import_temp_dir()
+    temp_path = os.path.join(import_jobs.IMPORT_TEMP_DIR, f"{job_id}{file_ext or '.csv'}")
+    total_bytes = 0
+    chunk_size = 1024 * 1024
+    try:
+        with open(temp_path, "wb") as out:
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                total_bytes += len(chunk)
+                if total_bytes > IMPORT_MAX_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=(
+                            f"File too large (max {IMPORT_MAX_UPLOAD_BYTES // (1024 * 1024)} MB). "
+                            "Split into smaller CSV files."
+                        ),
+                    )
+                out.write(chunk)
+    except HTTPException:
+        import_jobs.remove_temp_file(temp_path)
+        raise
+    except Exception as e:
+        import_jobs.remove_temp_file(temp_path)
+        raise HTTPException(status_code=400, detail=f"Could not read upload: {e}") from e
+
+    if total_bytes == 0:
+        import_jobs.remove_temp_file(temp_path)
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    # CSV / large / PDF: queue background job (parse + merge + import on disk — no worker blocking).
+    defer_parse = file_ext == ".csv" or total_bytes >= IMPORT_ASYNC_MIN_BYTES or file_ext in (
         ".pdf",
         ".doc",
         ".docx",
     )
     if defer_parse:
-        job_id = import_jobs.create_job_from_bytes(
+        queued_id = import_jobs.create_job_from_path(
             db,
             tenant_id=tenant_id,
             user_id=current_admin.id,
             file_name=file.filename,
             file_ext=file_ext,
-            content=content,
+            file_path=temp_path,
+            size_bytes=total_bytes,
         )
-        import_jobs.kick_job(job_id)
+        import_jobs.kick_job(queued_id)
         logging.info(
             "Import job %s accepted (deferred parse, %s bytes) for user %s",
-            job_id,
-            len(content),
+            queued_id,
+            total_bytes,
             current_admin.id,
         )
         return JSONResponse(
             status_code=202,
             content={
                 "status": "queued",
-                "job_id": job_id,
+                "job_id": queued_id,
                 "total_rows": 0,
                 "message": (
                     "Import queued. Parsing and loading products in the background — "
@@ -1031,6 +1064,12 @@ async def import_inventory(
                 ),
             },
         )
+
+    try:
+        with open(temp_path, "rb") as f:
+            content = f.read()
+    finally:
+        import_jobs.remove_temp_file(temp_path)
 
     try:
         products_data, import_meta = parse_inventory_upload(content, file_ext)
@@ -1103,8 +1142,10 @@ async def import_inventory_status(
     """Poll background inventory import job status."""
     from . import import_jobs
 
-    import_jobs.kick_job(job_id)
     job = import_jobs.get_job(db, job_id)
+    if job and job.get("status") == "queued":
+        import_jobs.kick_job(job_id)
+        job = import_jobs.get_job(db, job_id)
     if not job or not import_jobs.job_visible_to_user(job, current_admin):
         raise HTTPException(status_code=404, detail="Import job not found")
 

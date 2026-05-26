@@ -17,3 +17,5 @@ IMPORT_ASYNC_MIN_BYTES = int(os.environ.get("IMPORT_ASYNC_MIN_BYTES", "4096"))
 # Inventory import limits (large files run in background jobs).
 MAX_IMPORT_ROWS = int(os.environ.get("MAX_IMPORT_ROWS", "100000"))
 SYNC_IMPORT_MAX_ROWS = int(os.environ.get("SYNC_IMPORT_MAX_ROWS", "0"))
+IMPORT_MAX_UPLOAD_BYTES = int(os.environ.get("IMPORT_MAX_UPLOAD_BYTES", "52428800"))  # 50 MB
+IMPORT_TEMP_DIR = os.environ.get("IMPORT_TEMP_DIR", "/tmp/pos-imports")

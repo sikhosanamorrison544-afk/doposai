@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 import uuid
 from datetime import datetime, timedelta
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from .database import SessionLocal
 from .models import ImportJob, User
+from .startup_config import IMPORT_TEMP_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +67,62 @@ def _job_to_dict(job: ImportJob) -> Dict[str, Any]:
     return out
 
 
+def ensure_import_temp_dir() -> str:
+    os.makedirs(IMPORT_TEMP_DIR, exist_ok=True)
+    return IMPORT_TEMP_DIR
+
+
+def remove_temp_file(path: Optional[str]) -> None:
+    if not path:
+        return
+    try:
+        if os.path.isfile(path):
+            os.remove(path)
+    except OSError as e:
+        logger.warning("Could not remove import temp file %s: %s", path, e)
+
+
+def create_job_from_path(
+    db: Session,
+    *,
+    tenant_id: Optional[int],
+    user_id: int,
+    file_name: str,
+    file_ext: str,
+    file_path: str,
+    size_bytes: int,
+    job_id: Optional[str] = None,
+) -> str:
+    """Queue import from a temp file on disk (avoids huge DB blobs on upload)."""
+    job_id = job_id or str(uuid.uuid4())
+    row = ImportJob(
+        id=job_id,
+        tenant_id=tenant_id,
+        user_id=user_id,
+        status="queued",
+        total_rows=0,
+        processed=0,
+        file_name=file_name,
+        file_ext=file_ext,
+        file_bytes=None,
+        payload_json=json.dumps(
+            {"file_path": file_path, "size_bytes": size_bytes, "meta": {}},
+            default=_json_default,
+        ),
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(row)
+    db.commit()
+    logger.info(
+        "Import job %s queued from disk %s (%s bytes)",
+        job_id,
+        file_name,
+        size_bytes,
+    )
+    return job_id
+
+
 def create_job_from_bytes(
     db: Session,
     *,
@@ -75,6 +133,24 @@ def create_job_from_bytes(
     content: bytes,
 ) -> str:
     """Queue import from raw file bytes; parsing runs in the background worker."""
+    spill = int(os.environ.get("IMPORT_SPILL_TO_DISK_BYTES", "262144"))
+    if len(content) > spill:
+        ensure_import_temp_dir()
+        job_id = str(uuid.uuid4())
+        path = os.path.join(IMPORT_TEMP_DIR, f"{job_id}{file_ext or '.csv'}")
+        with open(path, "wb") as f:
+            f.write(content)
+        return create_job_from_path(
+            db,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            file_name=file_name,
+            file_ext=file_ext,
+            file_path=path,
+            size_bytes=len(content),
+            job_id=job_id,
+        )
+
     job_id = str(uuid.uuid4())
     row = ImportJob(
         id=job_id,
@@ -221,14 +297,31 @@ def _update_progress(job_id: str, processed: int, total: int) -> None:
 
 
 def _load_products_for_job(row: ImportJob) -> tuple[List[dict], dict]:
-    if row.file_bytes:
-        from .inventory_upload import parse_inventory_upload
+    from .inventory_upload import parse_inventory_upload
 
+    if row.payload_json:
+        try:
+            data = json.loads(row.payload_json)
+        except json.JSONDecodeError:
+            data = {}
+        fpath = data.get("file_path")
+        if fpath and os.path.isfile(fpath):
+            try:
+                with open(fpath, "rb") as f:
+                    content = f.read()
+            finally:
+                remove_temp_file(fpath)
+            ext = row.file_ext or ".csv"
+            products_data, import_meta = parse_inventory_upload(content, ext)
+            return products_data, import_meta
+        if data.get("products") is not None:
+            return _deserialize_payload(row.payload_json)
+
+    if row.file_bytes:
         ext = row.file_ext or ".csv"
         products_data, import_meta = parse_inventory_upload(row.file_bytes, ext)
         return products_data, import_meta
-    if row.payload_json:
-        return _deserialize_payload(row.payload_json)
+
     raise RuntimeError("Import job has no file or payload")
 
 
@@ -253,6 +346,14 @@ def _run_import_job(job_id: str) -> None:
 
         row.total_rows = len(products_data)
         row.file_bytes = None
+        if row.payload_json:
+            try:
+                meta = json.loads(row.payload_json)
+                if meta.get("file_path"):
+                    meta.pop("file_path", None)
+                    row.payload_json = json.dumps(meta, default=_json_default)
+            except json.JSONDecodeError:
+                pass
         row.updated_at = datetime.utcnow()
         db.commit()
 

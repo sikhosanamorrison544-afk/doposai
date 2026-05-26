@@ -45,19 +45,20 @@ fi
 
 PORT="${PORT:-8000}"
 WORKERS="${WEB_CONCURRENCY:-2}"
+GUNICORN_TIMEOUT="${GUNICORN_TIMEOUT:-180}"
 
 if [ "${USE_UVICORN_ONLY:-0}" = "1" ]; then
   echo "[start] uvicorn only (USE_UVICORN_ONLY=1) on 0.0.0.0:${PORT}"
   exec uvicorn app.main:app --host 0.0.0.0 --port "$PORT" --proxy-headers --forwarded-allow-ips='*'
 fi
 
-echo "[start] gunicorn + uvicorn workers=${WORKERS} on 0.0.0.0:${PORT}"
+echo "[start] gunicorn + uvicorn workers=${WORKERS} timeout=${GUNICORN_TIMEOUT}s on 0.0.0.0:${PORT}"
 exec gunicorn app.main:app \
   -k uvicorn.workers.UvicornWorker \
   -w "$WORKERS" \
   -b "0.0.0.0:${PORT}" \
-  --timeout 120 \
-  --graceful-timeout 30 \
+  --timeout "$GUNICORN_TIMEOUT" \
+  --graceful-timeout 60 \
   --keep-alive 5 \
   --forwarded-allow-ips='*' \
   --access-logfile - \

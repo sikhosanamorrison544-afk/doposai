@@ -67,6 +67,11 @@ services:
         value: "14"
       - key: OFFLINE_GRACE_HOURS
         value: "72"
+      # Gunicorn worker timeout (CSV import upload + large sync).
+      - key: GUNICORN_TIMEOUT
+        value: "180"
+      - key: WEB_CONCURRENCY
+        value: "2"
 
       # SMTP — required for password-reset emails (/auth/forgot-password).
       # Without these the reset endpoint still issues a valid token but only

@@ -31,9 +31,9 @@ class PosAndroidImportBridge(
     private var pendingFileName: String? = null
 
     private val http = OkHttpClient.Builder()
-        .connectTimeout(60, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
-        .writeTimeout(120, TimeUnit.SECONDS)
+        .connectTimeout(90, TimeUnit.SECONDS)
+        .readTimeout(300, TimeUnit.SECONDS)
+        .writeTimeout(300, TimeUnit.SECONDS)
         .build()
 
     private val uploadExecutor = Executors.newSingleThreadExecutor()
