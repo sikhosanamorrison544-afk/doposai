@@ -203,6 +203,9 @@ def feature_for_api_path(path: str) -> Optional[Feature]:
         return Feature.BACKUP_SYNC
     if path.startswith("/api/products/import"):
         return Feature.PRODUCT_IMPORT
+    # Price list PDF is available on all plans (basic store operation).
+    if path.startswith("/api/products/export/price-list"):
+        return None
     if path.startswith("/api/products/export"):
         return Feature.PRODUCT_EXPORT
     if path.startswith("/api/enterprise"):

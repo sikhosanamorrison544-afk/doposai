@@ -578,12 +578,18 @@ async def export_price_list_pdf(
         .all()
     )
     content = build_price_list_pdf(store_name, products)
+    if not content or not content.startswith(b"%PDF"):
+        raise HTTPException(status_code=500, detail="Failed to generate price list PDF")
     filename = f"price_list_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
 
     return Response(
         content=content,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(len(content)),
+            "Cache-Control": "no-store",
+        },
     )
 
 

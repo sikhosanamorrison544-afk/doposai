@@ -76,6 +76,7 @@
         <button type="button" id="btn-import-inventory-mobile" class="btn-import">📥 Import CSV</button>
         <button type="button" id="btn-price-list-pdf-mobile" class="btn-import">📄 Price List</button>
     </div>
+    <div id="price-list-download-status-mobile" class="price-list-download-status admin-mobile-only" role="status" aria-live="polite" hidden></div>
     <div class="admin-mobile-search-wrap">
         <input type="search" id="admin-product-search" class="admin-mobile-search" placeholder="Search products…" autocomplete="off" enterkeyhint="search">
     </div>
@@ -129,7 +130,7 @@
     </div>
     <main class="pos-layout">
         <section class="left" style="display:flex;flex-direction:column;height:100%;">
-            <div style="display:flex;justify-content:flex-start;align-items:center;margin-bottom:8px;gap:8px;flex-shrink:0;position:relative;">
+            <div style="display:flex;flex-wrap:wrap;justify-content:flex-start;align-items:center;margin-bottom:8px;gap:8px;flex-shrink:0;position:relative;">
                 <div style="display:flex;gap:8px;align-items:center;">
                     <button id="btn-show-product-form" class="primary small">➕ Add Product</button>
                     <button id="btn-import-inventory" class="primary small" onclick="
@@ -163,6 +164,7 @@
                 ">📥 Import Inventory</button>
                     <button type="button" id="btn-price-list-pdf" class="primary small">📄 Price List</button>
                 </div>
+                <div id="price-list-download-status" class="price-list-download-status" role="status" aria-live="polite" hidden></div>
                 <h2 style="margin:0;position:absolute;left:50%;transform:translateX(-50%);font-size:26px;">Products</h2>
             </div>
             <div class="card product-form-card" id="product-form-card" style="max-width:none;margin:4px 0;padding:8px 12px;display:none;flex-shrink:0;">
@@ -449,9 +451,9 @@
         })();
     </script>
     <script src="/static/js/pos-android.js?v=3"></script>
-    <script src="/static/js/plan-features.js?v=1"></script>
+    <script src="/static/js/plan-features.js?v=2"></script>
     <script src="/static/js/list-fetch.js?v=1"></script>
-    <script src="/static/js/admin.js?v=12"></script>
+    <script src="/static/js/admin.js?v=14"></script>
     <script src="/static/js/admin-android.js?v=5"></script>
     <script>
         // Disable 3D background on admin page for better performance

@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.webkit.WebView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.pos.mobile.ui.PosAndroidDownloadBridge
 import com.pos.mobile.ui.PosAndroidImportBridge
 import com.pos.mobile.ui.PosAndroidOfflineBridge
 import com.pos.mobile.ui.PosAndroidSettingsBridge
@@ -34,6 +35,10 @@ object WebViewPrintSupport {
         webView.addJavascriptInterface(
             PosAndroidSettingsBridge(activity.applicationContext),
             "PosAndroidSettings",
+        )
+        webView.addJavascriptInterface(
+            PosAndroidDownloadBridge(activity),
+            "PosAndroidDownload",
         )
     }
 
@@ -82,6 +87,18 @@ object WebViewPrintSupport {
                             var t = transport ? String(transport) : '';
                             return JSON.parse(PosAndroidPrint.printWithdrawalReceipt(JSON.stringify(opts || {}), t));
                         } catch (e) { return { ok: false, error: String(e) }; }
+                    }
+                };
+                window.posNativeDownload = {
+                    savePdf: function(base64, filename) {
+                        try {
+                            if (typeof PosAndroidDownload === 'undefined') {
+                                return { ok: false, error: 'Download not available' };
+                            }
+                            return JSON.parse(PosAndroidDownload.savePdf(base64, filename || 'price_list.pdf'));
+                        } catch (e) {
+                            return { ok: false, error: String(e) };
+                        }
                     }
                 };
             })();

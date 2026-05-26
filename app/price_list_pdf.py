@@ -4,10 +4,17 @@ from __future__ import annotations
 import io
 from datetime import datetime
 from typing import Iterable, Any
+from xml.sax.saxutils import escape
 
 
 def _price(v: Any) -> str:
     return f"{float(v):,.2f}"
+
+
+def _para(text: str, style) -> "Paragraph":
+    from reportlab.platypus import Paragraph
+
+    return Paragraph(escape(str(text or "")), style)
 
 
 def build_price_list_pdf(store_name: str, products: Iterable[Any]) -> bytes:
@@ -19,16 +26,20 @@ def build_price_list_pdf(store_name: str, products: Iterable[Any]) -> bytes:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=48, bottomMargin=48)
     styles = getSampleStyleSheet()
+    product_list = list(products)
     story = [
-        Paragraph(store_name, styles["Title"]),
-        Paragraph("Price List", styles["Heading2"]),
-        Paragraph(datetime.now().strftime("%d %b %Y"), styles["Normal"]),
+        _para(store_name, styles["Title"]),
+        _para("Price List", styles["Heading2"]),
+        _para(datetime.now().strftime("%d %b %Y"), styles["Normal"]),
         Spacer(1, 16),
     ]
 
     data = [["Product", "Price"]]
-    for p in products:
-        data.append([p.name, _price(p.selling_price)])
+    if product_list:
+        for p in product_list:
+            data.append([str(p.name or ""), _price(p.selling_price)])
+    else:
+        data.append(["No active products", "—"])
 
     table = Table(data, colWidths=[360, 100], repeatRows=1)
     table.setStyle(

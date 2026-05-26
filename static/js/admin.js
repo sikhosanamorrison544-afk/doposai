@@ -3165,58 +3165,205 @@ async function importFromBackup() {
     triggerStoreSettingsCsvImport();
 }
 
+function arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
+}
+
+function isPdfBytes(buffer) {
+    if (!buffer || buffer.byteLength < 4) return false;
+    const h = new Uint8Array(buffer, 0, 4);
+    return h[0] === 0x25 && h[1] === 0x50 && h[2] === 0x44 && h[3] === 0x46;
+}
+
+async function parsePriceListErrorResponse(response) {
+    const ct = (response.headers.get('content-type') || '').toLowerCase();
+    if (ct.includes('application/json')) {
+        try {
+            const err = await response.json();
+            if (err && err.detail) {
+                if (typeof err.detail === 'string') return err.detail;
+                if (Array.isArray(err.detail) && err.detail[0] && err.detail[0].msg) {
+                    return err.detail[0].msg;
+                }
+                if (err.message) return err.message;
+            }
+        } catch (_) { /* ignore */ }
+    }
+    const text = await response.text();
+    return parseApiErrorText(text, response.status);
+}
+
+function filenameFromContentDisposition(contentDisposition, fallback) {
+    if (!contentDisposition) return fallback;
+    const match = /filename\*?=(?:UTF-8''|")?([^";]+)/i.exec(contentDisposition);
+    if (match && match[1]) return decodeURIComponent(match[1].trim());
+    return fallback;
+}
+
+async function savePdfBlobToDevice(blob, filename) {
+    const safeName = (filename || 'price_list.pdf').replace(/[\\/:*?"<>|]+/g, '_');
+
+    if (typeof window.posNativeDownload !== 'undefined' && window.posNativeDownload.savePdf) {
+        const buffer = await blob.arrayBuffer();
+        if (!isPdfBytes(buffer)) {
+            throw new Error('Server did not return a valid PDF file');
+        }
+        const base64 = arrayBufferToBase64(buffer);
+        const result = window.posNativeDownload.savePdf(base64, safeName);
+        if (result && result.ok) {
+            return { method: 'android', filename: result.filename || safeName };
+        }
+        throw new Error((result && result.error) || 'Could not save PDF on device');
+    }
+
+    const buffer = await blob.arrayBuffer();
+    if (!isPdfBytes(buffer)) {
+        throw new Error('Server did not return a valid PDF file');
+    }
+    const pdfBlob = new Blob([buffer], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(pdfBlob);
+    try {
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = safeName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return { method: 'browser', filename: safeName };
+    } finally {
+        setTimeout(function () {
+            window.URL.revokeObjectURL(url);
+        }, 1500);
+    }
+}
+
+function setPriceListDownloadStatus(message, options) {
+    const els = [
+        document.getElementById('price-list-download-status'),
+        document.getElementById('price-list-download-status-mobile'),
+    ].filter(Boolean);
+    if (!els.length) return;
+    const opts = options || {};
+    if (!message) {
+        els.forEach(function (el) {
+            el.hidden = true;
+            el.classList.remove('is-success', 'is-error');
+            el.innerHTML = '';
+        });
+        return;
+    }
+    const progressHtml = opts.showProgress
+        ? '<div class="price-list-progress-track" aria-hidden="true"><div class="price-list-progress-bar"></div></div>'
+        : '';
+    const html = '<span class="price-list-download-text">' + message + '</span>' + progressHtml;
+    els.forEach(function (el) {
+        el.hidden = false;
+        el.classList.toggle('is-success', !!opts.success);
+        el.classList.toggle('is-error', !!opts.error);
+        el.innerHTML = html;
+    });
+}
+
+function setPriceListButtonsLoading(targets, loading, label) {
+    targets.forEach(function (el) {
+        if (loading) {
+            if (!el.dataset.priceListDefaultLabel) {
+                el.dataset.priceListDefaultLabel = el.textContent.trim();
+            }
+            el.textContent = label || '⏳ Downloading…';
+            el.disabled = true;
+            el.classList.add('is-loading');
+            el.setAttribute('aria-busy', 'true');
+        } else {
+            el.textContent = el.dataset.priceListDefaultLabel || '📄 Price List';
+            el.disabled = false;
+            el.classList.remove('is-loading');
+            el.removeAttribute('aria-busy');
+        }
+    });
+}
+
 async function exportPriceListPDF() {
     const btn = document.getElementById('btn-price-list-pdf');
     const btnMobile = document.getElementById('btn-price-list-pdf-mobile');
     const targets = [btn, btnMobile].filter(Boolean);
+    if (targets.some(function (el) { return el.disabled && el.classList.contains('is-loading'); })) {
+        return;
+    }
+
+    let hideStatusTimer = null;
+    const clearStatusLater = function (delayMs) {
+        if (hideStatusTimer) clearTimeout(hideStatusTimer);
+        hideStatusTimer = setTimeout(function () {
+            setPriceListDownloadStatus('');
+        }, delayMs);
+    };
+
     try {
-        const token = localStorage.getItem('pos_token');
+        const token = getImportAuthToken();
         if (!token) {
-            alert('Not authenticated. Please log in again.');
+            setPriceListDownloadStatus('Not signed in. Please log in again.', { error: true });
+            clearStatusLater(5000);
             return;
         }
-        targets.forEach(function (el) {
-            el.disabled = true;
-        });
+
+        setPriceListButtonsLoading(targets, true, '⏳ Generating…');
+        setPriceListDownloadStatus('Generating price list PDF…', { showProgress: true });
 
         const response = await fetch('/api/products/export/price-list/pdf', {
             method: 'GET',
             headers: { Authorization: 'Bearer ' + token },
+            cache: 'no-store',
         });
 
         if (!response.ok) {
-            let detail = 'Export failed';
-            try {
-                const err = await response.json();
-                if (err && err.detail) detail = typeof err.detail === 'string' ? err.detail : detail;
-            } catch (_) { /* ignore */ }
-            throw new Error(detail);
+            throw new Error(await parsePriceListErrorResponse(response));
         }
 
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
+        setPriceListButtonsLoading(targets, true, '⏳ Downloading…');
+        setPriceListDownloadStatus('Downloading price list…', { showProgress: true });
+
+        const pdfBuffer = await response.arrayBuffer();
+        if (!isPdfBytes(pdfBuffer)) {
+            throw new Error('Server did not return a valid PDF. Try again or contact support.');
+        }
+        if (pdfBuffer.byteLength < 50) {
+            throw new Error('Received an empty price list PDF.');
+        }
 
         const contentDisposition = response.headers.get('Content-Disposition');
-        let filename = 'price_list.pdf';
-        if (contentDisposition) {
-            const filenameMatch = contentDisposition.match(/filename="(.+)"/);
-            if (filenameMatch) filename = filenameMatch[1];
-        }
+        const filename = filenameFromContentDisposition(contentDisposition, 'price_list.pdf');
+        const pdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' });
 
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+        setPriceListButtonsLoading(targets, true, '⏳ Saving…');
+        setPriceListDownloadStatus('Saving PDF to your device…', { showProgress: true });
+
+        const saved = await savePdfBlobToDevice(pdfBlob, filename);
+        const savedName = saved.filename || filename;
+        const androidSaved = saved.method === 'android';
+        setPriceListDownloadStatus(
+            androidSaved
+                ? 'Saved to Downloads — ' + savedName
+                : 'Download complete — ' + savedName,
+            { success: true }
+        );
+        clearStatusLater(5000);
     } catch (e) {
         console.error(e);
-        alert('Price list export failed: ' + (e.message || 'Unknown error'));
+        setPriceListDownloadStatus(
+            'Price list download failed: ' + (e.message || 'Unknown error'),
+            { error: true }
+        );
+        clearStatusLater(6000);
     } finally {
-        targets.forEach(function (el) {
-            el.disabled = false;
-        });
+        setPriceListButtonsLoading(targets, false);
     }
 }
 window.exportPriceListPDF = exportPriceListPDF;
