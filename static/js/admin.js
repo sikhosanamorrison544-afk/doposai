@@ -2593,12 +2593,7 @@ window.handleImportUploadClick = async function (e) {
         e.stopPropagation();
     }
     if (importUploadInFlight) return false;
-    importUploadInFlight = true;
-    try {
-        await uploadInventoryFile(e);
-    } finally {
-        importUploadInFlight = false;
-    }
+    await uploadInventoryFile(e);
     return false;
 };
 
@@ -2662,6 +2657,7 @@ function importJobDelay(ms) {
 }
 
 async function pollImportJob(jobId, options) {
+    importUploadInFlight = true;
     const messageEl =
         (options && options.messageEl) ||
         document.getElementById('import-message') ||
@@ -2728,6 +2724,7 @@ async function pollImportJob(jobId, options) {
     );
     } finally {
         adminImportInProgress = false;
+        importUploadInFlight = false;
     }
 }
 
@@ -2824,6 +2821,12 @@ async function uploadInventoryViaAndroidBridge(options) {
 }
 
 async function uploadInventoryCsvFile(file, options) {
+    if (importUploadInFlight) {
+        console.warn('Import already in progress — ignoring duplicate request');
+        return null;
+    }
+    importUploadInFlight = true;
+
     const messageEl =
         (options && options.messageEl) ||
         document.getElementById('import-message') ||
@@ -2970,6 +2973,7 @@ async function uploadInventoryCsvFile(file, options) {
     } finally {
         if (!importHandledByPoll) {
             adminImportInProgress = false;
+            importUploadInFlight = false;
         }
         if (uploadBtn) uploadBtn.disabled = false;
     }
@@ -3123,9 +3127,7 @@ function setupAdminEvents() {
     // Set up file input handlers (will be set up again when modal opens)
     setupFileInputHandlers();
     
-    if (btnUpload) {
-        btnUpload.addEventListener('click', uploadInventoryFile);
-    }
+    // Upload uses inline onclick → handleImportUploadClick only (no second listener).
     
     if (btnCancelImport) {
         btnCancelImport.addEventListener('click', hideImportModal);

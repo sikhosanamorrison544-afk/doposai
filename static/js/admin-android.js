@@ -339,7 +339,10 @@
 
         if (uploadBtn && uploadBtn.dataset.posAndroidUploadBound !== '1') {
             uploadBtn.dataset.posAndroidUploadBound = '1';
-            uploadBtn.addEventListener('click', runUpload, true);
+            // admin.html already uses onclick → handleImportUploadClick; skip duplicate listener.
+            if (!uploadBtn.getAttribute('onclick')) {
+                uploadBtn.addEventListener('click', runUpload, true);
+            }
         }
         bindAndroidTap(chooseBtn, function () {
             const input = document.getElementById('inventory-file-input');

@@ -386,14 +386,19 @@ def infer_column_map(fieldnames: List[str]) -> ColumnMap:
         used.add(col)
 
     stock_col = assigned.get("stock")
-    stock_mode = "add"
+    # Default "set" when a stock column exists — files list on-hand qty, not deltas.
+    stock_mode = "set" if stock_col else "add"
     if stock_col:
         sn = _norm_key(stock_col)
-        if sn in _STOCK_SET_HINTS or any(h in sn for h in _STOCK_SET_HINTS):
-            stock_mode = "set"
-        elif sn in _STOCK_ADD_HINTS or any(h in sn for h in _STOCK_ADD_HINTS):
+        if sn in _STOCK_ADD_HINTS or any(h in sn for h in _STOCK_ADD_HINTS):
             stock_mode = "add"
-        elif "hand" in sn or "balance" in sn or sn.endswith("qty"):
+        elif (
+            sn in _STOCK_SET_HINTS
+            or any(h in sn for h in _STOCK_SET_HINTS)
+            or "hand" in sn
+            or "balance" in sn
+            or sn.endswith("qty")
+        ):
             stock_mode = "set"
 
     return ColumnMap(columns=assigned, stock_mode=stock_mode)

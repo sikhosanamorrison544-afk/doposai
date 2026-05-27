@@ -1296,6 +1296,7 @@ async def import_inventory(
                 thread_db.close()
 
         queued_id = await asyncio.to_thread(_queue_disk_import)
+        import_jobs.kick_job(queued_id)
         logging.info(
             "Import job %s accepted (deferred parse, %s bytes) for user %s",
             queued_id,
