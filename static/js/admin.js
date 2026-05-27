@@ -1588,6 +1588,72 @@ async function deleteCashier(id) {
     }
 }
 
+const CLEAR_ALL_STOCK_CONFIRM = 'DELETE ALL STOCK';
+
+window.clearAllStock = async function clearAllStock() {
+    const msg = document.getElementById('clear-stock-message');
+    if (!msg) {
+        alert('Error: clear-stock-message element not found. Please refresh the page.');
+        return;
+    }
+    msg.textContent = '';
+
+    const userConfirm = prompt(
+        'WARNING: This will remove ALL products from your active inventory.\n\n' +
+            'Products with sales history will be deactivated (not deleted) so reports stay valid.\n\n' +
+            'Type "' +
+            CLEAR_ALL_STOCK_CONFIRM +
+            '" (exactly as shown) to continue:'
+    );
+    if (userConfirm !== CLEAR_ALL_STOCK_CONFIRM) {
+        msg.textContent = 'Clear inventory cancelled.';
+        msg.style.color = 'rgba(255, 255, 255, 0.7)';
+        return;
+    }
+
+    const adminPassword = prompt(
+        'Admin password required\n\nEnter your admin password to delete all stock:'
+    );
+    if (!adminPassword || !adminPassword.trim()) {
+        msg.textContent = 'Cancelled. Admin password is required.';
+        msg.style.color = 'rgba(239, 68, 68, 1)';
+        return;
+    }
+
+    const btn = document.getElementById('btn-clear-all-stock');
+    try {
+        if (btn) btn.disabled = true;
+        msg.textContent = 'Clearing inventory…';
+        msg.style.color = 'rgba(255, 255, 255, 0.9)';
+
+        const response = await adminApi('/api/products/clear-all', {
+            method: 'POST',
+            body: JSON.stringify({ admin_password: adminPassword }),
+        });
+
+        msg.textContent = response.message || 'Inventory cleared.';
+        msg.style.color = 'rgba(34, 197, 94, 1)';
+
+        adminProducts = [];
+        window.adminProducts = adminProducts;
+        adminProductTotalCount = 0;
+        window.adminProductTotalCount = 0;
+        updateAdminProductCount(0);
+        if (typeof window.loadAdminProducts === 'function') {
+            const body = document.getElementById('products-body');
+            if (body) {
+                await window.loadAdminProducts();
+            }
+        }
+    } catch (e) {
+        console.error(e);
+        msg.textContent = 'Error: ' + (e.message || 'Failed to clear inventory');
+        msg.style.color = 'rgba(239, 68, 68, 1)';
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+};
+
 // Define factoryReset function on window immediately
 window.factoryReset = async function factoryReset() {
     console.log('factoryReset function called');
@@ -3069,6 +3135,18 @@ function setupAdminEvents() {
         btnCloseImport.addEventListener('click', hideImportModal);
     }
     
+    const btnClearAllStock = document.getElementById('btn-clear-all-stock');
+    if (btnClearAllStock) {
+        btnClearAllStock.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            clearAllStock().catch(function (err) {
+                console.error('Error in clearAllStock:', err);
+            });
+            return false;
+        });
+    }
+
     // Factory reset button - check if it exists
     const btnFactoryResetEl = document.getElementById('btn-factory-reset');
     if (btnFactoryResetEl) {

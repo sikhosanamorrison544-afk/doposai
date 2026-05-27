@@ -474,6 +474,20 @@
                 </details>
 
                 <details class="settings-section">
+                    <summary class="settings-section-summary">📦 Clear inventory</summary>
+                    <div class="settings-danger">
+                        <p class="help-text">
+                            Permanently removes all products from your active stock list so you can start fresh
+                            (for example before a new CSV import). Products linked to past sales are deactivated
+                            instead of deleted so reports stay intact.
+                            <strong>This cannot be undone.</strong>
+                        </p>
+                        <button id="btn-clear-all-stock" type="button" class="danger">Delete all stock</button>
+                        <div id="clear-stock-message" class="info"></div>
+                    </div>
+                </details>
+
+                <details class="settings-section">
                     <summary class="settings-section-summary">⚠️ Factory Reset</summary>
                     <div class="settings-danger">
                         <p class="help-text">
@@ -499,7 +513,7 @@
 <script src="/static/js/role-permissions.js?v=1"></script>
 <script src="/static/js/offline-fetch.js?v=2"></script>
 <script src="/static/js/list-fetch.js?v=1"></script>
-<script src="/static/js/admin.js?v=27"></script>
+<script src="/static/js/admin.js?v=28"></script>
 <script>
     // Switch between settings pages
     window.switchSettingsPage = function(pageNum) {

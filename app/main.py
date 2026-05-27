@@ -823,6 +823,38 @@ async def delete_product(
     return {"ok": True}
 
 
+class ClearAllStockRequest(BaseModel):
+    admin_password: str
+
+
+def _clear_all_stock_worker(admin_id: int) -> dict:
+    from .database import SessionLocal
+    from .inventory_clear import clear_all_stock_for_tenant
+
+    db = SessionLocal()
+    try:
+        admin = db.query(User).filter(User.id == admin_id).first()
+        if not admin:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        return clear_all_stock_for_tenant(db, admin)
+    finally:
+        db.close()
+
+
+@app.post("/api/products/clear-all")
+async def clear_all_stock(
+    body: ClearAllStockRequest,
+    current_admin: User = Depends(auth.get_current_admin_user),
+):
+    """Remove all inventory for this tenant (admin password required)."""
+    if not auth.verify_password(body.admin_password, current_admin.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid admin password",
+        )
+    return await asyncio.to_thread(_clear_all_stock_worker, current_admin.id)
+
+
 @app.get("/api/products/barcode/{barcode}", response_model=Optional[ProductRead])
 async def find_by_barcode(
     barcode: str,
