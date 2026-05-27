@@ -526,6 +526,10 @@ async def list_products(
     limit: int = Query(DEFAULT_LIST_LIMIT, ge=1, le=2000),
     offset: int = Query(0, ge=0),
     q: Optional[str] = Query(None, description="Filter by name or barcode (case-insensitive)"),
+    skip_total: bool = Query(
+        False,
+        description="Omit X-Total-Count (faster first page when count is loaded separately)",
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
 ):
@@ -543,7 +547,13 @@ async def list_products(
                 Product.barcode.ilike(like),
             )
         )
-    products, total = paginate_orm_query(db, query, limit=limit, offset=offset)
+    products, total = paginate_orm_query(
+        db,
+        query,
+        limit=limit,
+        offset=offset,
+        include_total=not skip_total,
+    )
     if total >= 0:
         response.headers["X-Total-Count"] = str(total)
     return products
@@ -1011,35 +1021,74 @@ class ImportPrepareRequest(BaseModel):
     size_bytes: Optional[int] = None
 
 
+def _prepare_import_inventory_sync(
+    *,
+    admin_id: int,
+    admin_tenant_id: Optional[int],
+    filename: str,
+    size_bytes: int,
+) -> dict:
+    """Run DB work off the event loop so a busy worker can still accept prepare quickly."""
+    from . import import_jobs
+    from . import tenant_scope
+    from .billing import service as billing_service
+    from .billing.features import (
+        Feature,
+        feature_denied_payload,
+        resolve_effective_plan,
+        tenant_has_feature,
+    )
+    from .database import SessionLocal
+    from .quotation_models import Tenant
+
+    db = SessionLocal()
+    try:
+        if admin_tenant_id:
+            tenant = db.query(Tenant).filter(Tenant.id == admin_tenant_id).first()
+            if tenant:
+                sub = billing_service.get_or_create_subscription(db, tenant)
+                if not tenant_has_feature(db, tenant, Feature.PRODUCT_IMPORT, sub):
+                    plan = resolve_effective_plan(sub)
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=feature_denied_payload(Feature.PRODUCT_IMPORT, plan),
+                    )
+        file_ext = Path(filename).suffix.lower() or ".csv"
+        tenant_id = admin_tenant_id
+        job_id, _temp_path = import_jobs.create_awaiting_upload_job(
+            db,
+            tenant_id=tenant_id,
+            user_id=admin_id,
+            file_name=filename,
+            file_ext=file_ext,
+            size_bytes=size_bytes,
+        )
+        return {
+            "job_id": job_id,
+            "status": "awaiting_upload",
+            "upload_path": f"/api/products/import/{job_id}/file",
+        }
+    finally:
+        db.close()
+
+
 @app.post("/api/products/import/prepare")
 async def prepare_import_inventory(
     body: ImportPrepareRequest,
-    db: Session = Depends(get_db),
     current_admin: User = Depends(auth.get_current_admin_user),
 ):
     """Reserve an import job before uploading the file (fast JSON — avoids 502 on large uploads)."""
-    from . import import_jobs
-    from . import tenant_scope
-
     filename = (body.filename or "").strip()
     if not filename:
         raise HTTPException(status_code=400, detail="filename is required")
 
-    file_ext = Path(filename).suffix.lower() or ".csv"
-    tenant_id = tenant_scope.tenant_id_for_row(current_admin)
-    job_id, _temp_path = import_jobs.create_awaiting_upload_job(
-        db,
-        tenant_id=tenant_id,
-        user_id=current_admin.id,
-        file_name=filename,
-        file_ext=file_ext,
+    return await asyncio.to_thread(
+        _prepare_import_inventory_sync,
+        admin_id=current_admin.id,
+        admin_tenant_id=current_admin.tenant_id,
+        filename=filename,
         size_bytes=int(body.size_bytes or 0),
     )
-    return {
-        "job_id": job_id,
-        "status": "awaiting_upload",
-        "upload_path": f"/api/products/import/{job_id}/file",
-    }
 
 
 @app.post("/api/products/import/{job_id}/file")

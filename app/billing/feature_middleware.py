@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+import time
+from typing import Dict, Optional, Tuple
 
 from fastapi import HTTPException, status
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -34,7 +35,12 @@ _EXEMPT_PREFIXES = (
     "/health",
     "/favicon",
     "/static/",
+    # Admin import prepare is latency-sensitive; feature checked in the route handler.
+    "/api/products/import/prepare",
 )
+
+_FEATURE_CACHE_TTL_SEC = 45.0
+_feature_cache: Dict[Tuple[int, str], Tuple[float, bool]] = {}
 
 
 def _user_from_authorization(db, auth_header: Optional[str]) -> Optional[User]:
@@ -83,9 +89,18 @@ class PlanFeatureMiddleware(BaseHTTPMiddleware):
             tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
             if not tenant:
                 return await call_next(request)
-            sub = billing_service.get_or_create_subscription(db, tenant)
-            if tenant_has_feature(db, tenant, feature, sub):
+            cache_key = (int(tenant.id), feature.value)
+            now = time.monotonic()
+            cached = _feature_cache.get(cache_key)
+            if cached is not None and (now - cached[0]) < _FEATURE_CACHE_TTL_SEC:
+                allowed = cached[1]
+            else:
+                sub = billing_service.get_or_create_subscription(db, tenant)
+                allowed = tenant_has_feature(db, tenant, feature, sub)
+                _feature_cache[cache_key] = (now, allowed)
+            if allowed:
                 return await call_next(request)
+            sub = billing_service.get_or_create_subscription(db, tenant)
             plan = resolve_effective_plan(sub)
             payload = feature_denied_payload(feature, plan)
             return JSONResponse(status_code=status.HTTP_403_FORBIDDEN, content=payload)

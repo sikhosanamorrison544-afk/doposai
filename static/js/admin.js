@@ -6,6 +6,51 @@ let adminProductListSearch = '';
 let adminProductsPrefetchController = null;
 let adminImportInProgress = false;
 let adminBackgroundFetches = 0;
+let adminHttpAbortController = null;
+
+function getAdminHttpSignal() {
+    if (!adminHttpAbortController) {
+        adminHttpAbortController = new AbortController();
+    }
+    return adminHttpAbortController.signal;
+}
+
+function abortAllAdminHttp() {
+    abortAdminProductsPrefetch();
+    if (adminHttpAbortController) {
+        adminHttpAbortController.abort();
+    }
+    adminHttpAbortController = new AbortController();
+}
+
+function adminImportDelay(ms) {
+    return new Promise(function (resolve) {
+        setTimeout(resolve, ms);
+    });
+}
+
+async function adminFetchWithRetry(url, options, retryOpts) {
+    retryOpts = retryOpts || {};
+    const maxAttempts = retryOpts.maxAttempts || 5;
+    const messageEl = retryOpts.messageEl;
+    const busyLabel = retryOpts.busyLabel || 'Server busy';
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const res = await fetch(url, options);
+        if (res.status !== 502 && res.status !== 503 && res.status !== 504) {
+            return res;
+        }
+        if (attempt >= maxAttempts) {
+            return res;
+        }
+        if (messageEl) {
+            messageEl.textContent =
+                busyLabel + ' — retrying (' + attempt + '/' + maxAttempts + ')…';
+            messageEl.style.color = 'rgba(255, 255, 255, 0.9)';
+        }
+        await adminImportDelay(1500 * attempt);
+    }
+    return fetch(url, options);
+}
 let backupStatusIntervalId = null;
 let editingProductId = null;
 
@@ -31,6 +76,7 @@ async function fetchAdminProductCountOnly() {
             controller.abort();
         }, 15000);
     try {
+        const countSignal = controller ? controller.signal : getAdminHttpSignal();
         const res = await fetch('/api/products/count', {
             method: 'GET',
             headers: {
@@ -38,7 +84,7 @@ async function fetchAdminProductCountOnly() {
                 Accept: 'application/json',
             },
             credentials: 'same-origin',
-            signal: controller ? controller.signal : undefined,
+            signal: countSignal,
         });
         if (!res.ok) {
             if (res.status === 401) {
@@ -132,10 +178,11 @@ async function adminApi(path, options = {}) {
         }
     }
     
-    const res = await fetch(path, {
-        ...options,
-        headers,
-    });
+    const fetchOpts = { ...options, headers };
+    if (!fetchOpts.signal) {
+        fetchOpts.signal = getAdminHttpSignal();
+    }
+    const res = await fetch(path, fetchOpts);
     
     if (!res.ok) {
         // If unauthorized (401), clear tokens and redirect to login immediately
@@ -170,9 +217,12 @@ async function fetchAdminProductsPage(offset, limit, opts) {
     let url = `/api/products?limit=${limit}&offset=${offset}`;
     if (search) {
         url += '&q=' + encodeURIComponent(search);
+    } else if (offset === 0 && opts.skipTotal) {
+        url += '&skip_total=1';
     }
     const fetchOpts = { headers, credentials: 'same-origin' };
-    if (signal) fetchOpts.signal = signal;
+    const combined = signal || getAdminHttpSignal();
+    if (combined) fetchOpts.signal = combined;
     adminBackgroundFetches += 1;
     try {
         const res = await fetch(url, fetchOpts);
@@ -202,7 +252,7 @@ async function fetchAdminProductsPage(offset, limit, opts) {
 }
 
 async function waitForAdminImportReady(messageEl, maxMs) {
-    abortAdminProductsPrefetch();
+    abortAllAdminHttp();
     const deadline = Date.now() + (maxMs || 90000);
     while (Date.now() < deadline) {
         if (!adminProductsPrefetchController && adminBackgroundFetches <= 0) {
@@ -457,7 +507,23 @@ async function loadAdminProducts(opts) {
 
     try {
         const pageSize = ADMIN_PRODUCTS_PAGE_SIZE;
-        const firstPage = await fetchAdminProductsPage(0, pageSize, { search: adminProductListSearch });
+        const firstPage = await fetchAdminProductsPage(0, pageSize, {
+            search: adminProductListSearch,
+            skipTotal: !adminProductListSearch,
+        });
+        if (
+            !adminProductListSearch &&
+            (firstPage.total == null || firstPage.total < 0) &&
+            adminProductTotalCount == null
+        ) {
+            fetchAdminProductCountOnly().then(function (count) {
+                if (count != null) {
+                    adminProductTotalCount = count;
+                    window.adminProductTotalCount = count;
+                    updateAdminProductCount(count);
+                }
+            });
+        }
 
         adminProducts = firstPage.items;
         window.adminProducts = adminProducts;
@@ -905,13 +971,16 @@ function ensureAdmin() {
     adminUser = user;
 
     updateAdminProductCount(null, 'loading');
-    fetchAdminProductCountOnly().then(function (count) {
-        if (count != null) {
-            adminProductTotalCount = count;
-            window.adminProductTotalCount = count;
-            updateAdminProductCount(count);
-        }
-    });
+    const productsBody = document.getElementById('products-body');
+    if (!productsBody) {
+        fetchAdminProductCountOnly().then(function (count) {
+            if (count != null) {
+                adminProductTotalCount = count;
+                window.adminProductTotalCount = count;
+                updateAdminProductCount(count);
+            }
+        });
+    }
 
     const adminUserInfoEl = document.getElementById('admin-user-info');
     if (adminUserInfoEl) {
@@ -2339,9 +2408,16 @@ function hideImportModal() {
 
 function parseApiErrorText(text, status, context) {
     const isImport = context === 'import';
-    const busyMsg = isImport
-        ? 'Server timed out while importing (file may be too large). Try a smaller CSV or import in batches.'
-        : 'Server is busy or restarting. Wait a moment and try again.';
+    const isImportPrepare = context === 'import-prepare';
+    let busyMsg =
+        'Server is busy or restarting. Wait a moment and try again.';
+    if (isImportPrepare) {
+        busyMsg =
+            'Server is busy loading Admin data. Wait a few seconds and try import again.';
+    } else if (isImport) {
+        busyMsg =
+            'Server timed out during upload. Wait and try again, or split the CSV into smaller files.';
+    }
     if (!text) {
         if (status === 502 || status === 504) return busyMsg;
         return 'Request failed';
@@ -2732,21 +2808,31 @@ async function uploadInventoryCsvFile(file, options) {
             messageEl.textContent = 'Starting import…';
             messageEl.style.color = 'rgba(255, 255, 255, 0.9)';
         }
-        const prepRes = await fetch('/api/products/import/prepare', {
-            method: 'POST',
-            headers: {
-                Authorization: 'Bearer ' + token,
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
+        const prepRes = await adminFetchWithRetry(
+            '/api/products/import/prepare',
+            {
+                method: 'POST',
+                headers: {
+                    Authorization: 'Bearer ' + token,
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                },
+                body: JSON.stringify({
+                    filename: file.name,
+                    size_bytes: file.size || 0,
+                }),
             },
-            body: JSON.stringify({
-                filename: file.name,
-                size_bytes: file.size || 0,
-            }),
-        });
+            {
+                messageEl: messageEl,
+                busyLabel: 'Preparing import',
+                maxAttempts: 5,
+            }
+        );
         const prepText = await prepRes.text();
         if (!prepRes.ok) {
-            throw new Error(parseApiErrorText(prepText, prepRes.status, 'import'));
+            throw new Error(
+                parseApiErrorText(prepText, prepRes.status, 'import-prepare')
+            );
         }
         let prep;
         try {
@@ -2763,11 +2849,19 @@ async function uploadInventoryCsvFile(file, options) {
             messageEl.textContent = 'Uploading CSV…';
         }
         const uploadPath = prep.upload_path || '/api/products/import/' + encodeURIComponent(jobId) + '/file';
-        const response = await fetch(uploadPath, {
-            method: 'POST',
-            headers: { Authorization: 'Bearer ' + token },
-            body: formData,
-        });
+        const response = await adminFetchWithRetry(
+            uploadPath,
+            {
+                method: 'POST',
+                headers: { Authorization: 'Bearer ' + token },
+                body: formData,
+            },
+            {
+                messageEl: messageEl,
+                busyLabel: 'Uploading CSV',
+                maxAttempts: 4,
+            }
+        );
 
         const responseText = await response.text();
         if (!response.ok) {
@@ -3375,45 +3469,51 @@ window.addEventListener('load', async () => {
     
     initDates();
     
-    // Load data in parallel for better performance - if any critical call fails with 401, it will redirect
-    // Otherwise, we'll log the error but continue
-    const loadPromises = [];
-    
-    // Load critical data in parallel
-    loadPromises.push(
-        loadStoreSettings().catch(e => {
-            console.error('Failed to load store settings:', e);
-        })
-    );
-    
-    loadPromises.push(
-        loadAdminProducts().catch(e => {
-            console.error('Failed to load products:', e);
-        })
-    );
-    
-    loadPromises.push(
-        loadCashiers().catch(e => {
-            console.error('Failed to load cashiers:', e);
-        })
-    );
-    
-    // Wait for all critical data to load
-    await Promise.all(loadPromises);
-    
-    // Load report after critical data (non-blocking)
-    // Note: Report elements only exist on /admin page, not on /store-settings page
-    try {
-        await loadReport();
-    } catch (e) {
-        // Report loading may fail if elements don't exist (expected on /store-settings page)
-        // Only log if it's not a missing element issue
-        if (e.message && !e.message.includes('null')) {
-            console.error('Failed to load report:', e);
+    const hasProductsTable = !!document.getElementById('products-body');
+
+    function scheduleDeferredAdminLoads() {
+        if (adminImportInProgress) return;
+        const run = function () {
+            if (adminImportInProgress) return;
+            if (hasProductsTable) {
+                loadStoreSettings().catch(function (e) {
+                    console.error('Failed to load store settings:', e);
+                });
+            }
+            if (document.getElementById('cashiers-body')) {
+                loadCashiers().catch(function (e) {
+                    console.error('Failed to load cashiers:', e);
+                });
+            }
+            if (typeof loadActiveShift === 'function') {
+                loadActiveShift().catch(function (e) {
+                    console.warn('Failed to load active shift:', e.message || e);
+                });
+            }
+        };
+        if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(run, { timeout: 12000 });
+        } else {
+            setTimeout(run, 6000);
         }
-        // If it's a 401, adminApi already redirected, so we won't reach here
     }
-    
+
+    if (hasProductsTable) {
+        try {
+            await loadAdminProducts();
+        } catch (e) {
+            console.error('Failed to load products:', e);
+        }
+        scheduleDeferredAdminLoads();
+    } else {
+        try {
+            await loadStoreSettings();
+        } catch (e) {
+            console.error('Failed to load store settings:', e);
+        }
+        scheduleDeferredAdminLoads();
+    }
+
     setupBackupEvents();
     scheduleBackupMonitoring();
 });
@@ -4238,8 +4338,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Load active shift on page load
-    loadActiveShift();
 });
 
 
