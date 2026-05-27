@@ -2,6 +2,8 @@ let adminToken = null;
 let adminUser = null;
 let adminProducts = [];
 let adminProductTotalCount = null;
+let adminProductListSearch = '';
+let adminProductsPrefetchController = null;
 let editingProductId = null;
 
 function formatAdminProductCountBadge(n) {
@@ -155,17 +157,23 @@ async function adminApi(path, options = {}) {
     return res.json();
 }
 
-const ADMIN_PRODUCTS_PAGE_SIZE = 500;
+const ADMIN_PRODUCTS_PAGE_SIZE = 1000;
 let adminProductsTableDelegationBound = false;
 
-async function fetchAdminProductsPage(offset, limit) {
+async function fetchAdminProductsPage(offset, limit, opts) {
+    opts = opts || {};
+    const search = (opts.search != null ? String(opts.search) : '').trim();
+    const signal = opts.signal;
     const headers = { 'Content-Type': 'application/json' };
     const tok = adminToken || localStorage.getItem('pos_token');
     if (tok) headers['Authorization'] = 'Bearer ' + tok;
-    const res = await fetch(
-        `/api/products?limit=${limit}&offset=${offset}`,
-        { headers, credentials: 'same-origin' }
-    );
+    let url = `/api/products?limit=${limit}&offset=${offset}`;
+    if (search) {
+        url += '&q=' + encodeURIComponent(search);
+    }
+    const fetchOpts = { headers, credentials: 'same-origin' };
+    if (signal) fetchOpts.signal = signal;
+    const res = await fetch(url, fetchOpts);
     if (!res.ok) {
         if (res.status === 401) {
             localStorage.removeItem('pos_token');
@@ -188,16 +196,51 @@ async function fetchAdminProductsPage(offset, limit) {
     return { items: Array.isArray(items) ? items : [], total: total };
 }
 
-function updateAdminProductsListHint(shown, total) {
-    const t = total != null && total >= 0 ? total : shown;
-    const text =
-        t <= shown
-            ? ''
-            : 'Showing ' +
-              shown.toLocaleString() +
-              ' of ' +
-              t.toLocaleString() +
-              ' products. Use search or export for the full list.';
+function abortAdminProductsPrefetch() {
+    if (adminProductsPrefetchController) {
+        adminProductsPrefetchController.abort();
+        adminProductsPrefetchController = null;
+    }
+}
+
+function updateAdminProductsListHint(shown, total, hintOpts) {
+    hintOpts = hintOpts || {};
+    const search = (hintOpts.search != null ? hintOpts.search : adminProductListSearch || '').trim();
+    let text = '';
+    if (search) {
+        const t = total != null && total >= 0 ? total : shown;
+        if (t <= 0 && shown === 0) {
+            text = 'No products match your search.';
+        } else if (t >= 0 && t !== shown) {
+            text =
+                'Showing ' +
+                shown.toLocaleString() +
+                ' of ' +
+                t.toLocaleString() +
+                ' matches. Refine search if needed.';
+        } else {
+            text = shown.toLocaleString() + ' match' + (shown === 1 ? '' : 'es') + ' your search.';
+        }
+    } else {
+        const t = total != null && total >= 0 ? total : shown;
+        if (t <= shown) {
+            text = '';
+        } else if (hintOpts.prefetching) {
+            text =
+                'Showing ' +
+                shown.toLocaleString() +
+                ' of ' +
+                t.toLocaleString() +
+                ' — loading the rest in the background…';
+        } else {
+            text =
+                'Showing ' +
+                shown.toLocaleString() +
+                ' of ' +
+                t.toLocaleString() +
+                '. Use search to jump to any product by name or barcode.';
+        }
+    }
     ['admin-products-list-hint', 'admin-products-list-hint-mobile'].forEach(function (id) {
         const el = document.getElementById(id);
         if (!el) return;
@@ -209,6 +252,47 @@ function updateAdminProductsListHint(shown, total) {
             el.hidden = false;
         }
     });
+}
+
+function prefetchAdminProductsRest(total, startOffset, search) {
+    if ((search || '').trim()) return;
+    if (total == null || total <= startOffset) return;
+    abortAdminProductsPrefetch();
+    const ctrl = new AbortController();
+    adminProductsPrefetchController = ctrl;
+    const limit = ADMIN_PRODUCTS_PAGE_SIZE;
+    const signal = ctrl.signal;
+
+    (async function () {
+        try {
+            for (let offset = startOffset; offset < total; offset += limit) {
+                if (signal.aborted) return;
+                const page = await fetchAdminProductsPage(offset, limit, { search: '', signal });
+                if (signal.aborted) return;
+                adminProducts.push.apply(adminProducts, page.items);
+                window.adminProducts = adminProducts;
+                paintAdminProductsTable(adminProducts);
+                updateAdminProductsListHint(adminProducts.length, total, {
+                    search: '',
+                    prefetching: adminProducts.length < total,
+                });
+            }
+        } catch (e) {
+            if (e.name !== 'AbortError') {
+                console.warn('Background product load stopped:', e);
+            }
+        } finally {
+            if (adminProductsPrefetchController === ctrl) {
+                adminProductsPrefetchController = null;
+            }
+            if (!signal.aborted && adminProductListSearch === '') {
+                updateAdminProductsListHint(adminProducts.length, total, {
+                    search: '',
+                    prefetching: false,
+                });
+            }
+        }
+    })();
 }
 
 function paintAdminProductsTable(products) {
@@ -304,26 +388,57 @@ function paintAdminProductsTable(products) {
     }
 }
 
-async function loadAdminProducts() {
+let adminProductSearchTimer = null;
+
+function setupAdminProductSearch() {
+    const input = document.getElementById('admin-product-search');
+    if (!input || input.dataset.posAdminSearchBound === '1') return;
+    input.dataset.posAdminSearchBound = '1';
+
+    input.addEventListener('input', function () {
+        const q = input.value.trim();
+        if (adminProductSearchTimer) clearTimeout(adminProductSearchTimer);
+        adminProductSearchTimer = setTimeout(function () {
+            loadAdminProducts({ search: q });
+        }, 280);
+    });
+
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            input.value = '';
+            loadAdminProducts({ search: '' });
+        }
+    });
+}
+
+window.loadAdminProducts = loadAdminProducts;
+
+async function loadAdminProducts(opts) {
+    opts = opts || {};
     const body = document.getElementById('products-body');
     if (!body) {
         return;
     }
-    console.log('=== loadAdminProducts STARTED ===');
+    adminProductListSearch = (opts.search != null ? String(opts.search) : '').trim();
+    abortAdminProductsPrefetch();
+
+    console.log('=== loadAdminProducts STARTED ===', adminProductListSearch || '(all)');
     body.innerHTML =
         '<tr><td colspan="8" style="text-align:center;padding:16px;">Loading products...</td></tr>';
 
     try {
         const pageSize = ADMIN_PRODUCTS_PAGE_SIZE;
-        const firstPage = await fetchAdminProductsPage(0, pageSize);
+        const firstPage = await fetchAdminProductsPage(0, pageSize, { search: adminProductListSearch });
 
         adminProducts = firstPage.items;
         window.adminProducts = adminProducts;
         if (firstPage.total != null && firstPage.total >= 0) {
-            adminProductTotalCount = firstPage.total;
-            window.adminProductTotalCount = firstPage.total;
-            updateAdminProductCount(adminProductTotalCount);
-        } else if (adminProductTotalCount != null) {
+            if (!adminProductListSearch) {
+                adminProductTotalCount = firstPage.total;
+                window.adminProductTotalCount = firstPage.total;
+                updateAdminProductCount(adminProductTotalCount);
+            }
+        } else if (adminProductTotalCount != null && !adminProductListSearch) {
             updateAdminProductCount(adminProductTotalCount);
         }
 
@@ -334,16 +449,31 @@ async function loadAdminProducts() {
         const total =
             firstPage.total != null && firstPage.total >= 0
                 ? firstPage.total
-                : adminProductTotalCount;
-        updateAdminProductsListHint(adminProducts.length, total);
+                : adminProductListSearch
+                  ? adminProducts.length
+                  : adminProductTotalCount;
+        updateAdminProductsListHint(adminProducts.length, total, {
+            search: adminProductListSearch,
+            prefetching: false,
+        });
 
-        if (adminProducts.length === 0 && (adminProductTotalCount === 0 || adminProductTotalCount == null)) {
-            updateAdminProductCount(0);
+        if (adminProducts.length === 0 && (total === 0 || total == null)) {
+            if (!adminProductListSearch) {
+                updateAdminProductCount(0);
+            }
             paintAdminProductsTable([]);
             return;
         }
 
         paintAdminProductsTable(adminProducts);
+
+        if (!adminProductListSearch && total != null && adminProducts.length < total) {
+            updateAdminProductsListHint(adminProducts.length, total, {
+                search: '',
+                prefetching: true,
+            });
+            prefetchAdminProductsRest(total, adminProducts.length, '');
+        }
     } catch (e) {
         console.error('Error loading products:', e);
         updateAdminProductCount(null, 'error');
@@ -3107,6 +3237,7 @@ window.addEventListener('load', async () => {
     });
     
     setupAdminEvents();
+    setupAdminProductSearch();
     
     // Load saved theme
     loadTheme();

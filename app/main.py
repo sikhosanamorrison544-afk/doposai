@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import and_, exists, func, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session
 from starlette.middleware.gzip import GZipMiddleware
 
@@ -524,6 +524,7 @@ async def list_products(
     response: Response,
     limit: int = Query(DEFAULT_LIST_LIMIT, ge=1, le=2000),
     offset: int = Query(0, ge=0),
+    q: Optional[str] = Query(None, description="Filter by name or barcode (case-insensitive)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
 ):
@@ -532,6 +533,15 @@ async def list_products(
         .filter(Product.is_active == True)  # noqa: E712
         .order_by(Product.name)
     )
+    q_clean = (q or "").strip()
+    if q_clean:
+        like = f"%{q_clean}%"
+        query = query.filter(
+            or_(
+                Product.name.ilike(like),
+                Product.barcode.ilike(like),
+            )
+        )
     products, total = paginate_orm_query(db, query, limit=limit, offset=offset)
     if total >= 0:
         response.headers["X-Total-Count"] = str(total)

@@ -233,6 +233,9 @@
         });
 
         input.addEventListener('input', function () {
+            if (typeof window.loadAdminProducts === 'function') {
+                return;
+            }
             filterMobileProducts(input.value.trim().toLowerCase());
         });
 
