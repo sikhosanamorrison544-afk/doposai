@@ -1,3 +1,4 @@
+import asyncio
 import csv
 import io
 import logging
@@ -1067,16 +1068,24 @@ async def import_inventory(
         ".docx",
     )
     if defer_parse:
-        queued_id = import_jobs.create_job_from_path(
-            db,
-            tenant_id=tenant_id,
-            user_id=current_admin.id,
-            file_name=file.filename,
-            file_ext=file_ext,
-            file_path=temp_path,
-            size_bytes=total_bytes,
-        )
-        import_jobs.kick_job(queued_id)
+
+        def _queue_disk_import() -> str:
+            thread_db = SessionLocal()
+            try:
+                return import_jobs.create_job_from_path(
+                    thread_db,
+                    tenant_id=tenant_id,
+                    user_id=current_admin.id,
+                    file_name=file.filename,
+                    file_ext=file_ext,
+                    file_path=temp_path,
+                    size_bytes=total_bytes,
+                    job_id=job_id,
+                )
+            finally:
+                thread_db.close()
+
+        queued_id = await asyncio.to_thread(_queue_disk_import)
         logging.info(
             "Import job %s accepted (deferred parse, %s bytes) for user %s",
             queued_id,

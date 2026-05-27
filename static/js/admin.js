@@ -5,6 +5,7 @@ let adminProductTotalCount = null;
 let adminProductListSearch = '';
 let adminProductsPrefetchController = null;
 let adminImportInProgress = false;
+let adminBackgroundFetches = 0;
 let backupStatusIntervalId = null;
 let editingProductId = null;
 
@@ -172,27 +173,52 @@ async function fetchAdminProductsPage(offset, limit, opts) {
     }
     const fetchOpts = { headers, credentials: 'same-origin' };
     if (signal) fetchOpts.signal = signal;
-    const res = await fetch(url, fetchOpts);
-    if (!res.ok) {
-        if (res.status === 401) {
-            localStorage.removeItem('pos_token');
-            localStorage.removeItem('pos_user');
-            adminToken = null;
-            adminUser = null;
-            window.location.replace('/');
-            return Promise.reject(new Error('Unauthorized - redirecting to login'));
+    adminBackgroundFetches += 1;
+    try {
+        const res = await fetch(url, fetchOpts);
+        if (!res.ok) {
+            if (res.status === 401) {
+                localStorage.removeItem('pos_token');
+                localStorage.removeItem('pos_user');
+                adminToken = null;
+                adminUser = null;
+                window.location.replace('/');
+                return Promise.reject(new Error('Unauthorized - redirecting to login'));
+            }
+            const text = await res.text();
+            throw new Error(text || res.statusText);
         }
-        const text = await res.text();
-        throw new Error(text || res.statusText);
+        const items = await res.json();
+        let total = null;
+        const h = res.headers.get('X-Total-Count');
+        if (h) {
+            const n = parseInt(h, 10);
+            if (!Number.isNaN(n)) total = n;
+        }
+        return { items: Array.isArray(items) ? items : [], total: total };
+    } finally {
+        adminBackgroundFetches -= 1;
     }
-    const items = await res.json();
-    let total = null;
-    const h = res.headers.get('X-Total-Count');
-    if (h) {
-        const n = parseInt(h, 10);
-        if (!Number.isNaN(n)) total = n;
+}
+
+async function waitForAdminImportReady(messageEl, maxMs) {
+    abortAdminProductsPrefetch();
+    const deadline = Date.now() + (maxMs || 90000);
+    while (Date.now() < deadline) {
+        if (!adminProductsPrefetchController && adminBackgroundFetches <= 0) {
+            await importJobDelay(500);
+            if (!adminProductsPrefetchController && adminBackgroundFetches <= 0) {
+                return true;
+            }
+        }
+        if (messageEl) {
+            messageEl.textContent =
+                'Waiting for product list to finish loading so import can start…';
+            messageEl.style.color = 'rgba(255, 255, 255, 0.9)';
+        }
+        await importJobDelay(400);
     }
-    return { items: Array.isArray(items) ? items : [], total: total };
+    return false;
 }
 
 function abortAdminProductsPrefetch() {
@@ -267,7 +293,7 @@ function prefetchAdminProductsRest(total, startOffset, search) {
             for (let offset = startOffset; offset < total; offset += limit) {
                 if (signal.aborted || adminImportInProgress) return;
                 if (offset > startOffset) {
-                    await importJobDelay(450);
+                    await importJobDelay(900);
                 }
                 if (signal.aborted || adminImportInProgress) return;
                 const page = await fetchAdminProductsPage(offset, limit, { search: '', signal });
@@ -2681,9 +2707,24 @@ async function uploadInventoryCsvFile(file, options) {
     if (uploadBtn) uploadBtn.disabled = true;
 
     adminImportInProgress = true;
-    abortAdminProductsPrefetch();
+    const ready = await waitForAdminImportReady(messageEl, 90000);
+    if (!ready) {
+        adminImportInProgress = false;
+        if (uploadBtn) uploadBtn.disabled = false;
+        if (messageEl) {
+            messageEl.textContent =
+                'Server is still busy loading products. Wait a minute and try import again.';
+            messageEl.style.color = 'rgba(239, 68, 68, 1)';
+        }
+        return null;
+    }
+
     let importHandledByPoll = false;
     try {
+        if (messageEl) {
+            messageEl.textContent = 'Uploading CSV…';
+            messageEl.style.color = 'rgba(255, 255, 255, 0.9)';
+        }
         const response = await fetch('/api/products/import', {
             method: 'POST',
             headers: { Authorization: 'Bearer ' + token },

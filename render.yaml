@@ -70,8 +70,9 @@ services:
       # Gunicorn worker timeout (CSV import upload + large sync).
       - key: GUNICORN_TIMEOUT
         value: "180"
+      # Single worker avoids free-tier 502s when import + product list compete.
       - key: WEB_CONCURRENCY
-        value: "2"
+        value: "1"
 
       # SMTP — required for password-reset emails (/auth/forgot-password).
       # Without these the reset endpoint still issues a valid token but only
