@@ -16,6 +16,7 @@ from .inventory_csv import (
     normalize_product_name as _csv_normalize_product_name,
 )
 from .models import InventoryMovement, Product, User
+from .product_barcodes import AutoBarcodeAllocator
 from . import tenant_scope
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,24 @@ def normalize_product_name(name: str) -> str:
 
 def normalize_barcode(code: str) -> Optional[str]:
     return normalize_barcode_for_match(code)
+
+
+def resolve_import_barcode(
+    allocator: AutoBarcodeAllocator,
+    file_code: Optional[str],
+    existing: Optional[Product] = None,
+) -> tuple[Optional[str], bool]:
+    """Use CSV barcode, keep existing, or allocate AUTO-XXXXXX when missing."""
+    if file_code:
+        allocator.reserve(file_code)
+        return file_code, False
+    if existing and existing.barcode:
+        existing_code = normalize_barcode(str(existing.barcode))
+        if existing_code:
+            allocator.reserve(existing_code)
+            return existing_code, False
+    code = allocator.allocate()
+    return code, True
 
 
 class ProductIndex:
@@ -374,11 +393,15 @@ def import_products_into_db(
         "skipped": 0,
         "names_truncated": 0,
         "errors": [],
+        "auto_barcodes_assigned": 0,
         "stock_mode": products_data[0].get("stock_mode", "add") if products_data else "add",
     }
     pq = tenant_scope.filter_products(db, current_admin)
     tenant_id = tenant_scope.tenant_id_for_row(current_admin)
     product_index = ProductIndex.from_products(pq.all())
+    barcode_allocator = AutoBarcodeAllocator(db, current_admin)
+    for existing_bc in product_index.by_barcode:
+        barcode_allocator.reserve(existing_bc)
     category_ids: Dict[str, int] = {}
     pending: Dict[str, int] = {}
     rows_since_commit = 0
@@ -393,9 +416,20 @@ def import_products_into_db(
     }:
         _resolve_category_id(db, current_admin, cat_name, category_ids)
 
-    def _finish_row(product: Product, name: str, barcode: Optional[str]) -> None:
+    def _finish_row(product: Product, name: str) -> None:
+        effective = normalize_barcode(str(product.barcode or ""))
         product_index.register(product)
-        _register_pending(pending, product.id, name, barcode)
+        _register_pending(pending, product.id, name, effective)
+
+    def _import_barcode(
+        existing: Optional[Product] = None,
+    ) -> Optional[str]:
+        code, auto_assigned = resolve_import_barcode(
+            barcode_allocator, product_code, existing
+        )
+        if auto_assigned:
+            stats["auto_barcodes_assigned"] += 1
+        return code
 
     def _merge(existing: Product, **kwargs) -> None:
         merge_product_from_import(
@@ -458,9 +492,9 @@ def import_products_into_db(
                             has_stock=has_stock,
                             stock_mode=stock_mode,
                             stock_qty=in_hand_stock,
-                            barcode=product_code,
+                            barcode=_import_barcode(by_id),
                         )
-                        _finish_row(by_id, product_name, product_code)
+                        _finish_row(by_id, product_name)
                         stats["updated"] += 1
                         matched_by_id = True
                     # Stale/wrong ID in file — create or match by name/barcode instead.
@@ -482,9 +516,9 @@ def import_products_into_db(
                         has_stock=has_stock,
                         stock_mode=stock_mode,
                         stock_qty=in_hand_stock,
-                        barcode=product_code,
+                        barcode=_import_barcode(existing),
                     )
-                    _finish_row(existing, product_name, product_code)
+                    _finish_row(existing, product_name)
                     stats["merged_rows"] += 1
                     stats["updated"] += 1
                 else:
@@ -501,9 +535,9 @@ def import_products_into_db(
                             has_stock=has_stock,
                             stock_mode=stock_mode,
                             stock_qty=in_hand_stock,
-                            barcode=product_code,
+                            barcode=_import_barcode(existing_product),
                         )
-                        _finish_row(existing_product, product_name, product_code)
+                        _finish_row(existing_product, product_name)
                         stats["updated"] += 1
                     else:
                         barcode = product_code
@@ -526,9 +560,9 @@ def import_products_into_db(
                                         has_stock=has_stock,
                                         stock_mode=stock_mode,
                                         stock_qty=in_hand_stock,
-                                        barcode=None,
+                                        barcode=_import_barcode(by_name),
                                     )
-                                    _finish_row(by_name, product_name, product_code)
+                                    _finish_row(by_name, product_name)
                                     stats["updated"] += 1
                                     merged = True
                                 else:
@@ -545,9 +579,9 @@ def import_products_into_db(
                                     has_stock=has_stock,
                                     stock_mode=stock_mode,
                                     stock_qty=in_hand_stock,
-                                    barcode=barcode,
+                                    barcode=_import_barcode(conflict),
                                 )
-                                _finish_row(conflict, product_name, product_code)
+                                _finish_row(conflict, product_name)
                                 stats["updated"] += 1
                                 merged = True
 
@@ -565,16 +599,16 @@ def import_products_into_db(
                                     has_stock=has_stock,
                                     stock_mode=stock_mode,
                                     stock_qty=in_hand_stock,
-                                    barcode=product_code if not again.barcode else None,
+                                    barcode=_import_barcode(again),
                                 )
-                                _finish_row(again, product_name, product_code)
+                                _finish_row(again, product_name)
                                 stats["updated"] += 1
                             else:
                                 created = _create_product_from_import(
                                     db,
                                     tenant_id=tenant_id,
                                     name=product_name,
-                                    barcode=barcode,
+                                    barcode=_import_barcode(),
                                     category_id=category_id,
                                     avg_cost=avg_cost,
                                     selling_price=selling_price,
@@ -588,7 +622,7 @@ def import_products_into_db(
                                         f"Could not create '{product_name}' "
                                         "(duplicate barcode or database error)"
                                     )
-                                _finish_row(created, product_name, product_code)
+                                _finish_row(created, product_name)
                                 stats["created"] += 1
 
             rows_since_commit += 1

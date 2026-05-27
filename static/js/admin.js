@@ -2632,6 +2632,11 @@ function formatImportResultMessage(result) {
     } else if (inDb > 0 && (result.total_rows || 0) > inDb && skipped === 0) {
         message += '\n\nMany file rows updated the same existing products (matched by barcode or name).';
     }
+    if (result.auto_barcodes_assigned) {
+        message +=
+            '\nAuto-assigned barcodes (AUTO-…): ' +
+            Number(result.auto_barcodes_assigned).toLocaleString();
+    }
     if (result.stock_mode) {
         message += `\nStock handling: ${result.stock_mode === 'set' ? 'set on-hand qty from file' : 'add qty to existing stock'}`;
     }

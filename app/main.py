@@ -78,6 +78,7 @@ from .models import (
 
 from . import tenant_scope
 from .pagination import DEFAULT_LIST_LIMIT, paginate_orm_query
+from .product_barcodes import generate_unique_barcode
 from .analytics_page_data import (
     build_analytics_bootstrap,
     build_dashboard_summary,
@@ -634,43 +635,6 @@ async def export_price_list_pdf(
             "Cache-Control": "no-store",
         },
     )
-
-
-def generate_unique_barcode(db: Session, user: User) -> str:
-    """Generate a unique auto-assigned barcode in format AUTO-XXXXXX (per-tenant)."""
-    # Find the highest existing auto-generated barcode number in this tenant
-    existing_auto_barcodes = (
-        tenant_scope.filter_products(db, user)
-        .with_entities(Product.barcode)
-        .filter(Product.barcode.like("AUTO-%"))
-        .all()
-    )
-
-    max_num = 0
-    for (barcode,) in existing_auto_barcodes:
-        if barcode and barcode.startswith("AUTO-"):
-            try:
-                # Extract number from AUTO-XXXXXX format
-                num_str = barcode.split("-", 1)[1] if "-" in barcode else ""
-                num = int(num_str) if num_str.isdigit() else 0
-                max_num = max(max_num, num)
-            except (ValueError, IndexError):
-                continue
-
-    # Generate next barcode (6-digit zero-padded)
-    next_num = max_num + 1
-    new_barcode = f"AUTO-{next_num:06d}"
-
-    # Double-check it doesn't exist (safety check)
-    existing = tenant_scope.filter_products(db, user).filter(Product.barcode == new_barcode).first()
-    if existing:
-        # If it exists, find the next available number
-        while existing:
-            next_num += 1
-            new_barcode = f"AUTO-{next_num:06d}"
-            existing = tenant_scope.filter_products(db, user).filter(Product.barcode == new_barcode).first()
-
-    return new_barcode
 
 
 @app.post("/api/products", response_model=ProductRead)
