@@ -3157,23 +3157,15 @@ async def import_from_backup(
 async def get_backup_status(
     current_user: User = Depends(auth.get_current_admin_user),
 ):
-    """Get backup service status."""
+    """Get backup service status (fast; no blocking network probe)."""
     backup_service = get_backup_service()
-    import socket
-    has_internet = False
-    try:
-        socket.create_connection(("8.8.8.8", 53), timeout=3)
-        has_internet = True
-    except OSError:
-        pass
-    
     queue = backup_service._load_offline_queue()
-    
     return {
         "enabled": backup_service.is_enabled(),
-        "has_internet": has_internet,
+        "has_internet": backup_service.check_internet(),
         "pending_changes": len(queue),
-        "configured": backup_service.config.get("enabled", False) and bool(backup_service.config.get("web_app_url"))
+        "configured": backup_service.config.get("enabled", False)
+        and bool(backup_service.config.get("web_app_url")),
     }
 
 

@@ -4,6 +4,8 @@ let adminProducts = [];
 let adminProductTotalCount = null;
 let adminProductListSearch = '';
 let adminProductsPrefetchController = null;
+let adminImportInProgress = false;
+let backupStatusIntervalId = null;
 let editingProductId = null;
 
 function formatAdminProductCountBadge(n) {
@@ -129,7 +131,6 @@ async function adminApi(path, options = {}) {
         }
     }
     
-    console.log(`Making API call to: ${path}`);
     const res = await fetch(path, {
         ...options,
         headers,
@@ -139,19 +140,17 @@ async function adminApi(path, options = {}) {
         // If unauthorized (401), clear tokens and redirect to login immediately
         if (res.status === 401) {
             console.warn(`Unauthorized (401) for ${path} - clearing tokens and redirecting to login`);
-            console.warn('This might indicate an expired or invalid token');
             localStorage.removeItem('pos_token');
             localStorage.removeItem('pos_user');
             adminToken = null;
             adminUser = null;
-            // Use window.location.replace to prevent back button issues
             window.location.replace('/');
-            // Return a rejected promise to stop further execution
             return Promise.reject(new Error('Unauthorized - redirecting to login'));
         }
         const text = await res.text();
-        console.error(`API call to ${path} failed with status ${res.status}:`, text);
-        throw new Error(text || res.statusText);
+        const msg = parseApiErrorText(text, res.status);
+        console.warn(`API call to ${path} failed (${res.status}):`, msg);
+        throw new Error(msg);
     }
     if (res.status === 204) return null;
     return res.json();
@@ -266,7 +265,11 @@ function prefetchAdminProductsRest(total, startOffset, search) {
     (async function () {
         try {
             for (let offset = startOffset; offset < total; offset += limit) {
-                if (signal.aborted) return;
+                if (signal.aborted || adminImportInProgress) return;
+                if (offset > startOffset) {
+                    await importJobDelay(450);
+                }
+                if (signal.aborted || adminImportInProgress) return;
                 const page = await fetchAdminProductsPage(offset, limit, { search: '', signal });
                 if (signal.aborted) return;
                 adminProducts.push.apply(adminProducts, page.items);
@@ -2309,24 +2312,18 @@ function hideImportModal() {
     clearAndroidPendingImport();
 }
 
-function parseApiErrorText(text, status) {
+function parseApiErrorText(text, status, context) {
+    const isImport = context === 'import';
+    const busyMsg = isImport
+        ? 'Server timed out while importing (file may be too large). Try a smaller CSV or import in batches.'
+        : 'Server is busy or restarting. Wait a moment and try again.';
     if (!text) {
-        if (status === 502 || status === 504) {
-            return (
-                'Server timed out while importing (file may be too large). ' +
-                'Try a smaller CSV or import in batches.'
-            );
-        }
+        if (status === 502 || status === 504) return busyMsg;
         return 'Request failed';
     }
     const trimmed = String(text).trim();
     if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html')) {
-        if (status === 502 || status === 504) {
-            return (
-                'Server timed out while importing (file may be too large). ' +
-                'Try a smaller CSV or import in batches.'
-            );
-        }
+        if (status === 502 || status === 504) return busyMsg;
         if (status === 413) {
             return 'File is too large for the server. Split into smaller CSV files.';
         }
@@ -2498,17 +2495,20 @@ async function pollImportJob(jobId, options) {
     if (!token) {
         throw new Error('Not signed in. Open Admin from a logged-in account.');
     }
+    adminImportInProgress = true;
+    abortAdminProductsPrefetch();
     const totalHint = options && options.totalRows ? Number(options.totalRows) : 10000;
     // ~2s per poll; allow up to ~40 min for 10k rows
     const maxAttempts = Math.min(1200, Math.max(300, Math.ceil(totalHint / 8)));
 
+    try {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const response = await fetch('/api/products/import/status/' + encodeURIComponent(jobId), {
             headers: { Authorization: 'Bearer ' + token },
         });
         const text = await response.text();
         if (!response.ok) {
-            throw new Error(parseApiErrorText(text, response.status));
+            throw new Error(parseApiErrorText(text, response.status, 'import'));
         }
         let data;
         try {
@@ -2551,6 +2551,9 @@ async function pollImportJob(jobId, options) {
     throw new Error(
         'Import is taking longer than expected. Refresh Admin in a minute — products may still be importing.'
     );
+    } finally {
+        adminImportInProgress = false;
+    }
 }
 
 async function applyImportResult(result, options) {
@@ -2677,6 +2680,9 @@ async function uploadInventoryCsvFile(file, options) {
     }
     if (uploadBtn) uploadBtn.disabled = true;
 
+    adminImportInProgress = true;
+    abortAdminProductsPrefetch();
+    let importHandledByPoll = false;
     try {
         const response = await fetch('/api/products/import', {
             method: 'POST',
@@ -2686,7 +2692,7 @@ async function uploadInventoryCsvFile(file, options) {
 
         const responseText = await response.text();
         if (!response.ok) {
-            throw new Error(parseApiErrorText(responseText, response.status));
+            throw new Error(parseApiErrorText(responseText, response.status, 'import'));
         }
 
         let payload;
@@ -2701,6 +2707,7 @@ async function uploadInventoryCsvFile(file, options) {
             if (!payload.job_id) {
                 throw new Error('Import started but no job id was returned');
             }
+            importHandledByPoll = true;
             result = await pollImportJob(payload.job_id, {
                 ...options,
                 totalRows: payload.total_rows,
@@ -2719,6 +2726,9 @@ async function uploadInventoryCsvFile(file, options) {
         }
         return null;
     } finally {
+        if (!importHandledByPoll) {
+            adminImportInProgress = false;
+        }
         if (uploadBtn) uploadBtn.disabled = false;
     }
 }
@@ -3322,30 +3332,49 @@ window.addEventListener('load', async () => {
         // If it's a 401, adminApi already redirected, so we won't reach here
     }
     
-    try {
-    await loadBackupConfig();
-    } catch (e) {
-        console.error('Failed to load backup config:', e);
-        // If it's a 401, adminApi already redirected, so we won't reach here
-    }
-    
-    try {
-    await loadBackupStatus();
-    } catch (e) {
-        console.error('Failed to load backup status:', e);
-        // If it's a 401, adminApi already redirected, so we won't reach here
-    }
-    
-    // Set up backup event handlers
     setupBackupEvents();
-    
-    // Periodically check backup status
-    setInterval(loadBackupStatus, 30000); // Every 30 seconds
+    scheduleBackupMonitoring();
 });
 
 // ==================== BACKUP MANAGEMENT ====================
 
+function hasBackupStatusUi() {
+    return !!document.getElementById('backup-status-text');
+}
+
+function scheduleBackupMonitoring() {
+    if (!hasBackupStatusUi()) return;
+    const start = function () {
+        initBackupMonitoring().catch(function (e) {
+            console.warn('Backup monitoring failed to start:', e.message || e);
+        });
+    };
+    if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(start, { timeout: 8000 });
+    } else {
+        setTimeout(start, 4000);
+    }
+}
+
+async function initBackupMonitoring() {
+    if (!hasBackupStatusUi()) return;
+    try {
+        await loadBackupConfig();
+        await loadBackupStatus();
+    } catch (e) {
+        console.warn('Backup status unavailable:', e.message || e);
+    }
+    if (backupStatusIntervalId) {
+        clearInterval(backupStatusIntervalId);
+    }
+    backupStatusIntervalId = setInterval(function () {
+        if (!hasBackupStatusUi() || document.visibilityState !== 'visible') return;
+        loadBackupStatus();
+    }, 120000);
+}
+
 async function loadBackupConfig() {
+    if (!hasBackupStatusUi() && !document.getElementById('backup-enabled')) return;
     try {
         const config = await adminApi('/api/backup/config');
         
@@ -3364,6 +3393,7 @@ async function loadBackupConfig() {
 }
 
 async function loadBackupStatus() {
+    if (!hasBackupStatusUi()) return;
     try {
         const status = await adminApi('/api/backup/status');
         const statusText = status.enabled ? 'Enabled' : 'Disabled';
@@ -3389,7 +3419,7 @@ async function loadBackupStatus() {
             backupPendingCountEl.textContent = status.pending_changes || 0;
         }
     } catch (e) {
-        console.error('Error loading backup status:', e);
+        console.warn('Error loading backup status:', e.message || e);
     }
 }
 

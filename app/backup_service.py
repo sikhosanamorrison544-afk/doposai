@@ -148,14 +148,18 @@ class BackupService:
             logger.error(f"Error sending request to web app: {e}")
             return {"success": False, "error": str(e)}
     
-    def _check_internet(self) -> bool:
-        """Check if internet connection is available."""
+    def check_internet(self, timeout: float = 0.5) -> bool:
+        """Quick connectivity probe for status UI (short timeout by default)."""
         try:
             import socket
-            socket.create_connection(("8.8.8.8", 53), timeout=3)
+
+            socket.create_connection(("8.8.8.8", 53), timeout=timeout)
             return True
         except OSError:
             return False
+
+    def _check_internet(self) -> bool:
+        return self.check_internet(timeout=3)
     
     def _load_offline_queue(self) -> List[Dict]:
         """Load offline changes queue from file."""
