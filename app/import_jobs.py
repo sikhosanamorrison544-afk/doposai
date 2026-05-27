@@ -82,6 +82,68 @@ def remove_temp_file(path: Optional[str]) -> None:
         logger.warning("Could not remove import temp file %s: %s", path, e)
 
 
+def create_awaiting_upload_job(
+    db: Session,
+    *,
+    tenant_id: Optional[int],
+    user_id: int,
+    file_name: str,
+    file_ext: str,
+    size_bytes: int = 0,
+) -> tuple[str, str]:
+    """Reserve a job id and temp path before the client uploads the file body."""
+    job_id = str(uuid.uuid4())
+    ensure_import_temp_dir()
+    temp_path = os.path.join(IMPORT_TEMP_DIR, f"{job_id}{file_ext or '.csv'}")
+    row = ImportJob(
+        id=job_id,
+        tenant_id=tenant_id,
+        user_id=user_id,
+        status="awaiting_upload",
+        total_rows=0,
+        processed=0,
+        file_name=file_name,
+        file_ext=file_ext,
+        file_bytes=None,
+        payload_json=json.dumps(
+            {"file_path": temp_path, "size_bytes": size_bytes, "meta": {}},
+            default=_json_default,
+        ),
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(row)
+    db.commit()
+    logger.info("Import job %s awaiting upload (%s)", job_id, file_name)
+    return job_id, temp_path
+
+
+def finalize_upload_and_queue(job_id: str, *, file_path: str, size_bytes: int) -> None:
+    """Mark upload complete and start background processing."""
+    db = SessionLocal()
+    try:
+        row = db.query(ImportJob).filter(ImportJob.id == job_id).first()
+        if not row:
+            raise ValueError("Import job not found")
+        if row.status not in ("awaiting_upload", "queued"):
+            raise ValueError(f"Import job is not accepting uploads (status={row.status})")
+        payload: Dict[str, Any] = {}
+        if row.payload_json:
+            try:
+                payload = json.loads(row.payload_json)
+            except json.JSONDecodeError:
+                payload = {}
+        payload["file_path"] = file_path
+        payload["size_bytes"] = size_bytes
+        row.payload_json = json.dumps(payload, default=_json_default)
+        row.status = "queued"
+        row.updated_at = datetime.utcnow()
+        db.commit()
+    finally:
+        db.close()
+    kick_job(job_id)
+
+
 def create_job_from_path(
     db: Session,
     *,
@@ -221,6 +283,14 @@ def job_visible_to_user(job: Dict[str, Any], user: User) -> bool:
 
 
 def _mark_stale_failed(db: Session, job: ImportJob) -> None:
+    if job.status == "awaiting_upload":
+        cutoff = datetime.utcnow() - timedelta(minutes=15)
+        if job.updated_at and job.updated_at < cutoff:
+            job.status = "failed"
+            job.error = "Upload was not completed in time. Start import again."
+            job.updated_at = datetime.utcnow()
+            db.commit()
+        return
     if job.status != "processing":
         return
     cutoff = datetime.utcnow() - timedelta(minutes=_STALE_MINUTES)

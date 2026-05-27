@@ -1006,6 +1006,135 @@ def extract_products_from_word(content: bytes) -> List[dict]:
     return products
 
 
+class ImportPrepareRequest(BaseModel):
+    filename: str
+    size_bytes: Optional[int] = None
+
+
+@app.post("/api/products/import/prepare")
+async def prepare_import_inventory(
+    body: ImportPrepareRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(auth.get_current_admin_user),
+):
+    """Reserve an import job before uploading the file (fast JSON — avoids 502 on large uploads)."""
+    from . import import_jobs
+    from . import tenant_scope
+
+    filename = (body.filename or "").strip()
+    if not filename:
+        raise HTTPException(status_code=400, detail="filename is required")
+
+    file_ext = Path(filename).suffix.lower() or ".csv"
+    tenant_id = tenant_scope.tenant_id_for_row(current_admin)
+    job_id, _temp_path = import_jobs.create_awaiting_upload_job(
+        db,
+        tenant_id=tenant_id,
+        user_id=current_admin.id,
+        file_name=filename,
+        file_ext=file_ext,
+        size_bytes=int(body.size_bytes or 0),
+    )
+    return {
+        "job_id": job_id,
+        "status": "awaiting_upload",
+        "upload_path": f"/api/products/import/{job_id}/file",
+    }
+
+
+@app.post("/api/products/import/{job_id}/file")
+async def upload_import_inventory_file(
+    job_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(auth.get_current_admin_user),
+):
+    """Upload CSV/file body for a job created by /api/products/import/prepare."""
+    import json
+
+    from . import import_jobs
+    from .models import ImportJob
+    from .startup_config import IMPORT_MAX_UPLOAD_BYTES
+
+    row = db.query(ImportJob).filter(ImportJob.id == job_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Import job not found")
+    job = import_jobs._job_to_dict(row)
+    if not import_jobs.job_visible_to_user(job, current_admin):
+        raise HTTPException(status_code=404, detail="Import job not found")
+    if row.status != "awaiting_upload":
+        raise HTTPException(
+            status_code=400,
+            detail="This import already has a file or has finished",
+        )
+
+    try:
+        payload = json.loads(row.payload_json or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    temp_path = payload.get("file_path")
+    if not temp_path:
+        raise HTTPException(status_code=500, detail="Import job is missing upload path")
+
+    file_ext = Path(file.filename or row.file_name or "").suffix.lower() or row.file_ext or ".csv"
+    import_jobs.ensure_import_temp_dir()
+    total_bytes = 0
+    chunk_size = 1024 * 1024
+    try:
+        with open(temp_path, "wb") as out:
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                total_bytes += len(chunk)
+                if total_bytes > IMPORT_MAX_UPLOAD_BYTES:
+                    import_jobs.remove_temp_file(temp_path)
+                    row.status = "failed"
+                    row.error = "File too large"
+                    row.updated_at = datetime.utcnow()
+                    db.commit()
+                    raise HTTPException(
+                        status_code=413,
+                        detail=(
+                            f"File too large (max {IMPORT_MAX_UPLOAD_BYTES // (1024 * 1024)} MB). "
+                            "Split into smaller CSV files."
+                        ),
+                    )
+                out.write(chunk)
+    except HTTPException:
+        raise
+    except Exception as e:
+        import_jobs.remove_temp_file(temp_path)
+        raise HTTPException(status_code=400, detail=f"Could not save upload: {e}") from e
+
+    if total_bytes == 0:
+        import_jobs.remove_temp_file(temp_path)
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    row.file_ext = file_ext
+    row.file_name = file.filename or row.file_name
+    db.commit()
+
+    await asyncio.to_thread(
+        import_jobs.finalize_upload_and_queue,
+        job_id,
+        file_path=temp_path,
+        size_bytes=total_bytes,
+    )
+    return JSONResponse(
+        status_code=202,
+        content={
+            "status": "queued",
+            "job_id": job_id,
+            "total_rows": 0,
+            "message": (
+                "File received. Parsing and loading products in the background — "
+                "keep this page open until complete."
+            ),
+        },
+    )
+
+
 @app.post("/api/products/import")
 async def import_inventory(
     file: UploadFile = File(...),
@@ -1190,6 +1319,14 @@ async def import_inventory_status(
         raise HTTPException(status_code=404, detail="Import job not found")
 
     status = job["status"]
+    if status == "awaiting_upload":
+        return {
+            "job_id": job_id,
+            "status": "awaiting_upload",
+            "total_rows": 0,
+            "processed": 0,
+            "message": "Waiting for file upload",
+        }
     if status == "queued":
         status = "processing"
 

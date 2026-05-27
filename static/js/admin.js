@@ -499,9 +499,8 @@ async function loadAdminProducts(opts) {
         if (!adminProductListSearch && total != null && adminProducts.length < total) {
             updateAdminProductsListHint(adminProducts.length, total, {
                 search: '',
-                prefetching: true,
+                prefetching: false,
             });
-            prefetchAdminProductsRest(total, adminProducts.length, '');
         }
     } catch (e) {
         console.error('Error loading products:', e);
@@ -2444,12 +2443,20 @@ function handleInventoryFileInputChange(fileInput) {
     }
 }
 
-window.handleImportUploadClick = function (e) {
+let importUploadInFlight = false;
+
+window.handleImportUploadClick = async function (e) {
     if (e) {
         e.preventDefault();
         e.stopPropagation();
     }
-    uploadInventoryFile(e);
+    if (importUploadInFlight) return false;
+    importUploadInFlight = true;
+    try {
+        await uploadInventoryFile(e);
+    } finally {
+        importUploadInFlight = false;
+    }
     return false;
 };
 
@@ -2722,10 +2729,41 @@ async function uploadInventoryCsvFile(file, options) {
     let importHandledByPoll = false;
     try {
         if (messageEl) {
-            messageEl.textContent = 'Uploading CSV…';
+            messageEl.textContent = 'Starting import…';
             messageEl.style.color = 'rgba(255, 255, 255, 0.9)';
         }
-        const response = await fetch('/api/products/import', {
+        const prepRes = await fetch('/api/products/import/prepare', {
+            method: 'POST',
+            headers: {
+                Authorization: 'Bearer ' + token,
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+            },
+            body: JSON.stringify({
+                filename: file.name,
+                size_bytes: file.size || 0,
+            }),
+        });
+        const prepText = await prepRes.text();
+        if (!prepRes.ok) {
+            throw new Error(parseApiErrorText(prepText, prepRes.status, 'import'));
+        }
+        let prep;
+        try {
+            prep = JSON.parse(prepText);
+        } catch (_) {
+            throw new Error('Invalid server response when starting import');
+        }
+        const jobId = prep.job_id;
+        if (!jobId) {
+            throw new Error('Server did not return an import job id');
+        }
+
+        if (messageEl) {
+            messageEl.textContent = 'Uploading CSV…';
+        }
+        const uploadPath = prep.upload_path || '/api/products/import/' + encodeURIComponent(jobId) + '/file';
+        const response = await fetch(uploadPath, {
             method: 'POST',
             headers: { Authorization: 'Bearer ' + token },
             body: formData,
@@ -2741,6 +2779,9 @@ async function uploadInventoryCsvFile(file, options) {
             payload = JSON.parse(responseText);
         } catch (_) {
             throw new Error('Invalid server response during import');
+        }
+        if (!payload.job_id) {
+            payload.job_id = jobId;
         }
 
         let result = payload;
