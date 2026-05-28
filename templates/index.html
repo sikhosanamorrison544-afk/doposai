@@ -73,7 +73,7 @@
     </script>
     <!-- Preload 3D model for faster loading -->
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
-    <link rel="stylesheet" href="/static/css/style.css?v=20260603">
+    <link rel="stylesheet" href="/static/css/style.css?v=20260604">
     <script>
         // Immediately prevent password saving before page fully loads
         (function() {
@@ -377,16 +377,17 @@
                 </div>
             </div>
 
-            <!-- Sticky bottom action bar (always visible) -->
-            <div class="pos-bottom-actions" role="group" aria-label="Checkout actions">
-                <button id="btn-toggle-layby" class="primary" type="button">
-                    <span>Layby</span>
-                    <span id="layby-toggle-icon" style="transition: transform 0.3s ease;">▼</span>
-                </button>
-                <button id="btn-add-new-layby-customer" class="primary" type="button">Add Layby Customer</button>
-                <button id="btn-record-layby-payment" class="primary" type="button">Record Layby Payment</button>
-                <button id="btn-complete-sale" class="primary big" type="button">Complete Sale</button>
-            </div>
+        </div>
+
+        <!-- Sticky bottom action bar (always visible) -->
+        <div id="pos-action-bar" class="pos-action-bar" role="group" aria-label="Checkout actions">
+            <button id="btn-toggle-layby" class="primary" type="button">
+                <span>Layby</span>
+                <span id="layby-toggle-icon" style="transition: transform 0.3s ease;">▼</span>
+            </button>
+            <button id="btn-add-new-layby-customer" class="primary" type="button">Add Layby Customer</button>
+            <button id="btn-record-layby-payment" class="primary" type="button">Record Layby Payment</button>
+            <button id="btn-complete-sale" class="primary big" type="button">Complete Sale</button>
         </div>
     </div>
 </div>

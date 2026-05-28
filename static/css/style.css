@@ -541,6 +541,7 @@ html body.theme-light .top-bar {
 
 :root {
     --pos-payment-dock-reserved: clamp(280px, 38vh, 520px);
+    --pos-action-bar-height: 72px;
 }
 
 /* Docked Checkout & Payment (classic POS layout) */
@@ -548,7 +549,7 @@ html body.theme-light .top-bar {
     position: fixed !important;
     left: 0 !important;
     right: 0 !important;
-    bottom: 0 !important;
+    bottom: var(--pos-action-bar-height) !important;
     top: auto !important;
     transform: none !important;
     width: 100% !important;
@@ -591,33 +592,48 @@ body.theme-light #payment-panel.payment-dock {
     }
 }
 
-/* Sticky bottom actions inside the dock */
-#payment-panel.payment-dock .pos-bottom-actions {
-    position: sticky;
-    bottom: 0;
+/* Sticky POS action bar (always visible at bottom of screen) */
+#pos-action-bar.pos-action-bar {
+    position: fixed;
     left: 0;
     right: 0;
+    bottom: 0;
+    height: var(--pos-action-bar-height);
     display: flex;
     gap: 10px;
     align-items: center;
     justify-content: flex-end;
-    padding: 12px 0 6px 0;
-    margin-top: 14px;
-    border-top: 1px solid rgba(0, 0, 0, 0.08);
-    background: inherit;
+    padding: 10px 12px;
+    box-sizing: border-box;
     z-index: 2600;
+    border-top: 1px solid rgba(0, 0, 0, 0.12);
 }
 
-#payment-panel.payment-dock .pos-bottom-actions .primary.big {
+body.theme-default #pos-action-bar.pos-action-bar,
+body.theme-classic #pos-action-bar.pos-action-bar {
+    background: #ffffff;
+}
+
+body.theme-light #pos-action-bar.pos-action-bar {
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+}
+
+#pos-action-bar.pos-action-bar .primary.big {
     min-width: 220px;
 }
 
 @media (max-width: 820px) {
-    #payment-panel.payment-dock .pos-bottom-actions {
+    :root {
+        --pos-action-bar-height: 220px;
+    }
+    #pos-action-bar.pos-action-bar {
         flex-direction: column;
         align-items: stretch;
+        justify-content: center;
     }
-    #payment-panel.payment-dock .pos-bottom-actions .primary.big {
+    #pos-action-bar.pos-action-bar .primary.big {
         min-width: 0;
         width: 100%;
     }
