@@ -594,19 +594,22 @@ body.theme-light #payment-panel.payment-dock {
 
 /* Sticky POS action bar (always visible at bottom of screen) */
 #pos-action-bar.pos-action-bar {
-    position: fixed;
+    position: fixed !important;
     left: 0;
     right: 0;
     bottom: 0;
     height: var(--pos-action-bar-height);
-    display: flex;
+    display: flex !important;
     gap: 10px;
     align-items: center;
     justify-content: flex-end;
     padding: 10px 12px;
     box-sizing: border-box;
-    z-index: 2600;
+    z-index: 99999 !important;
     border-top: 1px solid rgba(0, 0, 0, 0.12);
+    visibility: visible !important;
+    opacity: 1 !important;
+    box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.12);
 }
 
 body.theme-default #pos-action-bar.pos-action-bar,
