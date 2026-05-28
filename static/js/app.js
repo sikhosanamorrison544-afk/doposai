@@ -2211,7 +2211,9 @@ window.addEventListener('load', () => {
     if (settingsPanel) {
         settingsPanel.style.setProperty('display', 'none', 'important');
     }
-    if (paymentPanel) {
+    // In classic POS layout the payment panel is docked and must stay visible.
+    // Only hide it by default when using the old floating/modal checkout.
+    if (paymentPanel && !(paymentPanel.classList && paymentPanel.classList.contains('payment-dock'))) {
         paymentPanel.style.setProperty('display', 'none', 'important');
     }
     if (posBackdrop) {
