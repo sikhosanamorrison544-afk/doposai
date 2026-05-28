@@ -578,8 +578,14 @@ body.pos-payment-expanded {
     margin-top: 10px;
 }
 
-body:not(.pos-payment-expanded) #pos-payment-details {
+/* Prefer panel class so JS can expand even if body class is clobbered */
+#payment-panel.payment-dock:not(.payment-expanded) #pos-payment-details {
     display: none;
+}
+
+#payment-panel.payment-dock.payment-expanded {
+    height: var(--pos-payment-dock-expanded) !important;
+    max-height: var(--pos-payment-dock-expanded) !important;
 }
 
 body.theme-default #payment-panel.payment-dock,

@@ -16,11 +16,14 @@ window.togglePaymentPanel = function() {
         return;
     }
     function setPaymentExpanded(expanded) {
-        document.body.classList.toggle('pos-payment-expanded', !!expanded);
-    }
-
-    function isPaymentExpanded() {
-        return document.body.classList.contains('pos-payment-expanded');
+        const on = !!expanded;
+        try {
+            document.body.classList.toggle('pos-payment-expanded', on);
+        } catch (_) {}
+        try {
+            const p = document.getElementById('payment-panel');
+            if (p) p.classList.toggle('payment-expanded', on);
+        } catch (_) {}
     }
 
     // Docked payment panel: expand/collapse (no backdrop).
@@ -1184,6 +1187,10 @@ async function completeSale() {
         document.getElementById('pay-credit').value = '';
         document.getElementById('customer-name').value = '';
         document.body.classList.remove('pos-payment-expanded');
+        try {
+            const dock = document.getElementById('payment-panel');
+            if (dock) dock.classList.remove('payment-expanded');
+        } catch (_) {}
         await loadProducts();
     } catch (e) {
         console.error('Sale error:', e);
@@ -1350,10 +1357,14 @@ function setupEvents() {
     document.getElementById('btn-complete-sale').addEventListener('click', function (e) {
         const dock = document.getElementById('payment-panel');
         const isDock = dock && dock.classList && dock.classList.contains('payment-dock');
-        if (isDock && !document.body.classList.contains('pos-payment-expanded')) {
+        const isExpanded =
+            document.body.classList.contains('pos-payment-expanded') ||
+            (dock && dock.classList && dock.classList.contains('payment-expanded'));
+        if (isDock && !isExpanded) {
             e.preventDefault();
             e.stopPropagation();
             document.body.classList.add('pos-payment-expanded');
+            if (dock && dock.classList) dock.classList.add('payment-expanded');
             dock.scrollIntoView({ block: 'end', behavior: 'smooth' });
             const cash = document.getElementById('pay-cash');
             if (cash) setTimeout(() => cash.focus(), 0);
