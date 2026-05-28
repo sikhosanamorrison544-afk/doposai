@@ -1668,14 +1668,27 @@
     html body.theme-light #ai-insights-panel #ai-chat-panel *,
     html body.theme-light #ai-insights-panel #ai-chat-messages,
     html body.theme-light #ai-insights-panel #ai-chat-messages * {
-        color: #1a1a1a !important;
+        color: #ffffff !important;
     }
-    /* Override any black text colors in inline styles */
+    html body.theme-light #ai-insights-panel button,
+    html body.theme-light #ai-insights-panel button *,
+    html body.theme-light #ai-insights-panel select,
+    html body.theme-light #ai-insights-panel select option,
+    html body.theme-light #ai-insights-panel input {
+        color: #ffffff !important;
+    }
+    /* Override any dark text colors in inline styles */
     html body.theme-light #ai-insights-panel [style*="color:#1a1a2e"],
     html body.theme-light #ai-insights-panel [style*="color: #1a1a2e"],
+    html body.theme-light #ai-insights-panel [style*="color:#1a1a1a"],
+    html body.theme-light #ai-insights-panel [style*="color: #1a1a1a"],
     html body.theme-light #ai-insights-panel [style*="color:rgba(26, 26, 46"],
-    html body.theme-light #ai-insights-panel [style*="color: rgba(26, 26, 46"] {
-        color: #1a1a1a !important;
+    html body.theme-light #ai-insights-panel [style*="color: rgba(26, 26, 46"],
+    html body.theme-light #ai-insights-panel [style*="color:rgba(0,0,0"],
+    html body.theme-light #ai-insights-panel [style*="color: rgba(0,0,0"],
+    html body.theme-light #ai-insights-panel [style*="color:rgba(0, 0, 0"],
+    html body.theme-light #ai-insights-panel [style*="color: rgba(0, 0, 0"] {
+        color: #ffffff !important;
     }
 </style>
 <script>
