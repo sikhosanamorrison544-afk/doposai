@@ -1405,33 +1405,7 @@ function setupEvents() {
         });
     }, 100);
 
-    // Docked checkout buttons (classic POS)
-    const btnOpenCheckout = document.getElementById('btn-open-checkout');
-    if (btnOpenCheckout) {
-        btnOpenCheckout.addEventListener('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (typeof window.togglePaymentPanel === 'function') {
-                window.togglePaymentPanel();
-            }
-            return false;
-        });
-    }
-
-    const btnPayNow = document.getElementById('btn-pay-now');
-    if (btnPayNow) {
-        btnPayNow.addEventListener('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            const payBtn = document.getElementById('btn-complete-sale');
-            if (payBtn) {
-                payBtn.click();
-            } else if (typeof window.togglePaymentPanel === 'function') {
-                window.togglePaymentPanel();
-            }
-            return false;
-        });
-    }
+    // POS action buttons now live in the fixed bottom action bar.
     
     // Payment panel is docked (always visible) — no toggle button/backdrop on the store page.
     const posBackdrop = document.getElementById('pos-backdrop');

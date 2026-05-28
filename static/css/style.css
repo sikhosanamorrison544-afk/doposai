@@ -1650,29 +1650,7 @@ body.theme-classic .floating-panel {
     max-height: calc(100vh - 120px);
 }
 
-/* Checkout buttons always visible on POS page */
-.pos-checkout-actions {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    justify-content: flex-end;
-    padding: 10px 4px 0 4px;
-}
-
-.pos-checkout-actions .primary.big {
-    min-width: 220px;
-}
-
-@media (max-width: 820px) {
-    .pos-checkout-actions {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .pos-checkout-actions .primary.big {
-        min-width: 0;
-        width: 100%;
-    }
-}
+/* (Removed) POS checkout buttons under cart — actions are in #pos-action-bar. */
 
 table {
     width: 100%;
