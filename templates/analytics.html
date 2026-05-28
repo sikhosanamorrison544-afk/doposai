@@ -393,6 +393,32 @@
         .bi-advisor-output h3 { margin: 12px 0 6px; font-size: 15px; }
         .bi-advisor-output ul { margin: 4px 0 12px 18px; }
 
+        /* Light theme: Business Advisor section text must be white */
+        body.theme-light .bi-health-section,
+        body.theme-light .bi-health-section * {
+            color: #ffffff !important;
+        }
+        body.theme-light .bi-health-section {
+            background: rgba(0, 0, 0, 0.35) !important;
+            border: 1px solid rgba(255, 255, 255, 0.22) !important;
+        }
+        body.theme-light .bi-score-card {
+            background: rgba(0, 0, 0, 0.25) !important;
+        }
+        body.theme-light .bi-advisor-output {
+            background: rgba(0, 0, 0, 0.22) !important;
+        }
+        body.theme-light .bi-health-section [style*="color:#1a1a1a"],
+        body.theme-light .bi-health-section [style*="color: #1a1a1a"],
+        body.theme-light .bi-health-section [style*="color:#64748b"],
+        body.theme-light .bi-health-section [style*="color: #64748b"],
+        body.theme-light .bi-health-section [style*="color:rgba(0,0,0"],
+        body.theme-light .bi-health-section [style*="color: rgba(0,0,0"],
+        body.theme-light .bi-health-section [style*="color:rgba(0, 0, 0"],
+        body.theme-light .bi-health-section [style*="color: rgba(0, 0, 0"] {
+            color: #ffffff !important;
+        }
+
         /* AI Insights Panel - Full Width Content with Even Spacing */
         #ai-insights-panel,
         #ai-insights-panel.floating-panel,
