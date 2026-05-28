@@ -1,3 +1,24 @@
+// Docked checkout expand/collapse — must exist before Complete Sale click
+window.setPosPaymentExpanded = function (expanded) {
+    const on = !!expanded;
+    const dock = document.getElementById('payment-panel');
+    const details = document.getElementById('pos-payment-details');
+    try {
+        document.body.classList.toggle('pos-payment-expanded', on);
+    } catch (_) {}
+    if (dock) dock.classList.toggle('payment-expanded', on);
+    if (details) details.style.display = on ? 'block' : 'none';
+    if (dock) {
+        if (on) {
+            dock.style.setProperty('height', 'min(62vh, 720px)', 'important');
+            dock.style.setProperty('max-height', 'min(62vh, 720px)', 'important');
+        } else {
+            dock.style.removeProperty('height');
+            dock.style.removeProperty('max-height');
+        }
+    }
+};
+
 // Payment panel functions - defined first for inline onclick handlers
 window.togglePaymentPanel = function() {
     console.log('=== togglePaymentPanel called ===');
@@ -15,21 +36,10 @@ window.togglePaymentPanel = function() {
         console.error('payment-panel not found');
         return;
     }
-    function setPaymentExpanded(expanded) {
-        const on = !!expanded;
-        try {
-            document.body.classList.toggle('pos-payment-expanded', on);
-        } catch (_) {}
-        try {
-            const p = document.getElementById('payment-panel');
-            if (p) p.classList.toggle('payment-expanded', on);
-        } catch (_) {}
-    }
-
     // Docked payment panel: expand/collapse (no backdrop).
     if (panel && panel.classList && panel.classList.contains('payment-dock')) {
         if (settingsPanel) settingsPanel.style.setProperty('display', 'none', 'important');
-        setPaymentExpanded(true);
+        window.setPosPaymentExpanded(true);
         const cash = document.getElementById('pay-cash');
         if (cash) setTimeout(() => cash.focus(), 0);
         panel.scrollIntoView({ block: 'end', behavior: 'smooth' });
@@ -86,7 +96,12 @@ window.togglePaymentPanel = function() {
 window.closePaymentPanel = function() {
     const panel = document.getElementById('payment-panel');
     const backdrop = document.getElementById('pos-backdrop');
-    if (panel && panel.classList && panel.classList.contains('payment-dock')) return;
+    if (panel && panel.classList && panel.classList.contains('payment-dock')) {
+        if (typeof window.setPosPaymentExpanded === 'function') {
+            window.setPosPaymentExpanded(false);
+        }
+        return;
+    }
     if (panel) panel.style.setProperty('display', 'none', 'important');
     if (backdrop) backdrop.style.setProperty('display', 'none', 'important');
 };
@@ -1186,11 +1201,13 @@ async function completeSale() {
         document.getElementById('pay-card').value = '';
         document.getElementById('pay-credit').value = '';
         document.getElementById('customer-name').value = '';
-        document.body.classList.remove('pos-payment-expanded');
-        try {
+        if (typeof window.setPosPaymentExpanded === 'function') {
+            window.setPosPaymentExpanded(false);
+        } else {
+            document.body.classList.remove('pos-payment-expanded');
             const dock = document.getElementById('payment-panel');
             if (dock) dock.classList.remove('payment-expanded');
-        } catch (_) {}
+        }
         await loadProducts();
     } catch (e) {
         console.error('Sale error:', e);
@@ -1356,21 +1373,28 @@ function setupEvents() {
     });
     document.getElementById('btn-complete-sale').addEventListener('click', function (e) {
         const dock = document.getElementById('payment-panel');
+        const details = document.getElementById('pos-payment-details');
         const isDock = dock && dock.classList && dock.classList.contains('payment-dock');
         const isExpanded =
             document.body.classList.contains('pos-payment-expanded') ||
-            (dock && dock.classList && dock.classList.contains('payment-expanded'));
+            (dock && dock.classList && dock.classList.contains('payment-expanded')) ||
+            (details && details.style.display === 'block');
         if (isDock && !isExpanded) {
             e.preventDefault();
             e.stopPropagation();
-            document.body.classList.add('pos-payment-expanded');
-            if (dock && dock.classList) dock.classList.add('payment-expanded');
+            if (typeof window.setPosPaymentExpanded === 'function') {
+                window.setPosPaymentExpanded(true);
+            } else {
+                document.body.classList.add('pos-payment-expanded');
+                if (dock) dock.classList.add('payment-expanded');
+            }
             dock.scrollIntoView({ block: 'end', behavior: 'smooth' });
             const cash = document.getElementById('pay-cash');
             if (cash) setTimeout(() => cash.focus(), 0);
             return false;
         }
-        return completeSale();
+        void completeSale();
+        return false;
     });
     document.getElementById('btn-admin').addEventListener('click', () => {
         window.location.href = '/admin';
@@ -2339,7 +2363,39 @@ window.addEventListener('load', () => {
 // Notification functions
 let notificationCheckInterval = null;
 
+function isBrowserOnline() {
+    return typeof navigator !== 'undefined' ? navigator.onLine !== false : true;
+}
+
+function isNetworkFetchError(err) {
+    if (!err) return false;
+    const msg = String(err.message || err).toLowerCase();
+    return (
+        err.name === 'TypeError' &&
+        (msg.includes('failed to fetch') ||
+            msg.includes('network') ||
+            msg.includes('internet') ||
+            msg.includes('disconnected'))
+    );
+}
+
+function startNotificationBadgePolling() {
+    if (notificationCheckInterval) return;
+    notificationCheckInterval = setInterval(() => {
+        if (!isBrowserOnline()) return;
+        updateNotificationBadge({ silent: true });
+    }, 30000);
+}
+
+function stopNotificationBadgePolling() {
+    if (notificationCheckInterval) {
+        clearInterval(notificationCheckInterval);
+        notificationCheckInterval = null;
+    }
+}
+
 async function loadNotifications() {
+    if (!isBrowserOnline()) return;
     try {
         const token = localStorage.getItem('pos_token');
         if (!token) return;
@@ -2354,13 +2410,17 @@ async function loadNotifications() {
         
         const notifications = await response.json();
         renderNotifications(notifications);
-        updateNotificationBadge();
+        updateNotificationBadge({ silent: true });
     } catch (e) {
-        console.error('Error loading notifications:', e);
+        if (!isNetworkFetchError(e)) {
+            console.warn('Error loading notifications:', e.message || e);
+        }
     }
 }
 
-async function updateNotificationBadge() {
+async function updateNotificationBadge(opts) {
+    opts = opts || {};
+    if (!isBrowserOnline()) return;
     try {
         const token = localStorage.getItem('pos_token');
         if (!token) return;
@@ -2388,7 +2448,9 @@ async function updateNotificationBadge() {
             }
         }
     } catch (e) {
-        console.error('Error updating notification badge:', e);
+        if (!opts.silent && !isNetworkFetchError(e)) {
+            console.warn('Notification badge update failed:', e.message || e);
+        }
     }
 }
 
@@ -2638,11 +2700,16 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     
     if (sessionRestored) {
-        loadNotifications();
-        updateNotificationBadge();
-        notificationCheckInterval = setInterval(() => {
-            updateNotificationBadge();
-        }, 30000);
+        if (isBrowserOnline()) {
+            loadNotifications();
+            updateNotificationBadge({ silent: true });
+        }
+        startNotificationBadgePolling();
+        window.addEventListener('online', function () {
+            updateNotificationBadge({ silent: true });
+            startNotificationBadgePolling();
+        });
+        window.addEventListener('offline', stopNotificationBadgePolling);
     }
 });
 
