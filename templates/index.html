@@ -290,21 +290,12 @@
                 </small>
             </div>
 
-            <button id="btn-complete-sale" class="primary big">Complete Sale &amp; Print Receipt</button>
             <div id="pos-message" class="info"></div>
             <div id="pos-refund-shortcut" style="display:none;margin-top:10px;">
                 <button type="button" id="btn-refund-last-sale" class="small" style="background:rgba(234,88,12,0.9);color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;">
                     ↩ Refund this sale
                 </button>
                 <span id="pos-refund-sale-label" style="margin-left:8px;font-size:13px;opacity:0.85;"></span>
-            </div>
-
-            <!-- Layby Toggle Button -->
-            <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.2);">
-                <button id="btn-toggle-layby" class="primary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                    <span>Layby</span>
-                    <span id="layby-toggle-icon" style="transition: transform 0.3s ease;">▼</span>
-                </button>
             </div>
 
             <!-- Layby Sections Container (Hidden by default) -->
@@ -340,7 +331,6 @@
                             <option value="card">Card</option>
                         </select>
                     </div>
-                    <button id="btn-add-new-layby-customer" class="primary" style="width: 100%; margin-top: 12px;">Add Layby Customer</button>
                     <div id="new-layby-customer-message" class="info" style="margin-top: 8px;"></div>
                 </div>
 
@@ -383,9 +373,19 @@
                             <option value="card">Card</option>
                         </select>
                     </div>
-                    <button id="btn-record-layby-payment" class="primary" style="width: 100%; margin-top: 12px;">Record Layby Payment &amp; Print Receipt</button>
                     <div id="layby-message" class="info" style="margin-top: 8px;"></div>
                 </div>
+            </div>
+
+            <!-- Sticky bottom action bar (always visible) -->
+            <div class="pos-bottom-actions" role="group" aria-label="Checkout actions">
+                <button id="btn-toggle-layby" class="primary" type="button">
+                    <span>Layby</span>
+                    <span id="layby-toggle-icon" style="transition: transform 0.3s ease;">▼</span>
+                </button>
+                <button id="btn-add-new-layby-customer" class="primary" type="button">Add Layby Customer</button>
+                <button id="btn-record-layby-payment" class="primary" type="button">Record Layby Payment</button>
+                <button id="btn-complete-sale" class="primary big" type="button">Complete Sale</button>
             </div>
         </div>
     </div>
