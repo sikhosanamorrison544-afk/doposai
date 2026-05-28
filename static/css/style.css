@@ -610,6 +610,12 @@ body.theme-light #payment-panel.payment-dock {
     visibility: visible !important;
     opacity: 1 !important;
     box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.12);
+    background: #ffffff;
+}
+
+/* Buttons have a global margin-top; remove inside the bar so they don't get pushed off-screen */
+#pos-action-bar.pos-action-bar button {
+    margin-top: 0 !important;
 }
 
 body.theme-default #pos-action-bar.pos-action-bar,
