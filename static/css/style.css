@@ -1377,7 +1377,7 @@ body.theme-classic .floating-panel {
 /* Payment Panel Specific Styles - Override floating-panel positioning */
 /* Enlarged to leave just a few mm from screen edges */
 .floating-panel.payment-panel,
-#payment-panel.payment-panel,
+#payment-panel.payment-panel:not(.payment-dock),
 #payment-panel.floating-panel.payment-panel {
     width: calc(100vw - 16px) !important; /* 8px (4mm) margin on each side */
     max-width: calc(100vw - 16px) !important;
@@ -2272,7 +2272,7 @@ body.theme-default .floating-panel {
 
 /* Default theme checkout: solid white panel (not light-theme frosted glass) */
 body.theme-default #payment-panel.floating-panel.payment-panel,
-body.theme-default #payment-panel.payment-panel {
+body.theme-default #payment-panel.payment-panel:not(.payment-dock) {
     background: #ffffff !important;
     background-color: #ffffff !important;
     background-image: none !important;
@@ -7010,15 +7010,15 @@ html.theme-light body.theme-light:not(.pos-android-app) #login-screen .error {
 /* =============================================================================
    Light theme — Checkout & Payment panel (frosted glass, matches Settings panel)
    ============================================================================= */
-body.theme-light #payment-panel,
+body.theme-light #payment-panel:not(.payment-dock),
 body.theme-light #payment-panel.floating-panel.payment-panel,
-body.theme-light #payment-panel.payment-panel,
+body.theme-light #payment-panel.payment-panel:not(.payment-dock),
 html.theme-light body.theme-light #payment-panel,
 html.theme-light body.theme-light #payment-panel.floating-panel.payment-panel,
-html.theme-light body.theme-light #payment-panel.payment-panel,
+html.theme-light body.theme-light #payment-panel.payment-panel:not(.payment-dock),
 html body.theme-light #payment-panel,
 html body.theme-light #payment-panel.floating-panel.payment-panel,
-html body.theme-light #payment-panel.payment-panel {
+html body.theme-light #payment-panel.payment-panel:not(.payment-dock) {
     background: var(--payment-glass-bg) !important;
     background-color: var(--payment-glass-bg) !important;
     background-image: none !important;
