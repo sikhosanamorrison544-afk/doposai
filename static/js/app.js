@@ -1375,22 +1375,12 @@ function setupEvents() {
         const dock = document.getElementById('payment-panel');
         const details = document.getElementById('pos-payment-details');
         const isDock = dock && dock.classList && dock.classList.contains('payment-dock');
-        const isExpanded =
-            document.body.classList.contains('pos-payment-expanded') ||
-            (dock && dock.classList && dock.classList.contains('payment-expanded')) ||
-            (details && details.style.display === 'block');
-        if (isDock && !isExpanded) {
-            e.preventDefault();
-            e.stopPropagation();
+        // In docked POS layout, payment inputs are always visible (no expand step).
+        if (isDock) {
             if (typeof window.setPosPaymentExpanded === 'function') {
                 window.setPosPaymentExpanded(true);
-            } else {
-                document.body.classList.add('pos-payment-expanded');
-                if (dock) dock.classList.add('payment-expanded');
             }
-            dock.scrollIntoView({ block: 'end', behavior: 'smooth' });
-            const cash = document.getElementById('pay-cash');
-            if (cash) setTimeout(() => cash.focus(), 0);
+            void completeSale();
             return false;
         }
         void completeSale();

@@ -540,7 +540,7 @@ html body.theme-light .top-bar {
 }
 
 :root {
-    --pos-payment-dock-collapsed: 140px;
+    --pos-payment-dock-collapsed: clamp(320px, 40vh, 520px);
     --pos-payment-dock-expanded: clamp(320px, 62vh, 720px);
     --pos-payment-dock-reserved: var(--pos-payment-dock-collapsed);
     --pos-action-bar-height: 72px;
@@ -578,9 +578,9 @@ body.pos-payment-expanded {
     margin-top: 10px;
 }
 
-/* Prefer panel class so JS can expand even if body class is clobbered */
-#payment-panel.payment-dock:not(.payment-expanded) #pos-payment-details {
-    display: none;
+/* In docked POS layout, keep payment inputs visible above action buttons */
+#payment-panel.payment-dock #pos-payment-details {
+    display: block;
 }
 
 #payment-panel.payment-dock.payment-expanded {
