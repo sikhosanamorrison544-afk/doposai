@@ -15,6 +15,14 @@ window.togglePaymentPanel = function() {
         console.error('payment-panel not found');
         return;
     }
+    // Docked payment panel: no backdrop, always visible.
+    if (panel && panel.classList && panel.classList.contains('payment-dock')) {
+        if (settingsPanel) settingsPanel.style.setProperty('display', 'none', 'important');
+        const cash = document.getElementById('pay-cash');
+        if (cash) cash.focus();
+        panel.scrollIntoView({ block: 'end', behavior: 'smooth' });
+        return;
+    }
     if (!backdrop) {
         console.error('pos-backdrop not found');
         return;
@@ -66,6 +74,7 @@ window.togglePaymentPanel = function() {
 window.closePaymentPanel = function() {
     const panel = document.getElementById('payment-panel');
     const backdrop = document.getElementById('pos-backdrop');
+    if (panel && panel.classList && panel.classList.contains('payment-dock')) return;
     if (panel) panel.style.setProperty('display', 'none', 'important');
     if (backdrop) backdrop.style.setProperty('display', 'none', 'important');
 };
@@ -1396,32 +1405,8 @@ function setupEvents() {
         });
     }, 100);
     
-    // Payment panel toggle - using same method as settings panel
-    const btnTogglePayment = document.getElementById('btn-toggle-payment');
-    const btnClosePayment = document.getElementById('btn-close-payment');
+    // Payment panel is docked (always visible) — no toggle button/backdrop on the store page.
     const posBackdrop = document.getElementById('pos-backdrop');
-    
-    if (btnTogglePayment) {
-        btnTogglePayment.onclick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log('Payment icon clicked');
-            window.togglePaymentPanel();
-            return false;
-        };
-    } else {
-        console.error('btn-toggle-payment not found in DOM');
-    }
-    
-    if (btnClosePayment) {
-        btnClosePayment.onclick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            window.closePaymentPanel();
-            return false;
-        };
-    }
-    
     if (posBackdrop) {
         posBackdrop.onclick = function(e) {
             e.preventDefault();

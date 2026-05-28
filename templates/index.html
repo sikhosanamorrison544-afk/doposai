@@ -226,9 +226,6 @@
                     <button type="button" id="btn-toggle-settings" class="floating-icon settings-icon" title="Settings">
                         ⚙️
                     </button>
-                    <button type="button" id="btn-toggle-payment" class="floating-icon payment-icon" title="Checkout & Payment">
-                        💳
-                    </button>
                     <button type="button" id="btn-withdraw" class="floating-icon withdraw-icon" title="Withdraw Money" style="background: rgba(239, 68, 68, 0.8); display: none;">
                         💵
                     </button>
@@ -259,6 +256,134 @@
                 </div>
             </section>
         </main>
+        <!-- Docked Checkout & Payment (classic POS layout) -->
+        <div id="payment-panel" class="payment-panel payment-dock">
+            <div class="totals">
+                <div><span>Subtotal</span><span id="subtotal">0.00</span></div>
+                <div><span>Discount</span><span id="discount">0.00</span></div>
+                <div class="grand"><span>Total</span><span id="total">0.00</span></div>
+            </div>
+            <div class="payments">
+                <label for="customer-name">Customer</label>
+                <input type="text" id="customer-name" name="customer-name" placeholder="Customer (optional)">
+                <label for="pay-cash">Cash</label>
+                <input type="number" id="pay-cash" name="pay-cash" step="0.01">
+                <label for="pay-mobile">Mobile Money</label>
+                <input type="number" id="pay-mobile" name="pay-mobile" step="0.01">
+                <label for="pay-card">Card</label>
+                <input type="number" id="pay-card" name="pay-card" step="0.01">
+                <label for="pay-credit">Credit</label>
+                <input type="number" id="pay-credit" name="pay-credit" step="0.01">
+            </div>
+            <div style="margin-bottom:12px;">
+                <label for="collection-status">Collection Status</label>
+                <select id="collection-status" name="collection-status" style="width:100%;">
+                    <option value="collected">Collected (Items taken immediately)</option>
+                    <option value="to_collect">To Collect (Reserve items for later pickup)</option>
+                </select>
+                <small class="payment-panel-hint" style="font-size:11px;display:block;margin-top:4px;">
+                    "To Collect" reserves items - they won't be available for other sales until collected
+                </small>
+            </div>
+
+            <button id="btn-complete-sale" class="primary big">Complete Sale &amp; Print Receipt</button>
+            <div id="pos-message" class="info"></div>
+            <div id="pos-refund-shortcut" style="display:none;margin-top:10px;">
+                <button type="button" id="btn-refund-last-sale" class="small" style="background:rgba(234,88,12,0.9);color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;">
+                    ↩ Refund this sale
+                </button>
+                <span id="pos-refund-sale-label" style="margin-left:8px;font-size:13px;opacity:0.85;"></span>
+            </div>
+
+            <!-- Layby Toggle Button -->
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.2);">
+                <button id="btn-toggle-layby" class="primary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <span>Layby</span>
+                    <span id="layby-toggle-icon" style="transition: transform 0.3s ease;">▼</span>
+                </button>
+            </div>
+
+            <!-- Layby Sections Container (Hidden by default) -->
+            <div id="layby-sections-container" style="display: none; margin-top: 12px;">
+                <!-- Add New Layby Customer Section -->
+                <div class="layby-create-section" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                    <h3 style="margin-top: 0; margin-bottom: 12px; text-align: center; font-size: 16px;">Add New Layby Customer</h3>
+                    <div class="payments">
+                        <label for="new-layby-customer-name">Customer Name *</label>
+                        <input type="text" id="new-layby-customer-name" name="new-layby-customer-name" placeholder="Enter customer name" required>
+
+                        <label for="new-layby-customer-phone">Phone *</label>
+                        <input type="text" id="new-layby-customer-phone" name="new-layby-customer-phone" placeholder="Phone Number" required>
+
+                        <label for="new-layby-customer-email">Email</label>
+                        <input type="email" id="new-layby-customer-email" name="new-layby-customer-email" placeholder="Email (optional)">
+
+                        <label for="new-layby-customer-address">Address *</label>
+                        <input type="text" id="new-layby-customer-address" name="new-layby-customer-address" placeholder="Address" required>
+
+                        <label for="new-layby-customer-item">Layby Item Name *</label>
+                        <input type="text" id="new-layby-customer-item" name="new-layby-customer-item" placeholder="Search for product..." autocomplete="off" required>
+                        <div id="new-layby-product-results" class="payment-panel-glass-inset" style="display: none; max-height: 200px; overflow-y: auto; border-radius: 8px; margin-top: 4px; padding: 4px; position: relative; z-index: 10000;"></div>
+
+                        <label for="new-layby-initial-payment">Initial Payment *</label>
+                        <input type="number" id="new-layby-initial-payment" name="new-layby-initial-payment" step="0.01" min="0.01" placeholder="0.00" required>
+
+                        <label for="new-layby-payment-method">Payment Method *</label>
+                        <select id="new-layby-payment-method" name="new-layby-payment-method" required>
+                            <option value="">Select Payment Method</option>
+                            <option value="cash">Cash</option>
+                            <option value="mobile_money">Mobile Money</option>
+                            <option value="card">Card</option>
+                        </select>
+                    </div>
+                    <button id="btn-add-new-layby-customer" class="primary" style="width: 100%; margin-top: 12px;">Add Layby Customer</button>
+                    <div id="new-layby-customer-message" class="info" style="margin-top: 8px;"></div>
+                </div>
+
+                <!-- Layby Payment Section -->
+                <div class="layby-section" style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.2);">
+                    <h3 style="margin-top: 0; margin-bottom: 12px; text-align: center; font-size: 16px;">Layby Payment</h3>
+                    <div class="payments">
+                        <label for="layby-customer-name">Customer Name *</label>
+                        <input type="text" id="layby-customer-name" name="layby-customer-name" placeholder="Enter customer name" autocomplete="off">
+                        <div id="layby-customer-results" class="payment-panel-glass-inset" style="display: none; max-height: 150px; overflow-y: auto; border-radius: 8px; margin-top: 4px; padding: 4px;"></div>
+
+                        <label for="layby-transaction-select" style="display: none;">Select Transaction</label>
+                        <select id="layby-transaction-select" name="layby-transaction-select" style="display: none;">
+                            <option value="">Select Transaction</option>
+                        </select>
+
+                        <div id="layby-outstanding-info" style="display: none; padding: 8px; border-radius: 8px; margin: 8px 0;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span>Total Amount:</span>
+                                <span id="layby-total-amount">0.00</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span>Paid Amount:</span>
+                                <span id="layby-paid-amount">0.00</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-weight: bold; color: #fbbf24;">
+                                <span>Outstanding Amount:</span>
+                                <span id="layby-outstanding-amount">0.00</span>
+                            </div>
+                        </div>
+
+                        <label for="layby-amount-paid">Amount Paid *</label>
+                        <input type="number" id="layby-amount-paid" name="layby-amount-paid" step="0.01" min="0.01" placeholder="0.00">
+
+                        <label for="layby-payment-method">Payment Method *</label>
+                        <select id="layby-payment-method" name="layby-payment-method">
+                            <option value="">Select Method</option>
+                            <option value="cash">Cash</option>
+                            <option value="mobile_money">Mobile Money</option>
+                            <option value="card">Card</option>
+                        </select>
+                    </div>
+                    <button id="btn-record-layby-payment" class="primary" style="width: 100%; margin-top: 12px;">Record Layby Payment &amp; Print Receipt</button>
+                    <div id="layby-message" class="info" style="margin-top: 8px;"></div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -376,139 +501,7 @@
     </div>
 </div>
 
-<!-- Payment Panel (floating) -->
-<div id="pos-backdrop" class="panel-backdrop" style="display:none;"></div>
-<div id="payment-panel" class="floating-panel payment-panel" style="display:none;">
-    <div class="floating-panel-header">
-        <h2>Checkout & Payment</h2>
-        <button id="btn-close-payment" class="close-btn" type="button">×</button>
-    </div>
-    <div class="totals">
-        <div><span>Subtotal</span><span id="subtotal">0.00</span></div>
-        <div><span>Discount</span><span id="discount">0.00</span></div>
-        <div class="grand"><span>Total</span><span id="total">0.00</span></div>
-    </div>
-    <div class="payments">
-        <label for="customer-name">Customer</label>
-        <input type="text" id="customer-name" name="customer-name" placeholder="Customer (optional)">
-        <label for="pay-cash">Cash</label>
-        <input type="number" id="pay-cash" name="pay-cash" step="0.01">
-        <label for="pay-mobile">Mobile Money</label>
-        <input type="number" id="pay-mobile" name="pay-mobile" step="0.01">
-        <label for="pay-card">Card</label>
-        <input type="number" id="pay-card" name="pay-card" step="0.01">
-        <label for="pay-credit">Credit</label>
-        <input type="number" id="pay-credit" name="pay-credit" step="0.01">
-    </div>
-    <div style="margin-bottom:12px;">
-        <label for="collection-status">Collection Status</label>
-        <select id="collection-status" name="collection-status" style="width:100%;">
-            <option value="collected">Collected (Items taken immediately)</option>
-            <option value="to_collect">To Collect (Reserve items for later pickup)</option>
-        </select>
-        <small class="payment-panel-hint" style="font-size:11px;display:block;margin-top:4px;">
-            "To Collect" reserves items - they won't be available for other sales until collected
-        </small>
-    </div>
-    
-    <button id="btn-complete-sale" class="primary big">Complete Sale &amp; Print Receipt</button>
-    <div id="pos-message" class="info"></div>
-    <div id="pos-refund-shortcut" style="display:none;margin-top:10px;">
-        <button type="button" id="btn-refund-last-sale" class="small" style="background:rgba(234,88,12,0.9);color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;">
-            ↩ Refund this sale
-        </button>
-        <span id="pos-refund-sale-label" style="margin-left:8px;font-size:13px;opacity:0.85;"></span>
-    </div>
-    
-    <!-- Layby Toggle Button -->
-    <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.2);">
-        <button id="btn-toggle-layby" class="primary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
-            <span>Layby</span>
-            <span id="layby-toggle-icon" style="transition: transform 0.3s ease;">▼</span>
-        </button>
-    </div>
-    
-    <!-- Layby Sections Container (Hidden by default) -->
-    <div id="layby-sections-container" style="display: none; margin-top: 12px;">
-        <!-- Add New Layby Customer Section -->
-        <div class="layby-create-section" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
-            <h3 style="margin-top: 0; margin-bottom: 12px; text-align: center; font-size: 16px;">Add New Layby Customer</h3>
-            <div class="payments">
-                <label for="new-layby-customer-name">Customer Name *</label>
-                <input type="text" id="new-layby-customer-name" name="new-layby-customer-name" placeholder="Enter customer name" required>
-                
-                <label for="new-layby-customer-phone">Phone *</label>
-                <input type="text" id="new-layby-customer-phone" name="new-layby-customer-phone" placeholder="Phone Number" required>
-                
-                <label for="new-layby-customer-email">Email</label>
-                <input type="email" id="new-layby-customer-email" name="new-layby-customer-email" placeholder="Email (optional)">
-                
-                <label for="new-layby-customer-address">Address *</label>
-                <input type="text" id="new-layby-customer-address" name="new-layby-customer-address" placeholder="Address" required>
-                
-                <label for="new-layby-customer-item">Layby Item Name *</label>
-                <input type="text" id="new-layby-customer-item" name="new-layby-customer-item" placeholder="Search for product..." autocomplete="off" required>
-                <div id="new-layby-product-results" class="payment-panel-glass-inset" style="display: none; max-height: 200px; overflow-y: auto; border-radius: 8px; margin-top: 4px; padding: 4px; position: relative; z-index: 10000;"></div>
-                
-                <label for="new-layby-initial-payment">Initial Payment *</label>
-                <input type="number" id="new-layby-initial-payment" name="new-layby-initial-payment" step="0.01" min="0.01" placeholder="0.00" required>
-                
-                <label for="new-layby-payment-method">Payment Method *</label>
-                <select id="new-layby-payment-method" name="new-layby-payment-method" required>
-                    <option value="">Select Payment Method</option>
-                    <option value="cash">Cash</option>
-                    <option value="mobile_money">Mobile Money</option>
-                    <option value="card">Card</option>
-                </select>
-            </div>
-            <button id="btn-add-new-layby-customer" class="primary" style="width: 100%; margin-top: 12px;">Add Layby Customer</button>
-            <div id="new-layby-customer-message" class="info" style="margin-top: 8px;"></div>
-        </div>
-        
-        <!-- Layby Payment Section -->
-        <div class="layby-section" style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.2);">
-            <h3 style="margin-top: 0; margin-bottom: 12px; text-align: center; font-size: 16px;">Layby Payment</h3>
-            <div class="payments">
-                <label for="layby-customer-name">Customer Name *</label>
-                <input type="text" id="layby-customer-name" name="layby-customer-name" placeholder="Enter customer name" autocomplete="off">
-                <div id="layby-customer-results" class="payment-panel-glass-inset" style="display: none; max-height: 150px; overflow-y: auto; border-radius: 8px; margin-top: 4px; padding: 4px;"></div>
-                
-                <label for="layby-transaction-select" style="display: none;">Select Transaction</label>
-                <select id="layby-transaction-select" name="layby-transaction-select" style="display: none;">
-                    <option value="">Select Transaction</option>
-                </select>
-                
-                <div id="layby-outstanding-info" style="display: none; padding: 8px; border-radius: 8px; margin: 8px 0;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                        <span>Total Amount:</span>
-                        <span id="layby-total-amount">0.00</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                        <span>Paid Amount:</span>
-                        <span id="layby-paid-amount">0.00</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; font-weight: bold; color: #fbbf24;">
-                        <span>Outstanding Amount:</span>
-                        <span id="layby-outstanding-amount">0.00</span>
-                    </div>
-                </div>
-                
-                <label for="layby-amount-paid">Amount Paid *</label>
-                <input type="number" id="layby-amount-paid" name="layby-amount-paid" step="0.01" min="0.01" placeholder="0.00">
-                
-                <label for="layby-payment-method">Payment Method *</label>
-                <select id="layby-payment-method" name="layby-payment-method">
-                    <option value="">Select Method</option>
-                    <option value="cash">Cash</option>
-                    <option value="mobile_money">Mobile Money</option>
-                    <option value="card">Card</option>
-                </select>
-            </div>
-            <button id="btn-record-layby-payment" class="primary" style="width: 100%; margin-top: 12px;">Record Layby Payment &amp; Print Receipt</button>
-            <div id="layby-message" class="info" style="margin-top: 8px;"></div>
-        </div>
-    </div>
-</div>
+<!-- Payment panel is now docked inside the POS screen (no backdrop). -->
 
 <!-- Three.js for 3D Background -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
