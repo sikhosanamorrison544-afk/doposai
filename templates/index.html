@@ -73,7 +73,7 @@
     </script>
     <!-- Preload 3D model for faster loading -->
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
-    <link rel="stylesheet" href="/static/css/style.css?v=20260606">
+    <link rel="stylesheet" href="/static/css/style.css?v=20260607">
     <script>
         // Immediately prevent password saving before page fully loads
         (function() {
@@ -263,39 +263,40 @@
                 <div><span>Discount</span><span id="discount">0.00</span></div>
                 <div class="grand"><span>Total</span><span id="total">0.00</span></div>
             </div>
-            <div class="payments">
-                <label for="customer-name">Customer</label>
-                <input type="text" id="customer-name" name="customer-name" placeholder="Customer (optional)">
-                <label for="pay-cash">Cash</label>
-                <input type="number" id="pay-cash" name="pay-cash" step="0.01">
-                <label for="pay-mobile">Mobile Money</label>
-                <input type="number" id="pay-mobile" name="pay-mobile" step="0.01">
-                <label for="pay-card">Card</label>
-                <input type="number" id="pay-card" name="pay-card" step="0.01">
-                <label for="pay-credit">Credit</label>
-                <input type="number" id="pay-credit" name="pay-credit" step="0.01">
-            </div>
-            <div style="margin-bottom:12px;">
-                <label for="collection-status">Collection Status</label>
-                <select id="collection-status" name="collection-status" style="width:100%;">
-                    <option value="collected">Collected (Items taken immediately)</option>
-                    <option value="to_collect">To Collect (Reserve items for later pickup)</option>
-                </select>
-                <small class="payment-panel-hint" style="font-size:11px;display:block;margin-top:4px;">
-                    "To Collect" reserves items - they won't be available for other sales until collected
-                </small>
-            </div>
+            <div id="pos-payment-details">
+                <div class="payments">
+                    <label for="customer-name">Customer</label>
+                    <input type="text" id="customer-name" name="customer-name" placeholder="Customer (optional)">
+                    <label for="pay-cash">Cash</label>
+                    <input type="number" id="pay-cash" name="pay-cash" step="0.01">
+                    <label for="pay-mobile">Mobile Money</label>
+                    <input type="number" id="pay-mobile" name="pay-mobile" step="0.01">
+                    <label for="pay-card">Card</label>
+                    <input type="number" id="pay-card" name="pay-card" step="0.01">
+                    <label for="pay-credit">Credit</label>
+                    <input type="number" id="pay-credit" name="pay-credit" step="0.01">
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label for="collection-status">Collection Status</label>
+                    <select id="collection-status" name="collection-status" style="width:100%;">
+                        <option value="collected">Collected (Items taken immediately)</option>
+                        <option value="to_collect">To Collect (Reserve items for later pickup)</option>
+                    </select>
+                    <small class="payment-panel-hint" style="font-size:11px;display:block;margin-top:4px;">
+                        "To Collect" reserves items - they won't be available for other sales until collected
+                    </small>
+                </div>
 
-            <div id="pos-message" class="info"></div>
-            <div id="pos-refund-shortcut" style="display:none;margin-top:10px;">
-                <button type="button" id="btn-refund-last-sale" class="small" style="background:rgba(234,88,12,0.9);color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;">
-                    ↩ Refund this sale
-                </button>
-                <span id="pos-refund-sale-label" style="margin-left:8px;font-size:13px;opacity:0.85;"></span>
-            </div>
+                <div id="pos-message" class="info"></div>
+                <div id="pos-refund-shortcut" style="display:none;margin-top:10px;">
+                    <button type="button" id="btn-refund-last-sale" class="small" style="background:rgba(234,88,12,0.9);color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;">
+                        ↩ Refund this sale
+                    </button>
+                    <span id="pos-refund-sale-label" style="margin-left:8px;font-size:13px;opacity:0.85;"></span>
+                </div>
 
-            <!-- Layby Sections Container (Hidden by default) -->
-            <div id="layby-sections-container" style="display: none; margin-top: 12px;">
+                <!-- Layby Sections Container (Hidden by default) -->
+                <div id="layby-sections-container" style="display: none; margin-top: 12px;">
                 <!-- Add New Layby Customer Section -->
                 <div class="layby-create-section" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
                     <h3 style="margin-top: 0; margin-bottom: 12px; text-align: center; font-size: 16px;">Add New Layby Customer</h3>
@@ -371,6 +372,7 @@
                     </div>
                     <div id="layby-message" class="info" style="margin-top: 8px;"></div>
                 </div>
+            </div>
             </div>
 
         </div>

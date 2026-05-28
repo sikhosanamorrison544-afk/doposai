@@ -540,8 +540,14 @@ html body.theme-light .top-bar {
 }
 
 :root {
-    --pos-payment-dock-reserved: clamp(280px, 38vh, 520px);
+    --pos-payment-dock-collapsed: 140px;
+    --pos-payment-dock-expanded: clamp(320px, 62vh, 720px);
+    --pos-payment-dock-reserved: var(--pos-payment-dock-collapsed);
     --pos-action-bar-height: 72px;
+}
+
+body.pos-payment-expanded {
+    --pos-payment-dock-reserved: var(--pos-payment-dock-expanded);
 }
 
 /* Docked Checkout & Payment (classic POS layout) */
@@ -565,6 +571,15 @@ html body.theme-light .top-bar {
     box-sizing: border-box !important;
     padding: 14px 16px !important;
     border-top: 1px solid rgba(0, 0, 0, 0.12) !important;
+    transition: height 260ms cubic-bezier(0.2, 0.9, 0.2, 1), max-height 260ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+#pos-payment-details {
+    margin-top: 10px;
+}
+
+body:not(.pos-payment-expanded) #pos-payment-details {
+    display: none;
 }
 
 body.theme-default #payment-panel.payment-dock,

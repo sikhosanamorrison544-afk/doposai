@@ -15,11 +15,20 @@ window.togglePaymentPanel = function() {
         console.error('payment-panel not found');
         return;
     }
-    // Docked payment panel: no backdrop, always visible.
+    function setPaymentExpanded(expanded) {
+        document.body.classList.toggle('pos-payment-expanded', !!expanded);
+    }
+
+    function isPaymentExpanded() {
+        return document.body.classList.contains('pos-payment-expanded');
+    }
+
+    // Docked payment panel: expand/collapse (no backdrop).
     if (panel && panel.classList && panel.classList.contains('payment-dock')) {
         if (settingsPanel) settingsPanel.style.setProperty('display', 'none', 'important');
+        setPaymentExpanded(true);
         const cash = document.getElementById('pay-cash');
-        if (cash) cash.focus();
+        if (cash) setTimeout(() => cash.focus(), 0);
         panel.scrollIntoView({ block: 'end', behavior: 'smooth' });
         return;
     }
@@ -1174,6 +1183,7 @@ async function completeSale() {
         document.getElementById('pay-card').value = '';
         document.getElementById('pay-credit').value = '';
         document.getElementById('customer-name').value = '';
+        document.body.classList.remove('pos-payment-expanded');
         await loadProducts();
     } catch (e) {
         console.error('Sale error:', e);
@@ -1337,7 +1347,20 @@ function setupEvents() {
             searchByName(barcodeInput.value);
         }
     });
-    document.getElementById('btn-complete-sale').addEventListener('click', completeSale);
+    document.getElementById('btn-complete-sale').addEventListener('click', function (e) {
+        const dock = document.getElementById('payment-panel');
+        const isDock = dock && dock.classList && dock.classList.contains('payment-dock');
+        if (isDock && !document.body.classList.contains('pos-payment-expanded')) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.body.classList.add('pos-payment-expanded');
+            dock.scrollIntoView({ block: 'end', behavior: 'smooth' });
+            const cash = document.getElementById('pay-cash');
+            if (cash) setTimeout(() => cash.focus(), 0);
+            return false;
+        }
+        return completeSale();
+    });
     document.getElementById('btn-admin').addEventListener('click', () => {
         window.location.href = '/admin';
     });
