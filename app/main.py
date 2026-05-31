@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta
 from typing import Optional as OptionalType
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from fastapi import BackgroundTasks, Body, Depends, FastAPI, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -875,19 +875,22 @@ def extract_products_from_csv(content: bytes) -> List[dict]:
     return extract_products_from_csv_bytes(content)
 
 
-def extract_products_from_pdf(content: bytes) -> List[dict]:
+def extract_products_from_pdf(content: bytes) -> Tuple[List[dict], dict]:
     """Extract product data from PDF content."""
+    from .inventory_csv import import_meta_from_column_map, infer_column_map, products_from_table_rows
+
     try:
         import pdfplumber
     except ImportError:
         raise HTTPException(status_code=500, detail="PDF processing library not installed")
-    
+
     products = []
+    import_meta: dict = {}
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
             tmp_file.write(content)
             tmp_path = tmp_file.name
-        
+
         try:
             with pdfplumber.open(tmp_path) as pdf:
                 for page in pdf.pages:
@@ -895,121 +898,60 @@ def extract_products_from_pdf(content: bytes) -> List[dict]:
                     for table in tables:
                         if not table or len(table) < 2:
                             continue
-                        # Assume first row is header
-                        headers = [str(cell).strip().lower() if cell else "" for cell in table[0]]
-                        # Try to find column indices
-                        name_idx = None
-                        code_idx = None
-                        category_idx = None
-                        cost_idx = None
-                        price_idx = None
-                        stock_idx = None
-                        
-                        for i, header in enumerate(headers):
-                            if 'name' in header or 'product' in header:
-                                name_idx = i
-                            elif 'code' in header or 'barcode' in header:
-                                code_idx = i
-                            elif 'category' in header:
-                                category_idx = i
-                            elif 'cost' in header or 'average cost' in header:
-                                cost_idx = i
-                            elif 'price' in header or 'selling' in header:
-                                price_idx = i
-                            elif 'stock' in header or 'quantity' in header:
-                                stock_idx = i
-                        
-                        # Process data rows
-                        for row in table[1:]:
-                            if not row or len(row) < 2:
-                                continue
-                            name = str(row[name_idx]).strip() if name_idx and name_idx < len(row) else ""
-                            if not name:
-                                continue
-                            
-                            products.append({
-                                'name': name,
-                                'code': str(row[code_idx]).strip() if code_idx and code_idx < len(row) else "",
-                                'category': str(row[category_idx]).strip() if category_idx and category_idx < len(row) else "",
-                                'cost': parse_decimal(str(row[cost_idx]) if cost_idx and cost_idx < len(row) else "0"),
-                                'price': parse_decimal(str(row[price_idx]) if price_idx and price_idx < len(row) else "0"),
-                                'stock': parse_float(str(row[stock_idx]) if stock_idx and stock_idx < len(row) else "0"),
-                            })
+                        headers = [str(cell).strip() if cell else "" for cell in table[0]]
+                        if not import_meta:
+                            import_meta = import_meta_from_column_map(infer_column_map(headers))
+                        rows = products_from_table_rows(headers, table[1:])
+                        products.extend(rows)
         finally:
             os.unlink(tmp_path)
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error parsing PDF: {e}")
-        raise HTTPException(status_code=400, detail=f"Error parsing PDF: {str(e)}")
-    
-    return products
+        raise HTTPException(status_code=400, detail=f"Error parsing PDF: {str(e)}") from e
+
+    return products, import_meta
 
 
-def extract_products_from_word(content: bytes) -> List[dict]:
+def extract_products_from_word(content: bytes) -> Tuple[List[dict], dict]:
     """Extract product data from Word document content."""
+    from .inventory_csv import import_meta_from_column_map, infer_column_map, products_from_table_rows
+
     try:
         from docx import Document
     except ImportError:
         raise HTTPException(status_code=500, detail="Word document processing library not installed")
-    
+
     products = []
+    import_meta: dict = {}
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmp_file:
             tmp_file.write(content)
             tmp_path = tmp_file.name
-        
+
         try:
             doc = Document(tmp_path)
-            # Try to find table in document
             for table in doc.tables:
                 if len(table.rows) < 2:
                     continue
-                # First row is header
-                headers = [cell.text.strip().lower() for cell in table.rows[0].cells]
-                name_idx = None
-                code_idx = None
-                category_idx = None
-                cost_idx = None
-                price_idx = None
-                stock_idx = None
-                
-                for i, header in enumerate(headers):
-                    if 'name' in header or 'product' in header:
-                        name_idx = i
-                    elif 'code' in header or 'barcode' in header:
-                        code_idx = i
-                    elif 'category' in header:
-                        category_idx = i
-                    elif 'cost' in header or 'average cost' in header:
-                        cost_idx = i
-                    elif 'price' in header or 'selling' in header:
-                        price_idx = i
-                    elif 'stock' in header or 'quantity' in header:
-                        stock_idx = i
-                
-                # Process data rows
-                for row in table.rows[1:]:
-                    cells = [cell.text.strip() for cell in row.cells]
-                    if len(cells) < 2:
-                        continue
-                    name = cells[name_idx] if name_idx and name_idx < len(cells) else ""
-                    if not name:
-                        continue
-                    
-                    products.append({
-                        'name': name,
-                        'code': cells[code_idx] if code_idx and code_idx < len(cells) else "",
-                        'category': cells[category_idx] if category_idx and category_idx < len(cells) else "",
-                        'cost': parse_decimal(cells[cost_idx] if cost_idx and cost_idx < len(cells) else "0"),
-                        'price': parse_decimal(cells[price_idx] if price_idx and price_idx < len(cells) else "0"),
-                        'stock': parse_float(cells[stock_idx] if stock_idx and stock_idx < len(cells) else "0"),
-                    })
+                headers = [cell.text.strip() for cell in table.rows[0].cells]
+                if not import_meta:
+                    import_meta = import_meta_from_column_map(infer_column_map(headers))
+                data_rows = [
+                    [cell.text.strip() for cell in row.cells]
+                    for row in table.rows[1:]
+                ]
+                products.extend(products_from_table_rows(headers, data_rows))
         finally:
             os.unlink(tmp_path)
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error parsing Word document: {e}")
-        raise HTTPException(status_code=400, detail=f"Error parsing Word document: {str(e)}")
-    
-    return products
+        raise HTTPException(status_code=400, detail=f"Error parsing Word document: {str(e)}") from e
+
+    return products, import_meta
 
 
 class ImportPrepareRequest(BaseModel):
@@ -1345,6 +1287,12 @@ async def import_inventory(
         result["columns_mapped"] = import_meta.get("columns_mapped", {})
         if import_meta.get("stock_mode"):
             result["stock_mode"] = import_meta["stock_mode"]
+        if import_meta.get("warnings"):
+            result["import_warnings"] = import_meta["warnings"]
+        if "price_column_detected" in import_meta:
+            result["price_column_detected"] = import_meta["price_column_detected"]
+        if "cost_column_detected" in import_meta:
+            result["cost_column_detected"] = import_meta["cost_column_detected"]
     return result
 
 

@@ -5,7 +5,7 @@ from typing import Tuple
 
 
 def parse_inventory_upload(content: bytes, file_ext: str) -> Tuple[list, dict]:
-    """Parse uploaded inventory file into product row dicts."""
+    """Parse uploaded inventory file into product row dicts and import metadata."""
     import_meta: dict = {}
     ext = (file_ext or "").lower()
     if ext == ".csv":
@@ -15,11 +15,11 @@ def parse_inventory_upload(content: bytes, file_ext: str) -> Tuple[list, dict]:
     if ext == ".pdf":
         from .main import extract_products_from_pdf
 
-        return extract_products_from_pdf(content), import_meta
+        return extract_products_from_pdf(content)
     if ext in (".doc", ".docx"):
         from .main import extract_products_from_word
 
-        return extract_products_from_word(content), import_meta
+        return extract_products_from_word(content)
     raise ValueError(
         f"Unsupported file type: {ext}. Supported: .csv, .pdf, .doc, .docx"
     )

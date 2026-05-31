@@ -447,6 +447,12 @@ def _run_import_job(job_id: str) -> None:
             result["columns_mapped"] = import_meta.get("columns_mapped", {})
             if import_meta.get("stock_mode"):
                 result["stock_mode"] = import_meta["stock_mode"]
+            if import_meta.get("warnings"):
+                result["import_warnings"] = import_meta["warnings"]
+            if "price_column_detected" in import_meta:
+                result["price_column_detected"] = import_meta["price_column_detected"]
+            if "cost_column_detected" in import_meta:
+                result["cost_column_detected"] = import_meta["cost_column_detected"]
 
         row = db.query(ImportJob).filter(ImportJob.id == job_id).first()
         if row:

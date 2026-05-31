@@ -2637,6 +2637,30 @@ function formatImportResultMessage(result) {
             '\nAuto-assigned barcodes (AUTO-…): ' +
             Number(result.auto_barcodes_assigned).toLocaleString();
     }
+    if (result.columns_mapped) {
+        const cm = result.columns_mapped;
+        const mapped = [];
+        if (cm.price) mapped.push('Selling price ← "' + cm.price + '"');
+        if (cm.cost) mapped.push('Cost ← "' + cm.cost + '"');
+        if (cm.stock) mapped.push('Stock ← "' + cm.stock + '"');
+        if (cm.name) mapped.push('Name ← "' + cm.name + '"');
+        if (mapped.length) {
+            message += '\n\nColumns detected:\n' + mapped.join('\n');
+        }
+    }
+    if (result.prices_applied != null && result.prices_applied > 0) {
+        message +=
+            '\nRows with selling prices applied: ' +
+            Number(result.prices_applied).toLocaleString();
+    }
+    if (result.price_column_detected === false) {
+        message +=
+            '\n\nWarning: no selling price column was detected in your file. ' +
+            'Rename your price column to "Selling Price", "Price", "Rate", or "MRP".';
+    }
+    if (result.import_warnings && result.import_warnings.length) {
+        message += '\n\n' + result.import_warnings.join('\n');
+    }
     if (result.stock_mode) {
         message += `\nStock handling: ${result.stock_mode === 'set' ? 'set on-hand qty from file' : 'add qty to existing stock'}`;
     }

@@ -105,11 +105,18 @@ _FIELD_KEYWORDS: Dict[str, Tuple[str, ...]] = {
         "retailprice",
         "unitprice",
         "sellprice",
+        "listprice",
         "selling",
         "retail",
         "price",
+        "rate",
+        "mrp",
+        "rrp",
         "rsp",
         "srp",
+        "sp",
+        "amount",
+        "value",
     ),
     "stock": (
         "inhandstock",
@@ -206,9 +213,16 @@ for _field, _labels in {
         "retail price",
         "unit price",
         "sell price",
+        "list price",
+        "unit rate",
         "rsp",
         "srp",
+        "mrp",
+        "rrp",
         "price",
+        "rate",
+        "amount",
+        "value",
         "selling",
     ),
     "stock": (
@@ -359,6 +373,71 @@ def _score_header_for_field(header: str, field: str) -> float:
     return score
 
 
+def _enhance_column_map(fieldnames: List[str], cmap: ColumnMap) -> ColumnMap:
+    """Fill unmapped cost/price columns using secondary header hints."""
+    assigned = {v for v in cmap.columns.values() if v}
+    unassigned = [f for f in fieldnames if f and str(f).strip() and f not in assigned]
+
+    price_hints = (
+        "rate",
+        "mrp",
+        "rrp",
+        "amount",
+        "value",
+        "listprice",
+        "unitrate",
+        "sell",
+        "retail",
+        "sp",
+    )
+    cost_hints = ("cp", "buying", "purchase", "landed", "netcost", "cogs")
+
+    for col in unassigned:
+        nk = _norm_key(col)
+        if nk in _SKIP_AS_NAME or nk in _LINE_NUMBER_HEADERS:
+            continue
+        if not cmap.col("price") and any(h in nk for h in price_hints):
+            cmap.columns["price"] = col
+            assigned.add(col)
+            continue
+        if not cmap.col("cost") and any(h in nk for h in cost_hints):
+            cmap.columns["cost"] = col
+            assigned.add(col)
+
+    # One leftover unmapped column that looks monetary → treat as selling price.
+    still_unassigned = [f for f in unassigned if f not in assigned]
+    if not cmap.col("price") and not cmap.col("cost") and len(still_unassigned) == 1:
+        col = still_unassigned[0]
+        nk = _norm_key(col)
+        if nk and nk not in _SKIP_AS_NAME and nk not in _LINE_NUMBER_HEADERS:
+            if any(x in nk for x in ("price", "rate", "amt", "amount", "value", "mrp", "rrp")):
+                cmap.columns["price"] = col
+
+    return cmap
+
+
+def import_meta_from_column_map(cmap: ColumnMap) -> Dict[str, Any]:
+    """Build import metadata and warnings from a detected column map."""
+    display = {f: cmap.col(f) for f in ("id", "name", "code", "category", "stock", "cost", "price")}
+    warnings: List[str] = []
+    if not cmap.col("name"):
+        warnings.append("No product name column detected.")
+    if not cmap.col("price"):
+        warnings.append(
+            "No selling price column detected — product prices may stay at 0. "
+            "Use a header like 'Selling Price', 'Price', 'Rate', or 'MRP'."
+        )
+    if not cmap.col("stock"):
+        warnings.append("No stock/quantity column detected — stock levels will not change.")
+    return {
+        "columns_mapped": display,
+        "stock_mode": cmap.stock_mode,
+        "warnings": warnings,
+        "price_column_detected": bool(cmap.col("price")),
+        "cost_column_detected": bool(cmap.col("cost")),
+    }
+
+
 def infer_column_map(fieldnames: List[str]) -> ColumnMap:
     """Pick the best CSV column for each logical field (order-independent)."""
     clean_fields = [f for f in fieldnames if f and str(f).strip()]
@@ -401,7 +480,8 @@ def infer_column_map(fieldnames: List[str]) -> ColumnMap:
         ):
             stock_mode = "set"
 
-    return ColumnMap(columns=assigned, stock_mode=stock_mode)
+    cmap = ColumnMap(columns=assigned, stock_mode=stock_mode)
+    return _enhance_column_map(clean_fields, cmap)
 
 
 def _cell(row: Dict[str, Any], col: Optional[str]) -> str:
@@ -591,7 +671,7 @@ def parse_csv_import_meta(content: bytes) -> Dict[str, Any]:
     """Return detected column mapping and stock mode for a CSV (for API feedback)."""
     content_str = _decode_csv_text(content)
     if not content_str.strip():
-        return {"columns_mapped": {}, "stock_mode": "add"}
+        return {"columns_mapped": {}, "stock_mode": "add", "warnings": ["Empty file"]}
     dialect = _detect_csv_dialect(content_str)
     lines = content_str.splitlines()
     header_idx = _find_header_row(lines, dialect)
@@ -599,8 +679,38 @@ def parse_csv_import_meta(content: bytes) -> Dict[str, Any]:
     reader = csv.DictReader(io.StringIO(body), dialect=dialect)
     fieldnames = list(reader.fieldnames or [])
     cmap = infer_column_map(fieldnames)
-    display = {f: cmap.col(f) for f in ("id", "name", "code", "category", "stock", "cost", "price")}
-    return {"columns_mapped": display, "stock_mode": cmap.stock_mode}
+    return import_meta_from_column_map(cmap)
+
+
+def products_from_table_rows(
+    headers: List[str],
+    data_rows: List[List[Any]],
+) -> List[dict]:
+    """
+    Parse tabular data (PDF/Word tables) with the same column logic as CSV import.
+    """
+    clean_headers: List[str] = []
+    for i, h in enumerate(headers):
+        label = str(h or "").strip()
+        clean_headers.append(label or f"Column{i + 1}")
+
+    column_map = infer_column_map(clean_headers)
+    products: List[dict] = []
+    for row in data_rows:
+        if not row:
+            continue
+        row_dict: Dict[str, Any] = {}
+        for i, header in enumerate(clean_headers):
+            val = row[i] if i < len(row) else ""
+            if val is None:
+                val = ""
+            row_dict[header] = str(val).strip()
+        if not any(str(v or "").strip() for v in row_dict.values()):
+            continue
+        product = row_to_product(row_dict, column_map)
+        if product:
+            products.append(product)
+    return products
 
 
 def iter_products_from_csv_bytes(content: bytes):

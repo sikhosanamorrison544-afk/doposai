@@ -4,10 +4,12 @@ from decimal import Decimal
 from app.inventory_csv import (
     EXPORT_HEADERS,
     extract_products_from_csv_bytes,
+    import_meta_from_column_map,
     infer_column_map,
     merge_import_rows,
     normalize_match_name,
     parse_decimal,
+    products_from_table_rows,
     row_to_product,
 )
 
@@ -165,3 +167,33 @@ def test_large_csv_stream_merge():
     assert len(merged) == 500
     p1 = next(p for p in merged if p["name"] == "Product 1")
     assert p1["stock"] == 3.0
+
+
+def test_mrp_and_rate_price_headers():
+    csv_text = (
+        "Item Description,MRP,Qty,Buy Price\n"
+        "Soap Bar,12.50,10,6.00\n"
+    )
+    products = extract_products_from_csv_bytes(csv_text.encode("utf-8"))
+    assert len(products) == 1
+    assert products[0]["price"] == Decimal("12.50")
+    assert products[0]["cost"] == Decimal("6.00")
+    assert products[0]["has_price"] is True
+    assert products[0]["has_cost"] is True
+
+
+def test_table_rows_set_price_flags():
+    headers = ["Product", "Rate", "On Hand"]
+    rows = [["Bread", "5.99", "20"]]
+    products = products_from_table_rows(headers, rows)
+    assert len(products) == 1
+    assert products[0]["price"] == Decimal("5.99")
+    assert products[0]["has_price"] is True
+    assert products[0]["stock"] == 20.0
+    assert products[0]["has_stock"] is True
+
+
+def test_import_meta_warns_when_price_missing():
+    meta = import_meta_from_column_map(infer_column_map(["Name", "Qty"]))
+    assert meta["price_column_detected"] is False
+    assert any("selling price" in w.lower() for w in meta["warnings"])

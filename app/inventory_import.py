@@ -394,6 +394,8 @@ def import_products_into_db(
         "names_truncated": 0,
         "errors": [],
         "auto_barcodes_assigned": 0,
+        "prices_applied": 0,
+        "costs_applied": 0,
         "stock_mode": products_data[0].get("stock_mode", "add") if products_data else "add",
     }
     pq = tenant_scope.filter_products(db, current_admin)
@@ -467,6 +469,10 @@ def import_products_into_db(
                 has_cost = bool(product_data.get("has_cost"))
                 has_price = bool(product_data.get("has_price"))
                 has_stock = bool(product_data.get("has_stock"))
+                if has_cost:
+                    stats["costs_applied"] += 1
+                if has_price:
+                    stats["prices_applied"] += 1
                 stock_mode = str(product_data.get("stock_mode") or "add")
                 in_hand_stock = max(0.0, float(product_data.get("stock", 0.0)))
                 product_id = product_data.get("product_id")
