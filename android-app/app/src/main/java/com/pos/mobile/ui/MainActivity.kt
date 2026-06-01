@@ -16,6 +16,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -751,11 +752,18 @@ class MainActivity : AppCompatActivity() {
         val iconBilling = posContainer.findViewById<android.widget.Button>(R.id.icon_billing)
         posContainerRef = posContainer
 
+        fun dismissSearchKeyboard() {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.hideSoftInputFromWindow(barcodeInput.windowToken, 0)
+            barcodeInput.clearFocus()
+        }
+
         searchAdapter = SearchProductAdapter { product ->
             viewModel.addToCart(product, 1)
             barcodeInput.text.clear()
             searchResults.isVisible = false
             searchAdapter.submitList(emptyList())
+            dismissSearchKeyboard()
         }
         searchResults.layoutManager = LinearLayoutManager(this)
         searchResults.adapter = searchAdapter
@@ -825,6 +833,7 @@ class MainActivity : AppCompatActivity() {
                 barcodeInput.text.clear()
                 searchResults.isVisible = false
                 searchAdapter.submitList(emptyList())
+                dismissSearchKeyboard()
             } else if (matches.isNotEmpty()) {
                 searchAdapter.submitList(matches.take(20)) {
                     searchResults.isVisible = true
@@ -867,6 +876,7 @@ class MainActivity : AppCompatActivity() {
                             barcodeInput.text.clear()
                             searchResults.isVisible = false
                             searchAdapter.submitList(emptyList())
+                            dismissSearchKeyboard()
                         } else {
                             val matches = viewModel.searchProducts(value)
                             if (matches.isEmpty()) {
