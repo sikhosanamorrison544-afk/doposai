@@ -47,6 +47,62 @@ _LINE_NUMBER_HEADERS = frozenset(
     }
 )
 
+# Suffixes / words that mark a column as a flag/toggle, not a numeric data field
+# (e.g. price_change=yes/no, mrp_enable=0/1, stock_control=yes/no, expiry_mode).
+_FLAG_SUFFIX_TOKENS = frozenset(
+    {
+        "change",
+        "enable",
+        "enabled",
+        "disable",
+        "disabled",
+        "control",
+        "mode",
+        "flag",
+        "status",
+        "action",
+        "type",
+        "required",
+        "allowed",
+        "available",
+        "active",
+    }
+)
+
+
+def _tokens(header: str) -> List[str]:
+    """Split a header into lowercase alphanumeric tokens (separator-aware)."""
+    s = (header or "").strip().lower()
+    return [t for t in re.split(r"[^a-z0-9]+", s) if t]
+
+
+def _has_flag_suffix(tokens: List[str]) -> bool:
+    """True if a header's last token is a flag/toggle word (not numeric data)."""
+    if not tokens or len(tokens) == 1:
+        return False
+    return tokens[-1] in _FLAG_SUFFIX_TOKENS
+
+
+def _kw_aligns_with_tokens(tokens: List[str], kw: str) -> bool:
+    """True if kw equals the concatenation of one or more consecutive tokens.
+
+    Prevents false positives like 'units' matching inside 'unit_selling_price'
+    (tokens=[unit,selling,price]) where the substring crosses a token boundary.
+    """
+    if not kw or not tokens:
+        return False
+    n = len(tokens)
+    for i in range(n):
+        joined = ""
+        for j in range(i, n):
+            joined += tokens[j]
+            if joined == kw:
+                return True
+            if len(joined) > len(kw):
+                break
+    return False
+
+
 _FIELD_KEYWORDS: Dict[str, Tuple[str, ...]] = {
     "id": (
         "productid",
@@ -186,20 +242,50 @@ _SKIP_AS_NAME = frozenset(
     }
 )
 
-# Exact normalized header -> field (longer phrases win in fuzzy pass too)
+# Exact normalized header -> (field, priority). Labels listed earlier per field
+# rank higher when multiple columns score the same. Priority breaks ties so the
+# canonical name wins (e.g. 'product name' over 'description', 'unit selling
+# price' over 'mrp price', 'product code' over 'barcode').
+_HEADER_TO_FIELD_PRIORITY: Dict[str, Tuple[str, int]] = {}
 _HEADER_TO_FIELD: Dict[str, str] = {}
 for _field, _labels in {
-    "id": ("id", "product id", "item id", "productid"),
-    "name": ("product name", "item name", "product description", "description", "product", "item", "name"),
-    "code": ("product code", "product barcode", "barcode", "sku", "upc", "ean", "code"),
-    "category": ("product category", "product sub category", "sub category", "category", "cat"),
+    "id": ("product id", "item id", "productid", "id"),
+    "name": (
+        "product name",
+        "item name",
+        "name",
+        "title",
+        "product",
+        "item",
+        "product description",
+        "description",
+    ),
+    "code": (
+        "product code",
+        "sku",
+        "upc",
+        "ean",
+        "plu",
+        "code",
+        "product barcode",
+        "barcode",
+    ),
+    "category": (
+        "category",
+        "product category",
+        "sub category",
+        "product sub category",
+        "department",
+        "cat",
+    ),
     "cost": (
-        "average cost",
         "cost price",
+        "unit cost",
+        "unit cost price",
         "buying price",
         "purchase price",
         "buy price",
-        "unit cost",
+        "average cost",
         "landed cost",
         "wholesale price",
         "cost",
@@ -208,6 +294,14 @@ for _field, _labels in {
     ),
     "price": (
         "selling price",
+        "unit selling price",
+        "unit sale price",
+        "unit sales price",
+        "selling unit price",
+        "item selling price",
+        "item sale price",
+        "product selling price",
+        "product price",
         "sale price",
         "sales price",
         "retail price",
@@ -215,30 +309,38 @@ for _field, _labels in {
         "sell price",
         "list price",
         "unit rate",
+        "price",
         "rsp",
         "srp",
-        "mrp",
         "rrp",
-        "price",
+        "mrp",
+        "mrp price",
+        "rrp price",
         "rate",
         "amount",
         "value",
         "selling",
     ),
     "stock": (
-        "in hand stock",
         "stock qty",
         "stock quantity",
+        "in hand stock",
         "quantity on hand",
         "on hand",
         "in stock",
+        "current stock",
+        "opening stock",
         "stock",
         "quantity",
         "qty",
     ),
 }.items():
-    for _label in _labels:
-        _HEADER_TO_FIELD[_norm_key(_label)] = _field
+    for _idx, _label in enumerate(_labels):
+        _nk = _norm_key(_label)
+        # First occurrence wins (label list is priority-ordered, highest first).
+        if _nk not in _HEADER_TO_FIELD_PRIORITY:
+            _HEADER_TO_FIELD_PRIORITY[_nk] = (_field, len(_labels) - _idx)
+            _HEADER_TO_FIELD[_nk] = _field
 
 
 def _normalize_number_string(value: Any) -> str:
@@ -345,10 +447,20 @@ def _score_header_for_field(header: str, field: str) -> float:
     if field == "id" and nk in _LINE_NUMBER_HEADERS:
         return 0.0
 
-    if _HEADER_TO_FIELD.get(nk) == field:
-        return 100.0
+    prio_entry = _HEADER_TO_FIELD_PRIORITY.get(nk)
+    if prio_entry and prio_entry[0] == field:
+        # Base 100.0 plus a small fractional bonus for label priority. Lets
+        # 'product name' (highest-priority name label) beat 'description'.
+        return 100.0 + prio_entry[1] * 0.01
 
-  # Penalize ambiguous "price" matching cost field
+    tokens = _tokens(header)
+
+    # Flag-like columns (price_change, mrp_enable, stock_control, …) are toggles,
+    # not numeric data — don't let them claim price/cost/stock columns.
+    if field in ("price", "cost", "stock") and _has_flag_suffix(tokens):
+        return 0.0
+
+    # Penalize ambiguous "price" matching cost field
     if field == "cost" and any(x in nk for x in ("sell", "sale", "retail", "rsp", "srp")):
         return 0.0
     if field == "price" and any(x in nk for x in ("cost", "buy", "purchase", "cogs", "wholesale")):
@@ -356,13 +468,22 @@ def _score_header_for_field(header: str, field: str) -> float:
             return 0.0
 
     score = 0.0
+    single_token = len(tokens) <= 1
     for kw in _FIELD_KEYWORDS.get(field, ()):
         if kw == nk:
             score = max(score, 85.0)
-        elif nk.startswith(kw) or nk.endswith(kw):
-            score = max(score, 55.0)
-        elif kw in nk and len(kw) >= 4:
-            score = max(score, 40.0 + min(len(kw), 10))
+            continue
+        if nk.startswith(kw) or nk.endswith(kw):
+            # When the header has explicit separators, only accept the prefix/
+            # suffix if it aligns with a token boundary. This prevents 'units'
+            # (stock kw) from matching 'unit_selling_price' (tokens: unit,
+            # selling, price) where the 's' is the start of 'selling'.
+            if single_token or _kw_aligns_with_tokens(tokens, kw):
+                score = max(score, 55.0)
+                continue
+        if kw in nk and len(kw) >= 4:
+            if single_token or _kw_aligns_with_tokens(tokens, kw):
+                score = max(score, 40.0 + min(len(kw), 10))
 
     # Single-word fallbacks
     if field == "name" and nk in ("name", "product", "item", "description"):
@@ -450,11 +571,22 @@ def infer_column_map(fieldnames: List[str]) -> ColumnMap:
             scores[(fld, col)] = _score_header_for_field(col, fld)
 
     # Assign greedily: highest scores first, each column used once.
+    # Tie-break order:
+    #   1. higher score
+    #   2. shorter normalized header (prefer 'category' over 'sub_category')
+    #   3. fewer tokens (prefer 'unit price' over 'item unit price quote')
+    #   4. column name ascending (deterministic)
     assigned: Dict[str, Optional[str]] = {f: None for f in _FIELD_KEYWORDS}
     used: set = set()
+
+    def _sort_key(item: Tuple[float, str, str]) -> Tuple[float, int, int, str]:
+        sc, _fld, col = item
+        nk = _norm_key(col)
+        return (-sc, len(nk), len(_tokens(col)), col)
+
     pairs = sorted(
         ((scores.get((fld, col), 0.0), fld, col) for fld in _FIELD_KEYWORDS for col in clean_fields),
-        reverse=True,
+        key=_sort_key,
     )
     for sc, fld, col in pairs:
         if sc < _MIN_COLUMN_SCORE:

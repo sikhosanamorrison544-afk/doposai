@@ -197,3 +197,52 @@ def test_import_meta_warns_when_price_missing():
     meta = import_meta_from_column_map(infer_column_map(["Name", "Qty"]))
     assert meta["price_column_detected"] is False
     assert any("selling price" in w.lower() for w in meta["warnings"])
+
+
+def test_bulk_upload_template_with_flag_and_store_columns():
+    """Vendor 'Product_Bulk_Upload_list' style: unit_selling_price should win
+    over yes/no flag columns (price_change, mrp_enable) and empty store-scoped
+    columns (price[StoreName]), and category over sub_category."""
+    headers = [
+        "product_code",
+        "product_name",
+        "category",
+        "sub_category",
+        "variant_product",
+        "handle",
+        "unit_measurement",
+        "unit_selling_price",
+        "mrp_enable",
+        "mrp_price",
+        "unit_cost",
+        "stock_control",
+        "barcode",
+        "product_code_of_included_item",
+        "quantity_of_included_item",
+        "price_change",
+        "quantity_change",
+        "expiry_mode",
+        "description",
+        "price[Store-123]",
+        "in_stock[Store-123]",
+        "safety_stock[Store-123]",
+    ]
+    cmap = infer_column_map(headers)
+    assert cmap.col("name") == "product_name"
+    assert cmap.col("code") == "product_code"
+    assert cmap.col("category") == "category"
+    assert cmap.col("price") == "unit_selling_price"
+    assert cmap.col("cost") == "unit_cost"
+
+
+def test_unit_selling_price_extracts_value():
+    csv_text = (
+        "product_code,product_name,unit_selling_price,unit_cost,stock_control,"
+        "mrp_enable,mrp_price,price_change\n"
+        "ABC,Widget,250,200,yes,0,0,yes\n"
+    )
+    products = extract_products_from_csv_bytes(csv_text.encode("utf-8-sig"))
+    assert len(products) == 1
+    assert products[0]["price"] == Decimal("250")
+    assert products[0]["cost"] == Decimal("200")
+    assert products[0]["has_price"] is True
