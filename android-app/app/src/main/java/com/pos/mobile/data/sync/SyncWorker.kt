@@ -8,6 +8,7 @@ import androidx.work.workDataOf
 import com.pos.mobile.auth.SessionStore
 import com.pos.mobile.data.local.AppDatabase
 import com.pos.mobile.data.remote.ApiService
+import com.pos.mobile.sync.NetworkUtils
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -37,21 +38,34 @@ class SyncWorker(
         val api = createApi(baseUrl)
         val repo = createRepository(applicationContext, baseUrl, api, db)
         val forceFull = inputData.getBoolean(KEY_FULL_CACHE, false)
-        val fullCache = forceFull || shouldPrefetchApiCache(prefs)
+        val pushOnly = inputData.getBoolean(KEY_PUSH_ONLY, false)
+        val fullCache = forceFull || (!pushOnly && shouldPrefetchApiCache(prefs))
+
+        if (!NetworkUtils.hasValidatedInternet(applicationContext)) {
+            Log.i(TAG, "Skip sync — network not validated yet")
+            return Result.retry()
+        }
 
         return try {
-            var pushed = repo.pushPendingSales(token)
-            val pendingMutations = repo.pushOfflineMutations(token)
-            if (pendingMutations > 0) {
-                Log.i(TAG, "Pushed $pendingMutations offline mutation(s)")
-            }
-            try {
-                repo.syncMasterDatabase(applicationContext, token, fullCache = fullCache)
-                if (fullCache) {
-                    prefs.edit().putLong(KEY_LAST_FULL_CACHE_MS, System.currentTimeMillis()).apply()
+            var pushed = 0
+            if (NetworkUtils.canSyncPendingSales(applicationContext)) {
+                pushed = repo.pushPendingSales(token)
+                val pendingMutations = repo.pushOfflineMutations(token)
+                if (pendingMutations > 0) {
+                    Log.i(TAG, "Pushed $pendingMutations offline mutation(s)")
                 }
-            } catch (e: Exception) {
-                Log.w(TAG, "Catalog/cache sync failed after uploading $pushed sale(s)", e)
+            }
+            if (!pushOnly && NetworkUtils.isGoodNetworkForHeavySync(applicationContext)) {
+                try {
+                    repo.syncMasterDatabase(applicationContext, token, fullCache = fullCache)
+                    if (fullCache) {
+                        prefs.edit().putLong(KEY_LAST_FULL_CACHE_MS, System.currentTimeMillis()).apply()
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Catalog/cache sync failed after uploading $pushed sale(s)", e)
+                }
+            } else if (!pushOnly) {
+                Log.i(TAG, "Heavy sync deferred — waiting for Wi‑Fi or unmetered network")
             }
             Result.success(workDataOf(KEY_PUSHED to pushed))
         } catch (e: Exception) {
@@ -67,6 +81,8 @@ class SyncWorker(
         const val KEY_PUSHED = "pushed"
         /** When true, prefetch optional offline API cache (admin pages are never bulk-fetched). */
         const val KEY_FULL_CACHE = "full_cache"
+        /** When true, only upload pending sales/mutations — no catalog pull. */
+        const val KEY_PUSH_ONLY = "push_only"
         private const val KEY_LAST_FULL_CACHE_MS = "last_full_cache_sync_ms"
         private const val FULL_CACHE_INTERVAL_MS = 10L * 60 * 1000
 

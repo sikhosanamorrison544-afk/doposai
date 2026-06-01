@@ -16,6 +16,50 @@ object BluetoothEscPosPrinter {
 
     private const val TAG = "BluetoothEscPos"
     private val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+    private const val CONNECT_TIMEOUT_MS = 8_000L
+
+    @Volatile
+    private var warmSocket: BluetoothSocket? = null
+
+    @Volatile
+    private var warmMac: String? = null
+
+    private val socketLock = Any()
+
+    /** Open Bluetooth SPP ahead of checkout so the first receipt prints faster. */
+    suspend fun preconnect(context: Context, macAddress: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            if (!PrinterPermissionHelper.hasAll(context)) {
+                return@withContext Result.failure(
+                    SecurityException("Bluetooth permissions not granted"),
+                )
+            }
+            synchronized(socketLock) {
+                if (warmMac == macAddress && isSocketAlive(warmSocket)) {
+                    return@withContext Result.success(Unit)
+                }
+                releaseLocked()
+            }
+            try {
+                withTimeout(CONNECT_TIMEOUT_MS) {
+                    val socket = openSocket(context, macAddress)
+                    synchronized(socketLock) {
+                        warmSocket = socket
+                        warmMac = macAddress
+                    }
+                }
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Log.w(TAG, "Preconnect failed", e)
+                Result.failure(e)
+            }
+        }
+
+    fun releaseWarmConnection() {
+        synchronized(socketLock) {
+            releaseLocked()
+        }
+    }
 
     suspend fun print(context: Context, macAddress: String, data: ByteArray): Result<Unit> =
         withContext(Dispatchers.IO) {
@@ -26,22 +70,21 @@ object BluetoothEscPosPrinter {
                 )
             }
             try {
-                val adapter = BluetoothAdapter.getDefaultAdapter()
-                    ?: return@withContext Result.failure(IllegalStateException("Bluetooth not available"))
-                if (!adapter.isEnabled) {
-                    return@withContext Result.failure(IllegalStateException("Turn on Bluetooth"))
-                }
-                @Suppress("MissingPermission")
-                val device: BluetoothDevice = try {
-                    adapter.getRemoteDevice(macAddress)
-                } catch (e: IllegalArgumentException) {
-                    return@withContext Result.failure(IllegalArgumentException("Invalid printer address"))
-                }
-                adapter.cancelDiscovery()
                 var socket: BluetoothSocket? = null
-                try {
+                var ownedSocket = false
+                synchronized(socketLock) {
+                    if (warmMac == macAddress && isSocketAlive(warmSocket)) {
+                        socket = warmSocket
+                    }
+                }
+                if (socket == null) {
                     withTimeout(CONNECT_TIMEOUT_MS) {
-                        socket = connectSocket(device)
+                        socket = openSocket(context, macAddress)
+                        ownedSocket = true
+                    }
+                }
+                try {
+                    withTimeout(WRITE_TIMEOUT_MS) {
                         val out = socket!!.outputStream
                         var offset = 0
                         val chunk = 1024
@@ -52,12 +95,26 @@ object BluetoothEscPosPrinter {
                         }
                         out.flush()
                     }
-                    Result.success(Unit)
-                } finally {
-                    try {
-                        socket?.close()
-                    } catch (_: IOException) {
+                    synchronized(socketLock) {
+                        if (ownedSocket) {
+                            warmSocket = socket
+                            warmMac = macAddress
+                        }
                     }
+                    Result.success(Unit)
+                } catch (e: Exception) {
+                    synchronized(socketLock) {
+                        if (warmSocket === socket) {
+                            releaseLocked()
+                        }
+                    }
+                    if (ownedSocket) {
+                        try {
+                            socket?.close()
+                        } catch (_: IOException) {
+                        }
+                    }
+                    throw e
                 }
             } catch (e: SecurityException) {
                 Log.e(TAG, "Bluetooth permission denied", e)
@@ -73,6 +130,22 @@ object BluetoothEscPosPrinter {
                 Result.failure(e)
             }
         }
+
+    @Suppress("MissingPermission")
+    private fun openSocket(context: Context, macAddress: String): BluetoothSocket {
+        val adapter = BluetoothAdapter.getDefaultAdapter()
+            ?: throw IllegalStateException("Bluetooth not available")
+        if (!adapter.isEnabled) {
+            throw IllegalStateException("Turn on Bluetooth")
+        }
+        val device = try {
+            adapter.getRemoteDevice(macAddress)
+        } catch (e: IllegalArgumentException) {
+            throw IllegalArgumentException("Invalid printer address")
+        }
+        adapter.cancelDiscovery()
+        return connectSocket(device)
+    }
 
     @Suppress("MissingPermission")
     private fun connectSocket(device: BluetoothDevice): BluetoothSocket {
@@ -102,5 +175,22 @@ object BluetoothEscPosPrinter {
         }
     }
 
-    private const val CONNECT_TIMEOUT_MS = 20_000L
+    private fun isSocketAlive(socket: BluetoothSocket?): Boolean {
+        return try {
+            socket?.isConnected == true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun releaseLocked() {
+        try {
+            warmSocket?.close()
+        } catch (_: IOException) {
+        }
+        warmSocket = null
+        warmMac = null
+    }
+
+    private const val WRITE_TIMEOUT_MS = 5_000L
 }

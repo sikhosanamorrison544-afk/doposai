@@ -166,15 +166,13 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        val online = NetworkUtils.isOnline(getApplication())
+        val online = NetworkUtils.hasValidatedInternet(getApplication())
 
         _isCompletingSale.value = true
         viewModelScope.launch {
             try {
                 val completion = withContext(Dispatchers.IO) {
-                    if (online && !authToken.isNullOrBlank()) {
-                        refreshProductsFromServer(authToken)
-                    }
+                    // Fast checkout: use local DB only — no network calls before print.
                     val productsById = productDao.getAllActiveList().associateBy { it.id }
                     if (online) {
                         WebPosRules.checkoutStockIssues(cartList, productsById)?.let { stockErr ->
@@ -183,7 +181,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                             )
                         }
                     }
-                    val customerId = resolveCustomerId(authToken, customerName?.trim())
+                    val customerId: Int? = null
                     val now = System.currentTimeMillis()
                     val sale = SaleEntity(
                         cashierId = cashierId,
@@ -224,40 +222,11 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                         productDao.deductStock(line.product.id, line.quantity.toDouble())
                     }
 
-                    var syncedNow = false
-                    var serverSaleId: Int? = null
-                    if (online && !authToken.isNullOrBlank()) {
-                        val prefs = getApplication<Application>().getSharedPreferences("pos", android.content.Context.MODE_PRIVATE)
-                        val baseUrl = prefs.getString("base_url", BuildConfig.DEFAULT_API_BASE_URL)
-                            ?: BuildConfig.DEFAULT_API_BASE_URL
-                        val api = SyncWorker.createApi(baseUrl)
-                        val repo = SyncWorker.createRepository(getApplication(), baseUrl, api, db)
-                        val queueItem = SyncQueueEntity(
-                            id = queueId,
-                            saleLocalId = saleLocalId,
-                            createdAt = now,
-                            status = SyncQueueEntity.STATUS_PENDING,
-                        )
-                        repo.pushSale(authToken, queueItem).onSuccess {
-                            serverSaleId = it
-                            syncedNow = true
-                        }
-                        if (serverSaleId == null) {
-                            repo.pushSale(authToken, queueItem).onSuccess {
-                                serverSaleId = it
-                                syncedNow = true
-                            }
-                        }
-                    }
-                    val saved = saleDao.getByLocalId(saleLocalId)
-                    if (serverSaleId == null) {
-                        serverSaleId = saved?.serverId
-                    }
-                    val syncedId = serverSaleId
-                    if (syncedId != null && syncedId > 0 && saved?.serverId == null) {
-                        saleDao.markSynced(saleLocalId, syncedId, System.currentTimeMillis())
-                    }
-                    SaleCompletion(syncedNow, serverSaleId, saleLocalId)
+                    SaleCompletion(
+                        synced = false,
+                        serverSaleId = null,
+                        saleLocalId = saleLocalId,
+                    )
                 }
                 _cart.value = emptyList()
                 _posMessage.value = null
