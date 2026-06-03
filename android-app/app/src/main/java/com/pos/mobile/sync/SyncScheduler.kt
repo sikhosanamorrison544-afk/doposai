@@ -12,8 +12,8 @@ import com.pos.mobile.auth.SessionStore
 import com.pos.mobile.data.sync.SyncWorker
 
 /**
- * Coordinates background sync: upload pending sales on any validated network;
- * defer heavy catalog/cache pulls until Wi‑Fi or unmetered links.
+ * Coordinates background sync: upload pending sales and download product/stock
+ * on any validated internet; defer optional heavy API cache until Wi‑Fi/unmetered.
  */
 object SyncScheduler {
 
@@ -80,9 +80,42 @@ object SyncScheduler {
         )
     }
 
-    /** After sale or connectivity change: push now; pull catalog when link is good. */
+    /**
+     * Download products/stock (and customers) into local Room DB.
+     * Runs on any validated internet (Wi‑Fi or mobile data).
+     */
+    fun enqueueCatalogSync(context: Context) {
+        if (!NetworkUtils.hasValidatedInternet(context)) {
+            Log.d(TAG, "Skip catalog sync — no validated internet")
+            return
+        }
+        val (baseUrl, token) = credentials(context) ?: return
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+        val work = OneTimeWorkRequestBuilder<SyncWorker>()
+            .setConstraints(constraints)
+            .setInputData(
+                workDataOf(
+                    SyncWorker.KEY_BASE_URL to baseUrl,
+                    SyncWorker.KEY_TOKEN to token,
+                    SyncWorker.KEY_PUSH_ONLY to false,
+                    SyncWorker.KEY_FULL_CACHE to false,
+                ),
+            )
+            .addTag("pos_sync_catalog")
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "pos_sync_catalog",
+            ExistingWorkPolicy.REPLACE,
+            work,
+        )
+    }
+
+    /** After sale or reconnect: upload pending sales, then refresh local stock from server. */
     fun enqueueAfterSaleOrReconnect(context: Context) {
         enqueuePushOnly(context)
+        enqueueCatalogSync(context)
         if (NetworkUtils.isGoodNetworkForHeavySync(context)) {
             enqueueFullSyncIfGoodNetwork(context, fullCache = false)
         }

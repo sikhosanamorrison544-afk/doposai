@@ -53,6 +53,7 @@ import com.pos.mobile.data.local.entity.SyncQueueEntity
 import com.pos.mobile.data.sync.SyncRepository
 import com.pos.mobile.data.sync.SyncWorker
 import com.pos.mobile.sync.NetworkUtils
+import com.pos.mobile.sync.SyncScheduler
 import com.pos.mobile.printer.BluetoothPermissionDelegate
 import com.pos.mobile.printer.PrinterPermissionHelper
 import com.pos.mobile.printer.PrinterSetupDialog
@@ -1296,32 +1297,9 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    /** Enqueue a one-time sync when online. UI never waits; sync runs in background. */
+    /** Enqueue background sync: push pending sales and refresh local stock from server. */
     private fun triggerSyncWhenOnline() {
-        val prefs = getSharedPreferences("pos", MODE_PRIVATE)
-        val baseUrl = prefs.getString("base_url", BuildConfig.DEFAULT_API_BASE_URL)
-            ?: BuildConfig.DEFAULT_API_BASE_URL
-        val token = SessionStore(this).getAccessToken() ?: prefs.getString("token", null)
-        if (token.isNullOrBlank()) return
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-        val work = OneTimeWorkRequestBuilder<SyncWorker>()
-            .setConstraints(constraints)
-            .setInputData(
-                workDataOf(
-                    SyncWorker.KEY_BASE_URL to baseUrl,
-                    SyncWorker.KEY_TOKEN to token,
-                    SyncWorker.KEY_FULL_CACHE to false,
-                ),
-            )
-            .addTag("pos_sync_on_action")
-            .build()
-        WorkManager.getInstance(this).enqueueUniqueWork(
-            "pos_sync_on_action",
-            ExistingWorkPolicy.KEEP,
-            work,
-        )
+        SyncScheduler.enqueueAfterSaleOrReconnect(this)
     }
 
     override fun onRequestPermissionsResult(

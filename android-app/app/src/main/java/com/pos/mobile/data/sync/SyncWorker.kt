@@ -55,18 +55,40 @@ class SyncWorker(
                     Log.i(TAG, "Pushed $pendingMutations offline mutation(s)")
                 }
             }
-            if (!pushOnly && NetworkUtils.isGoodNetworkForHeavySync(applicationContext)) {
+
+            // Always refresh local product/stock from server on any validated internet
+            // (mobile data included). POS search and checkout read from Room only.
+            if (!pushOnly) {
                 try {
-                    repo.syncMasterDatabase(applicationContext, token, fullCache = fullCache)
-                    if (fullCache) {
-                        prefs.edit().putLong(KEY_LAST_FULL_CACHE_MS, System.currentTimeMillis()).apply()
+                    val essentials = repo.syncEssentials(applicationContext, token)
+                    if (essentials.isSuccess) {
+                        Log.i(TAG, "Local stock/catalog updated from server")
+                    } else {
+                        Log.w(
+                            TAG,
+                            "Stock download failed: ${essentials.exceptionOrNull()?.message}",
+                        )
                     }
                 } catch (e: Exception) {
-                    Log.w(TAG, "Catalog/cache sync failed after uploading $pushed sale(s)", e)
+                    Log.w(TAG, "Stock download failed", e)
                 }
-            } else if (!pushOnly) {
-                Log.i(TAG, "Heavy sync deferred — waiting for Wi‑Fi or unmetered network")
+                if (NetworkUtils.isGoodNetworkForHeavySync(applicationContext)) {
+                    try {
+                        repo.prefetchApiCache(token, fullCache).onSuccess {
+                            if (fullCache) {
+                                prefs.edit()
+                                    .putLong(KEY_LAST_FULL_CACHE_MS, System.currentTimeMillis())
+                                    .apply()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Optional cache prefetch failed (stock sync OK)", e)
+                    }
+                } else {
+                    Log.i(TAG, "Heavy API cache deferred — Wi‑Fi/unmetered only")
+                }
             }
+
             Result.success(workDataOf(KEY_PUSHED to pushed))
         } catch (e: Exception) {
             Log.e(TAG, "Sync failed", e)

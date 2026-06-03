@@ -14,6 +14,7 @@ import com.pos.mobile.data.remote.ApiService
 import com.pos.mobile.data.remote.CustomerCreateDto
 import com.pos.mobile.data.sync.SyncWorker
 import com.pos.mobile.sync.NetworkUtils
+import com.pos.mobile.sync.SyncScheduler
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -251,6 +252,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 emitFailed(msg)
             } finally {
                 _isCompletingSale.value = false
+                SyncScheduler.enqueueCatalogSync(getApplication())
             }
         }
     }
