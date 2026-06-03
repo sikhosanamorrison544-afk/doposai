@@ -3,11 +3,13 @@ Quotation Service Module (Additive Only)
 Handles quotation creation, management, and conversion to sales.
 """
 
+import io
 import logging
+import xml.sax.saxutils as xml_escape
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
 from .models import InventoryMovement, Product, Customer, Sale, SaleItem, Payment, User
@@ -442,16 +444,23 @@ class QuotationService:
     
     def generate_pdf(self, quotation_id: int) -> bytes:
         """Generate PDF quotation document."""
-        from reportlab.lib.pagesizes import letter, A4
+        from reportlab.lib.pagesizes import A4
         from reportlab.lib import colors
         from reportlab.lib.units import inch
         from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.enums import TA_CENTER, TA_RIGHT
-        
-        quotation = self.get_quotation(quotation_id)
+
+        quotation = (
+            self.db.query(Quotation)
+            .options(joinedload(Quotation.items))
+            .filter(Quotation.id == quotation_id)
+            .first()
+        )
         if not quotation:
             raise ValueError(f"Quotation {quotation_id} not found")
+        if not quotation.items:
+            raise ValueError(f"Quotation {quotation_id} has no line items")
         
         # Create PDF in memory
         buffer = io.BytesIO()
@@ -501,16 +510,20 @@ class QuotationService:
         story.append(table)
         story.append(Spacer(1, 0.3*inch))
         
+        def _cell(text: str) -> str:
+            """Safe plain text for PDF table cells."""
+            return xml_escape.escape(str(text or ""))
+
         # Items table
         items_data = [["#", "Product", "Qty", "Unit Price", "Discount", "Total"]]
         for idx, item in enumerate(quotation.items, 1):
             items_data.append([
                 str(idx),
-                item.product_name,
+                _cell(item.product_name),
                 str(item.quantity),
                 f"${float(item.unit_price):.2f}",
                 f"${float(item.discount):.2f}",
-                f"${float(item.line_total):.2f}"
+                f"${float(item.line_total):.2f}",
             ])
         
         items_table = Table(items_data, colWidths=[0.5*inch, 3*inch, 0.7*inch, 1*inch, 1*inch, 1*inch])
@@ -548,7 +561,8 @@ class QuotationService:
         
         if quotation.notes:
             story.append(Spacer(1, 0.3*inch))
-            story.append(Paragraph(f"<b>Notes:</b> {quotation.notes}", styles['Normal']))
+            safe_notes = xml_escape.escape(str(quotation.notes))
+            story.append(Paragraph(f"<b>Notes:</b> {safe_notes}", styles["Normal"]))
         
         # Build PDF
         doc.build(story)
