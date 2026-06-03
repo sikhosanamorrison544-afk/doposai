@@ -14,9 +14,32 @@ from sqlalchemy import func
 
 from .models import InventoryMovement, Product, Customer, Sale, SaleItem, Payment, User
 from .quotation_models import Quotation, QuotationItem
-from .tenant_scope import row_visible, same_tenant
+from .tenant_scope import first_store_settings_for_tenant, row_visible, same_tenant
 
 logger = logging.getLogger(__name__)
+
+# Max characters shown for product name in PDF line table (keeps columns neat).
+_QUOTATION_PRODUCT_NAME_MAX = 22
+
+# ReportLab theme
+_PDF_PRIMARY = "#1e3a8a"
+_PDF_HEADER_BG = "#1e3a8a"
+_PDF_ROW_ALT = "#f8fafc"
+_PDF_BORDER = "#e5e7eb"
+
+
+def _short_product_label(name: str, max_chars: int = _QUOTATION_PRODUCT_NAME_MAX) -> str:
+    """Truncate long product names so the line table stays compact."""
+    text = " ".join(str(name or "").split())
+    if not text:
+        return "—"
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 1].rstrip() + "…"
+
+
+def _money(amount) -> str:
+    return f"{float(amount):,.2f}"
 
 
 class QuotationService:
@@ -443,13 +466,13 @@ class QuotationService:
         return count
     
     def generate_pdf(self, quotation_id: int) -> bytes:
-        """Generate PDF quotation document."""
+        """Generate a professional PDF quotation with shop header and compact line items."""
         from reportlab.lib.pagesizes import A4
         from reportlab.lib import colors
-        from reportlab.lib.units import inch
-        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.units import inch, mm
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+        from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 
         quotation = (
             self.db.query(Quotation)
@@ -461,110 +484,236 @@ class QuotationService:
             raise ValueError(f"Quotation {quotation_id} not found")
         if not quotation.items:
             raise ValueError(f"Quotation {quotation_id} has no line items")
-        
-        # Create PDF in memory
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4)
-        story = []
-        
-        styles = getSampleStyleSheet()
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontSize=18,
-            textColor=colors.HexColor('#1e40af'),
-            spaceAfter=30,
-            alignment=TA_CENTER
-        )
-        
-        # Title
-        story.append(Paragraph("QUOTATION", title_style))
-        story.append(Spacer(1, 0.2*inch))
-        
-        # Quotation details
-        data = [
-            ["Quotation Number:", quotation.quotation_number],
-            ["Date:", quotation.created_at.strftime("%Y-%m-%d")],
-            ["Valid Until:", quotation.valid_until.strftime("%Y-%m-%d") if quotation.valid_until else "N/A"],
-            ["Status:", quotation.status.upper()],
-        ]
-        
-        if quotation.customer_name:
-            data.append(["Customer:", quotation.customer_name])
-        if quotation.customer_phone:
-            data.append(["Phone:", quotation.customer_phone])
-        if quotation.customer_email:
-            data.append(["Email:", quotation.customer_email])
-        
-        table = Table(data, colWidths=[2*inch, 4*inch])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.grey),
-            ('TEXTCOLOR', (0, 0), (0, -1), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-            ('BACKGROUND', (1, 0), (1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-        story.append(table)
-        story.append(Spacer(1, 0.3*inch))
-        
-        def _cell(text: str) -> str:
-            """Safe plain text for PDF table cells."""
-            return xml_escape.escape(str(text or ""))
 
-        # Items table
-        items_data = [["#", "Product", "Qty", "Unit Price", "Discount", "Total"]]
-        for idx, item in enumerate(quotation.items, 1):
-            items_data.append([
-                str(idx),
-                _cell(item.product_name),
-                str(item.quantity),
-                f"${float(item.unit_price):.2f}",
-                f"${float(item.discount):.2f}",
-                f"${float(item.line_total):.2f}",
-            ])
-        
-        items_table = Table(items_data, colWidths=[0.5*inch, 3*inch, 0.7*inch, 1*inch, 1*inch, 1*inch])
-        items_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey])
-        ]))
-        story.append(items_table)
-        story.append(Spacer(1, 0.3*inch))
-        
-        # Totals
-        totals_data = [
-            ["Subtotal:", f"${float(quotation.subtotal):.2f}"],
-            ["Discount:", f"${float(quotation.discount_total):.2f}"],
-            ["TOTAL:", f"${float(quotation.total):.2f}"]
+        settings = first_store_settings_for_tenant(self.db, quotation.tenant_id)
+        store_name = (settings.store_name if settings else None) or "Store"
+        store_phone = (settings.store_phone if settings else None) or ""
+        store_location = (settings.store_location if settings else None) or ""
+
+        buffer = io.BytesIO()
+        page_w, _page_h = A4
+        margin = 18 * mm
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            leftMargin=margin,
+            rightMargin=margin,
+            topMargin=margin,
+            bottomMargin=margin,
+        )
+        usable_w = page_w - 2 * margin
+
+        styles = getSampleStyleSheet()
+        primary = colors.HexColor(_PDF_PRIMARY)
+
+        def _p(text: str, style) -> Paragraph:
+            return Paragraph(xml_escape.escape(str(text or "")), style)
+
+        store_title = ParagraphStyle(
+            "StoreTitle",
+            parent=styles["Heading1"],
+            fontSize=16,
+            leading=20,
+            textColor=primary,
+            alignment=TA_CENTER,
+            spaceAfter=4,
+        )
+        store_sub = ParagraphStyle(
+            "StoreSub",
+            parent=styles["Normal"],
+            fontSize=9,
+            leading=12,
+            textColor=colors.HexColor("#4b5563"),
+            alignment=TA_CENTER,
+            spaceAfter=2,
+        )
+        doc_title = ParagraphStyle(
+            "DocTitle",
+            parent=styles["Heading2"],
+            fontSize=13,
+            leading=16,
+            textColor=primary,
+            alignment=TA_CENTER,
+            spaceBefore=10,
+            spaceAfter=14,
+        )
+        label_style = ParagraphStyle(
+            "Label",
+            parent=styles["Normal"],
+            fontSize=9,
+            leading=11,
+            textColor=colors.HexColor("#6b7280"),
+        )
+        value_style = ParagraphStyle(
+            "Value",
+            parent=styles["Normal"],
+            fontSize=9,
+            leading=11,
+            textColor=colors.black,
+        )
+        footer_style = ParagraphStyle(
+            "Footer",
+            parent=styles["Normal"],
+            fontSize=8,
+            leading=10,
+            textColor=colors.HexColor("#9ca3af"),
+            alignment=TA_CENTER,
+        )
+
+        story: list = []
+
+        # —— Shop header ——
+        story.append(_p(store_name, store_title))
+        contact_parts = []
+        if store_location:
+            contact_parts.append(store_location.replace("\n", ", "))
+        if store_phone:
+            contact_parts.append(f"Tel: {store_phone}")
+        if contact_parts:
+            story.append(_p(" · ".join(contact_parts), store_sub))
+        story.append(_p("QUOTATION", doc_title))
+        story.append(
+            HRFlowable(
+                width="100%",
+                thickness=1,
+                color=colors.HexColor(_PDF_BORDER),
+                spaceBefore=0,
+                spaceAfter=12,
+            )
+        )
+
+        # —— Quote + customer (two columns) ——
+        created = quotation.created_at.strftime("%d %b %Y") if quotation.created_at else "—"
+        valid = (
+            quotation.valid_until.strftime("%d %b %Y")
+            if quotation.valid_until
+            else "30 days from date"
+        )
+        meta_left = [
+            [_p("Quotation No.", label_style), _p(quotation.quotation_number, value_style)],
+            [_p("Date", label_style), _p(created, value_style)],
+            [_p("Valid Until", label_style), _p(valid, value_style)],
+            [_p("Status", label_style), _p(quotation.status.upper(), value_style)],
         ]
-        
-        totals_table = Table(totals_data, colWidths=[4*inch, 2*inch])
-        totals_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
-            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
-            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, -1), (-1, -1), 14),
-            ('TEXTCOLOR', (0, -1), (-1, -1), colors.HexColor('#1e40af')),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-        story.append(totals_table)
-        
+        meta_right = [[_p("Customer", label_style), _p(quotation.customer_name or "—", value_style)]]
+        if quotation.customer_phone:
+            meta_right.append([_p("Phone", label_style), _p(quotation.customer_phone, value_style)])
+        if quotation.customer_email:
+            meta_right.append([_p("Email", label_style), _p(quotation.customer_email, value_style)])
+
+        col_w = usable_w / 2 - 6
+        meta_table = Table(
+            [[Table(meta_left, colWidths=[col_w * 0.38, col_w * 0.62]), Table(meta_right, colWidths=[col_w * 0.38, col_w * 0.62])]],
+            colWidths=[usable_w / 2, usable_w / 2],
+        )
+        meta_table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0)]))
+        story.append(meta_table)
+        story.append(Spacer(1, 14))
+
+        # —— Line items (compact product names) ——
+        items_data = [["#", "Product", "Qty", "Unit", "Disc.", "Total"]]
+        for idx, item in enumerate(quotation.items, 1):
+            items_data.append(
+                [
+                    str(idx),
+                    _short_product_label(item.product_name),
+                    str(item.quantity),
+                    _money(item.unit_price),
+                    _money(item.discount),
+                    _money(item.line_total),
+                ]
+            )
+
+        # Column widths tuned for A4; product column stays narrow
+        cw = [
+            0.32 * inch,
+            2.35 * inch,
+            0.45 * inch,
+            0.95 * inch,
+            0.75 * inch,
+            0.95 * inch,
+        ]
+        items_table = Table(items_data, colWidths=cw, repeatRows=1)
+        items_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(_PDF_HEADER_BG)),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, 0), 9),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+                    ("TOPPADDING", (0, 0), (-1, 0), 8),
+                    ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                    ("FONTSIZE", (0, 1), (-1, -1), 8),
+                    ("TOPPADDING", (0, 1), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 1), (-1, -1), 5),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor(_PDF_ROW_ALT)]),
+                    ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor(_PDF_BORDER)),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("ALIGN", (0, 0), (0, -1), "CENTER"),
+                    ("ALIGN", (1, 0), (1, -1), "LEFT"),
+                    ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
+                    ("LEFTPADDING", (1, 1), (1, -1), 6),
+                    ("RIGHTPADDING", (2, 1), (-1, -1), 6),
+                ]
+            )
+        )
+        story.append(items_table)
+        story.append(Spacer(1, 12))
+
+        # —— Totals (right-aligned block) ——
+        totals_w = 2.4 * inch
+        totals_data = [
+            ["Subtotal", _money(quotation.subtotal)],
+            ["Discount", _money(quotation.discount_total)],
+            ["TOTAL", _money(quotation.total)],
+        ]
+        totals_table = Table(totals_data, colWidths=[totals_w * 0.55, totals_w * 0.45])
+        totals_table.setStyle(
+            TableStyle(
+                [
+                    ("ALIGN", (0, 0), (0, -1), "RIGHT"),
+                    ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+                    ("FONTNAME", (0, 0), (-1, -2), "Helvetica"),
+                    ("FONTSIZE", (0, 0), (-1, -2), 9),
+                    ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, -1), (-1, -1), 11),
+                    ("TEXTCOLOR", (0, -1), (-1, -1), primary),
+                    ("LINEABOVE", (0, -1), (-1, -1), 1, colors.HexColor(_PDF_BORDER)),
+                    ("TOPPADDING", (0, -1), (-1, -1), 8),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
+        )
+        wrapper = Table([[None, totals_table]], colWidths=[usable_w - totals_w, totals_w])
+        wrapper.setStyle(TableStyle([("ALIGN", (1, 0), (1, 0), "RIGHT")]))
+        story.append(wrapper)
+
         if quotation.notes:
-            story.append(Spacer(1, 0.3*inch))
-            safe_notes = xml_escape.escape(str(quotation.notes))
-            story.append(Paragraph(f"<b>Notes:</b> {safe_notes}", styles["Normal"]))
-        
-        # Build PDF
+            story.append(Spacer(1, 10))
+            note_style = ParagraphStyle(
+                "Note",
+                parent=styles["Normal"],
+                fontSize=8,
+                leading=10,
+                textColor=colors.HexColor("#374151"),
+            )
+            story.append(
+                Paragraph(
+                    f"<b>Notes:</b> {xml_escape.escape(str(quotation.notes))}",
+                    note_style,
+                )
+            )
+
+        story.append(Spacer(1, 16))
+        story.append(
+            _p(
+                "Prices are subject to confirmation. Thank you for your business.",
+                footer_style,
+            )
+        )
+
         doc.build(story)
         buffer.seek(0)
         return buffer.read()
