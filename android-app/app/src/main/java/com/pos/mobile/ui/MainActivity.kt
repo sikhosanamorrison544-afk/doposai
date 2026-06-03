@@ -746,6 +746,7 @@ class MainActivity : AppCompatActivity() {
         val btnLogout = posContainer.findViewById<android.widget.Button>(R.id.btn_logout)
         val iconSync = posContainer.findViewById<android.widget.Button>(R.id.icon_sync)
         val iconPayment = posContainer.findViewById<android.widget.Button>(R.id.icon_payment)
+        val iconQuotation = posContainer.findViewById<android.widget.Button>(R.id.icon_quotation)
         val iconTheme = posContainer.findViewById<android.widget.Button>(R.id.icon_theme)
         val iconPrinter = posContainer.findViewById<android.widget.Button>(R.id.icon_printer)
         val iconSettings = posContainer.findViewById<android.widget.Button>(R.id.icon_settings)
@@ -923,6 +924,15 @@ class MainActivity : AppCompatActivity() {
         }
         iconSync.setOnClickListener { runManualSync(prefs, iconSync) }
         iconPayment.setOnClickListener { openCheckout() }
+        iconQuotation.setOnClickListener {
+            currentFocus?.clearFocus()
+            cartAdapter.commitVisibleEdits(cartList)
+            if (viewModel.cart.value.isEmpty()) {
+                Toast.makeText(this, R.string.cart_empty, Toast.LENGTH_SHORT).show()
+            } else {
+                promptAndGenerateQuotation()
+            }
+        }
         iconTheme.setOnClickListener { showThemeDialog(prefs) }
         iconSettings.setOnClickListener {
             startActivity(Intent(this, WebViewActivity::class.java).apply {
@@ -1461,7 +1471,7 @@ class MainActivity : AppCompatActivity() {
     private fun promptAndGenerateQuotation() {
         val pad = (16 * resources.displayMetrics.density).toInt()
         val nameEt = EditText(this).apply {
-            hint = "Customer name (optional)"
+            hint = getString(R.string.quotation_customer_hint)
             setSingleLine()
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PERSON_NAME
         }
@@ -1475,22 +1485,27 @@ class MainActivity : AppCompatActivity() {
             .setView(wrap)
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                generateAndOpenQuotation(nameEt.text.toString().trim().takeIf { it.isNotEmpty() })
+                // Server requires customer_name; default to "Walk-in Customer" when blank.
+                val entered = nameEt.text.toString().trim()
+                val name = entered.ifEmpty { getString(R.string.quotation_default_customer) }
+                generateAndOpenQuotation(name)
             }
             .show()
     }
 
     private fun generateAndOpenQuotation(customerName: String?) {
+        val posCartList = findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.cart_list)
+        if (::cartAdapter.isInitialized && posCartList != null) {
+            cartAdapter.commitVisibleEdits(posCartList)
+        }
         val cart = viewModel.cart.value
         if (cart.isEmpty()) {
             Toast.makeText(this, R.string.cart_empty, Toast.LENGTH_SHORT).show()
             return
         }
-        val bearer = PosAuth.bearer(this)
-        if (bearer.isNullOrBlank()) {
-            Toast.makeText(this, "Sign in required to generate quotation", Toast.LENGTH_LONG).show()
-            return
-        }
+
+        // Always attempt background sync / server reachability before quotation.
+        triggerSyncWhenOnline()
 
         val progress = android.app.ProgressDialog(this).apply {
             setMessage(getString(R.string.quotation_generating))
@@ -1506,47 +1521,102 @@ class MainActivity : AppCompatActivity() {
                 discount = line.discount,
             )
         }
+        val totals = viewModel.cartTotals.value
+        val prefs = getSharedPreferences("pos", MODE_PRIVATE)
+        val cashierName = PosAuth.username(this).ifBlank {
+            prefs.getString("username", null) ?: ""
+        }
 
         lifecycleScope.launch {
             try {
-                val api = PosAuth.api(this@MainActivity)
-                val createResp = withContext(Dispatchers.IO) {
-                    api.createQuotation(
-                        bearer,
-                        QuotationCreateDto(
-                            customer_name = customerName,
-                            items = items,
-                        ),
-                    )
-                }
-                if (!createResp.isSuccessful || createResp.body() == null) {
-                    val detail = httpErrorDetail(createResp) ?: "HTTP ${createResp.code()}"
-                    throw RuntimeException(detail)
-                }
-                val quotation = createResp.body()!!
-                val pdfResp = withContext(Dispatchers.IO) {
-                    api.downloadQuotationPdf(bearer, quotation.id)
-                }
-                if (!pdfResp.isSuccessful || pdfResp.body() == null) {
-                    throw RuntimeException("PDF download failed (HTTP ${pdfResp.code()})")
-                }
-                val file = withContext(Dispatchers.IO) {
-                    val dir = java.io.File(cacheDir, "quotations").apply { mkdirs() }
-                    val safeName = quotation.quotation_number
-                        .replace(Regex("[^A-Za-z0-9._-]"), "_")
-                    val out = java.io.File(dir, "$safeName.pdf")
-                    pdfResp.body()!!.byteStream().use { input ->
-                        out.outputStream().use { output -> input.copyTo(output) }
+                var pdfFile: java.io.File? = null
+                var toastMessage: String? = null
+                var usedOffline = false
+
+                if (NetworkUtils.hasValidatedInternet(this@MainActivity)) {
+                    val bearer = when (val auth = PosAuth.ensureBearer(this@MainActivity)) {
+                        is BearerResult.Ok -> auth.bearer
+                        else -> null
                     }
-                    out
+                    if (bearer != null) {
+                        try {
+                            val api = PosAuth.api(this@MainActivity)
+                            val createResp = withContext(Dispatchers.IO) {
+                                api.createQuotation(
+                                    bearer,
+                                    QuotationCreateDto(
+                                        customer_name = customerName,
+                                        items = items,
+                                    ),
+                                )
+                            }
+                            if (createResp.isSuccessful && createResp.body() != null) {
+                                val quotation = createResp.body()!!
+                                val pdfResp = withContext(Dispatchers.IO) {
+                                    api.downloadQuotationPdf(bearer, quotation.id)
+                                }
+                                if (pdfResp.isSuccessful && pdfResp.body() != null) {
+                                    pdfFile = withContext(Dispatchers.IO) {
+                                        val dir = java.io.File(cacheDir, "quotations").apply { mkdirs() }
+                                        val safeName = quotation.quotation_number
+                                            .replace(Regex("[^A-Za-z0-9._-]"), "_")
+                                        val out = java.io.File(dir, "$safeName.pdf")
+                                        pdfResp.body()!!.byteStream().use { input ->
+                                            out.outputStream().use { output -> input.copyTo(output) }
+                                        }
+                                        out
+                                    }
+                                    toastMessage = getString(
+                                        R.string.quotation_success,
+                                        quotation.quotation_number,
+                                    )
+                                }
+                            } else if (createResp.code() == 401) {
+                                Log.w("MainActivity", "Quotation create unauthorized — using offline PDF")
+                            } else {
+                                Log.w(
+                                    "MainActivity",
+                                    "Quotation create failed: ${PosAuth.httpErrorDetail(createResp)}",
+                                )
+                            }
+                        } catch (e: Exception) {
+                            Log.w("MainActivity", "Online quotation failed, using offline PDF", e)
+                        }
+                    }
                 }
+
+                if (pdfFile == null) {
+                    usedOffline = true
+                    val (storeName, storePhone, storeLocation) =
+                        QuotationPdfGenerator.loadStoreFromPrefs(this@MainActivity)
+                    val qNum = QuotationPdfGenerator.offlineQuotationNumber()
+                    pdfFile = withContext(Dispatchers.IO) {
+                        QuotationPdfGenerator.generate(
+                            this@MainActivity,
+                            QuotationPdfGenerator.Request(
+                                storeName = storeName,
+                                storePhone = storePhone,
+                                storeLocation = storeLocation,
+                                quotationNumber = qNum,
+                                customerName = customerName ?: getString(R.string.quotation_default_customer),
+                                cashierName = cashierName,
+                                cartLines = cart,
+                                subtotal = totals.subtotal,
+                                discountTotal = totals.discountTotal,
+                                total = totals.total,
+                            ),
+                        )
+                    }
+                    toastMessage = getString(R.string.quotation_offline_success, qNum)
+                }
+
                 progress.dismiss()
                 Toast.makeText(
                     this@MainActivity,
-                    getString(R.string.quotation_success, quotation.quotation_number),
-                    Toast.LENGTH_SHORT,
+                    toastMessage ?: getString(R.string.quotation_success, ""),
+                    if (usedOffline) Toast.LENGTH_LONG else Toast.LENGTH_SHORT,
                 ).show()
-                openPdfWithViewer(file)
+                openPdfWithViewer(pdfFile!!)
             } catch (e: Exception) {
                 progress.dismiss()
                 Log.w("MainActivity", "Quotation generation failed", e)

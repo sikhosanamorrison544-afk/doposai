@@ -12,14 +12,22 @@ from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
-from .models import InventoryMovement, Product, Customer, Sale, SaleItem, Payment, User
+from .models import (
+    InventoryMovement,
+    Product,
+    Customer,
+    Sale,
+    SaleItem,
+    Payment,
+    User,
+)
 from .quotation_models import Quotation, QuotationItem
 from .tenant_scope import first_store_settings_for_tenant, row_visible, same_tenant
 
 logger = logging.getLogger(__name__)
 
 # Max characters shown for product name in PDF line table (keeps columns neat).
-_QUOTATION_PRODUCT_NAME_MAX = 22
+_QUOTATION_PRODUCT_NAME_MAX = 40
 
 # ReportLab theme
 _PDF_PRIMARY = "#1e3a8a"
@@ -490,6 +498,9 @@ class QuotationService:
         store_phone = (settings.store_phone if settings else None) or ""
         store_location = (settings.store_location if settings else None) or ""
 
+        cashier_user = self.db.get(User, quotation.created_by)
+        cashier_name = (cashier_user.username if cashier_user else None) or "—"
+
         buffer = io.BytesIO()
         page_w, _page_h = A4
         margin = 18 * mm
@@ -593,6 +604,7 @@ class QuotationService:
             [_p("Quotation No.", label_style), _p(quotation.quotation_number, value_style)],
             [_p("Date", label_style), _p(created, value_style)],
             [_p("Valid Until", label_style), _p(valid, value_style)],
+            [_p("Cashier", label_style), _p(cashier_name, value_style)],
             [_p("Status", label_style), _p(quotation.status.upper(), value_style)],
         ]
         meta_right = [[_p("Customer", label_style), _p(quotation.customer_name or "—", value_style)]]

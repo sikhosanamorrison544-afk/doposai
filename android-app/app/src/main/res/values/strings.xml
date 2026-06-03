@@ -37,6 +37,11 @@
     <string name="quotation_success">Quotation %1$s generated</string>
     <string name="quotation_failed">Could not generate quotation: %1$s</string>
     <string name="quotation_no_pdf_viewer">Quotation saved to Downloads. No PDF viewer found on this device.</string>
+    <string name="quotation_customer_hint">Customer name (optional — defaults to Walk-in)</string>
+    <string name="quotation_default_customer">Walk-in Customer</string>
+    <string name="quotation_offline">No connection — quotation saved on this device. Will sync when online.</string>
+    <string name="quotation_offline_success">Quotation %1$s saved (offline PDF)</string>
+    <string name="quotation_session_expired">Session expired. Log out and sign in again, then retry the quotation.</string>
     <string name="store_name">Store</string>
     <string name="settings">Settings</string>
     <string name="theme">Theme</string>

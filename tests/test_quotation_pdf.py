@@ -5,7 +5,7 @@ from app.quotation_service import _short_product_label
 def test_short_product_label_truncates_long_names():
     long_name = "80a 12/24/36/48v Mppt controller 7091 extra"
     short = _short_product_label(long_name)
-    assert len(short) <= 22
+    assert len(short) <= 40
     assert short.endswith("…")
 
 
