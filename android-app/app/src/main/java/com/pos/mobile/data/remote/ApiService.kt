@@ -44,6 +44,20 @@ interface ApiService {
         @Body body: SaleCreateDto
     ): Response<SaleReadDto>
 
+    // Quotations
+    @POST("api/quotations")
+    suspend fun createQuotation(
+        @Header("Authorization") token: String,
+        @Body body: QuotationCreateDto,
+    ): Response<QuotationReadDto>
+
+    @GET("api/quotations/{id}/pdf")
+    @Streaming
+    suspend fun downloadQuotationPdf(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int,
+    ): Response<ResponseBody>
+
     @POST("auth/register")
     suspend fun authRegister(@Body body: RegisterRequest): Response<AuthResponseDto>
 
@@ -291,6 +305,35 @@ data class SaleCreateDto(
 )
 
 data class SaleReadDto(val id: Int, val created_at: String, val subtotal: Double, val discount_total: Double, val total: Double)
+
+data class QuotationItemInputDto(
+    val product_id: Int,
+    val quantity: Int,
+    val unit_price: Double? = null,
+    val discount: Double = 0.0,
+)
+
+data class QuotationCreateDto(
+    val customer_id: Int? = null,
+    val customer_name: String? = null,
+    val customer_phone: String? = null,
+    val customer_email: String? = null,
+    val items: List<QuotationItemInputDto>,
+    val valid_until: String? = null,
+    val notes: String? = null,
+)
+
+data class QuotationReadDto(
+    val id: Int,
+    val quotation_number: String,
+    val customer_id: Int? = null,
+    val customer_name: String? = null,
+    val customer_phone: String? = null,
+    val total: Double,
+    val status: String,
+    val valid_until: String? = null,
+    val created_at: String,
+)
 
 data class LaybyCustomerCreateDto(
     val name: String,

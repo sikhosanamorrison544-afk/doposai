@@ -45,6 +45,8 @@ import com.pos.mobile.data.remote.ForgotPasswordRequest
 import com.pos.mobile.data.remote.LoginEmailRequest
 import com.pos.mobile.data.remote.LogoutRequest
 import com.pos.mobile.data.remote.RefreshRequest
+import com.pos.mobile.data.remote.QuotationCreateDto
+import com.pos.mobile.data.remote.QuotationItemInputDto
 import com.pos.mobile.data.remote.RegisterRequest
 import com.pos.mobile.data.remote.ResetPasswordRequest
 import com.pos.mobile.data.local.entity.SyncQueueEntity
@@ -738,6 +740,7 @@ class MainActivity : AppCompatActivity() {
         val searchResults = posContainer.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.search_results)
         val cartList = posContainer.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.cart_list)
         val btnPayment = posContainer.findViewById<android.widget.Button>(R.id.btn_payment)
+        val btnQuotation = posContainer.findViewById<android.widget.Button>(R.id.btn_quotation)
         val btnAdmin = posContainer.findViewById<android.widget.Button>(R.id.btn_admin)
         val btnLayby = posContainer.findViewById<android.widget.Button>(R.id.btn_layby)
         val btnLogout = posContainer.findViewById<android.widget.Button>(R.id.btn_logout)
@@ -901,6 +904,15 @@ class MainActivity : AppCompatActivity() {
             showPaymentSheet()
         }
         btnPayment.setOnClickListener { openCheckout() }
+        btnQuotation.setOnClickListener {
+            currentFocus?.clearFocus()
+            cartAdapter.commitVisibleEdits(cartList)
+            if (viewModel.cart.value.isEmpty()) {
+                Toast.makeText(this, R.string.cart_empty, Toast.LENGTH_SHORT).show()
+            } else {
+                promptAndGenerateQuotation()
+            }
+        }
 
         btnAdmin.isVisible = WebPosRules.roleCanAccessAdmin(role)
         btnAdmin.setOnClickListener {
@@ -1439,5 +1451,136 @@ class MainActivity : AppCompatActivity() {
         notificationBadgeJob?.cancel()
         unregisterConnectivitySyncWatcher()
         super.onDestroy()
+    }
+
+    /**
+     * Ask the cashier for an optional customer name, then create a quotation
+     * from the current cart, fetch the rendered PDF and open it in the
+     * device's PDF viewer.
+     */
+    private fun promptAndGenerateQuotation() {
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val nameEt = EditText(this).apply {
+            hint = "Customer name (optional)"
+            setSingleLine()
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PERSON_NAME
+        }
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, 0)
+            addView(nameEt)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.quotation)
+            .setView(wrap)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                generateAndOpenQuotation(nameEt.text.toString().trim().takeIf { it.isNotEmpty() })
+            }
+            .show()
+    }
+
+    private fun generateAndOpenQuotation(customerName: String?) {
+        val cart = viewModel.cart.value
+        if (cart.isEmpty()) {
+            Toast.makeText(this, R.string.cart_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val bearer = PosAuth.bearer(this)
+        if (bearer.isNullOrBlank()) {
+            Toast.makeText(this, "Sign in required to generate quotation", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val progress = android.app.ProgressDialog(this).apply {
+            setMessage(getString(R.string.quotation_generating))
+            setCancelable(false)
+            show()
+        }
+
+        val items = cart.map { line ->
+            QuotationItemInputDto(
+                product_id = line.product.id,
+                quantity = (line.quantity).toInt().coerceAtLeast(1),
+                unit_price = line.product.sellingPrice,
+                discount = line.discount,
+            )
+        }
+
+        lifecycleScope.launch {
+            try {
+                val api = PosAuth.api(this@MainActivity)
+                val createResp = withContext(Dispatchers.IO) {
+                    api.createQuotation(
+                        bearer,
+                        QuotationCreateDto(
+                            customer_name = customerName,
+                            items = items,
+                        ),
+                    )
+                }
+                if (!createResp.isSuccessful || createResp.body() == null) {
+                    val detail = httpErrorDetail(createResp) ?: "HTTP ${createResp.code()}"
+                    throw RuntimeException(detail)
+                }
+                val quotation = createResp.body()!!
+                val pdfResp = withContext(Dispatchers.IO) {
+                    api.downloadQuotationPdf(bearer, quotation.id)
+                }
+                if (!pdfResp.isSuccessful || pdfResp.body() == null) {
+                    throw RuntimeException("PDF download failed (HTTP ${pdfResp.code()})")
+                }
+                val file = withContext(Dispatchers.IO) {
+                    val dir = java.io.File(cacheDir, "quotations").apply { mkdirs() }
+                    val safeName = quotation.quotation_number
+                        .replace(Regex("[^A-Za-z0-9._-]"), "_")
+                    val out = java.io.File(dir, "$safeName.pdf")
+                    pdfResp.body()!!.byteStream().use { input ->
+                        out.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    out
+                }
+                progress.dismiss()
+                Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.quotation_success, quotation.quotation_number),
+                    Toast.LENGTH_SHORT,
+                ).show()
+                openPdfWithViewer(file)
+            } catch (e: Exception) {
+                progress.dismiss()
+                Log.w("MainActivity", "Quotation generation failed", e)
+                Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.quotation_failed, e.message ?: e.javaClass.simpleName),
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
+    }
+
+    private fun openPdfWithViewer(file: java.io.File) {
+        val uri = try {
+            androidx.core.content.FileProvider.getUriForFile(
+                this,
+                "${BuildConfig.APPLICATION_ID}.fileprovider",
+                file,
+            )
+        } catch (e: IllegalArgumentException) {
+            Log.w("MainActivity", "FileProvider could not expose ${file.absolutePath}", e)
+            Toast.makeText(this, R.string.quotation_no_pdf_viewer, Toast.LENGTH_LONG).show()
+            return
+        }
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/pdf")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            startActivity(Intent.createChooser(intent, "Open quotation"))
+        } catch (e: android.content.ActivityNotFoundException) {
+            Log.w("MainActivity", "No PDF viewer installed", e)
+            Toast.makeText(this, R.string.quotation_no_pdf_viewer, Toast.LENGTH_LONG).show()
+        }
     }
 }

@@ -1227,6 +1227,80 @@ async function completeSale() {
     }
 }
 
+async function generateQuotation() {
+    const msgEl = document.getElementById('pos-message');
+    msgEl.style.color = '';
+    msgEl.style.fontWeight = '';
+    msgEl.textContent = '';
+    if (!cart || cart.length === 0) {
+        msgEl.textContent = 'Add products to the cart before generating a quotation';
+        msgEl.style.color = '#ef4444';
+        return;
+    }
+
+    const customerName = (document.getElementById('customer-name')?.value || '').trim();
+
+    const items = cart.map(line => ({
+        product_id: line.product.id,
+        quantity: Math.round(line.quantity) || 1,
+        unit_price: Number(line.product.selling_price) || 0,
+        discount: Number(line.discount) || 0,
+    }));
+
+    const btn = document.getElementById('btn-generate-quotation');
+    if (btn) {
+        btn.disabled = true;
+        btn.dataset.originalText = btn.dataset.originalText || btn.textContent;
+        btn.textContent = 'Generating…';
+    }
+
+    try {
+        const quotation = await api('/api/quotations', {
+            method: 'POST',
+            body: JSON.stringify({
+                customer_name: customerName || null,
+                items,
+            }),
+        });
+
+        const pdfRes = await fetch(`/api/quotations/${quotation.id}/pdf`, {
+            headers: token ? { Authorization: 'Bearer ' + token } : {},
+        });
+        if (!pdfRes.ok) {
+            throw new Error(`PDF download failed (HTTP ${pdfRes.status})`);
+        }
+        const blob = await pdfRes.blob();
+        const url = URL.createObjectURL(blob);
+        const filename = `${quotation.quotation_number || ('quotation_' + quotation.id)}.pdf`;
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        try {
+            window.open(url, '_blank', 'noopener');
+        } catch (_) { /* popup blocker — ignore, file already downloaded */ }
+
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+
+        msgEl.textContent = `Quotation ${quotation.quotation_number || ('#' + quotation.id)} generated`;
+        msgEl.style.color = '#10b981';
+    } catch (e) {
+        console.error('Quotation error:', e);
+        msgEl.textContent = `Could not generate quotation: ${e.message || e}`;
+        msgEl.style.color = '#ef4444';
+        msgEl.style.fontWeight = 'bold';
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = btn.dataset.originalText || 'Quotation';
+        }
+    }
+}
+
 function setupEvents() {
     // Prevent browser password saving - additional measures
     const passwordField = document.getElementById('login-password');
@@ -1386,6 +1460,13 @@ function setupEvents() {
         void completeSale();
         return false;
     });
+    const btnQuotation = document.getElementById('btn-generate-quotation');
+    if (btnQuotation) {
+        btnQuotation.addEventListener('click', function () {
+            void generateQuotation();
+            return false;
+        });
+    }
     document.getElementById('btn-admin').addEventListener('click', () => {
         window.location.href = '/admin';
     });
