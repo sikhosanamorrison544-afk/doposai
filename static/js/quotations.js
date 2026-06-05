@@ -107,6 +107,7 @@ function setupEventListeners() {
     document.getElementById('btn-close-detail-modal')?.addEventListener('click', closeDetailModal);
     document.getElementById('btn-download-pdf')?.addEventListener('click', downloadQuotationPDF);
     document.getElementById('btn-convert-sale')?.addEventListener('click', showConvertSaleModal);
+    document.getElementById('btn-reprint-receipt')?.addEventListener('click', reprintQuotationReceipt);
     document.getElementById('btn-delete-quotation')?.addEventListener('click', deleteQuotation);
     
     // Backdrop click to close modals
@@ -138,7 +139,7 @@ async function loadQuotations() {
         
         const params = new URLSearchParams();
         if (status) params.append('status', status);
-        if (customer) params.append('customer_id', customer);
+        if (customer) params.append('search', customer);
         if (phone) params.append('customer_phone', phone);
         
         const data = await quotationsApi(`/api/quotations?${params}`);
@@ -410,10 +411,21 @@ async function viewQuotation(id) {
         const convertBtn = document.getElementById('btn-convert-sale');
         const deleteBtn = document.getElementById('btn-delete-quotation');
         if (convertBtn) {
-            convertBtn.style.display = quotation.status === 'sent' || quotation.status === 'accepted' ? 'inline-block' : 'none';
+            const canConvert = quotation.status === 'draft' || quotation.status === 'sent' || quotation.status === 'accepted';
+            convertBtn.style.display = canConvert ? 'inline-block' : 'none';
+            convertBtn.textContent = 'Convert to Sale & Print Receipt';
+        }
+        const reprintBtn = document.getElementById('btn-reprint-receipt');
+        if (reprintBtn) {
+            reprintBtn.style.display = quotation.status === 'converted' ? 'inline-block' : 'none';
         }
         if (deleteBtn) {
-            deleteBtn.style.display = quotation.status === 'draft' ? 'inline-block' : 'none';
+            deleteBtn.style.display = (quotation.status === 'draft' || quotation.status === 'converted')
+                ? 'inline-block'
+                : 'none';
+            deleteBtn.textContent = quotation.status === 'converted'
+                ? 'Remove from history'
+                : 'Delete';
         }
         
         const modal = document.getElementById('quotation-detail-modal');
@@ -490,11 +502,55 @@ async function convertQuotationToSale(payments) {
             body: JSON.stringify({ payments: payments })
         });
         
-        alert(`✅ Quotation converted to sale #${result.sale_id}!`);
+        alert(`✅ Quotation ${result.quotation_number || currentQuotation.quotation_number} converted to sale #${result.sale_id}!`);
+        if (confirm('Receipt recorded. Remove this quotation from history? (The sale stays on record.)')) {
+            try {
+                await quotationsApi(`/api/quotations/${currentQuotation.id}`, { method: 'DELETE' });
+            } catch (delErr) {
+                console.warn('Could not remove quotation from history:', delErr);
+            }
+        }
         closeDetailModal();
         loadQuotations();
     } catch (e) {
         alert('Error converting quotation: ' + e.message);
+    }
+}
+
+async function reprintQuotationReceipt() {
+    if (!currentQuotation) return;
+    try {
+        const receipt = await quotationsApi(`/api/quotations/${currentQuotation.id}/receipt-data`);
+        const lines = (receipt.items || []).map(item =>
+            `${item.product_name} x${item.quantity} = $${parseFloat(item.line_total).toFixed(2)}`
+        ).join('\n');
+        const payments = (receipt.payments || []).map(p =>
+            `${p.method}: $${parseFloat(p.amount).toFixed(2)}`
+        ).join('\n');
+        const summary = [
+            `Quotation: ${receipt.quotation_number}`,
+            `Sale #${receipt.sale_id || '—'}`,
+            `Customer: ${receipt.customer_name || 'Walk-in'}`,
+            '',
+            lines,
+            '',
+            `Subtotal: $${parseFloat(receipt.subtotal).toFixed(2)}`,
+            `Discount: $${parseFloat(receipt.discount_total).toFixed(2)}`,
+            `TOTAL: $${parseFloat(receipt.total).toFixed(2)}`,
+            '',
+            payments || 'No payment breakdown',
+        ].join('\n');
+        const w = window.open('', '_blank', 'noopener');
+        if (w) {
+            w.document.write('<pre style="font-family:monospace;font-size:14px;padding:16px;">' +
+                summary.replace(/</g, '&lt;') + '</pre>');
+            w.document.close();
+            w.print();
+        } else {
+            alert(summary);
+        }
+    } catch (e) {
+        alert('Could not load receipt data: ' + e.message);
     }
 }
 

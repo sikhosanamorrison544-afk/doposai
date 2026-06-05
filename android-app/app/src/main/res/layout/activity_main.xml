@@ -443,6 +443,19 @@
                         android:layout_marginEnd="4dp" />
 
                     <Button
+                        android:id="@+id/icon_quotation_history"
+                        android:layout_width="@dimen/top_bar_icon_size"
+                        android:layout_height="@dimen/top_bar_icon_size"
+                        android:minWidth="@dimen/top_bar_icon_size"
+                        android:minHeight="@dimen/top_bar_icon_size"
+                        android:text="📋"
+                        android:contentDescription="@string/quotation_history_title"
+                        android:textSize="@dimen/top_bar_icon_text_size"
+                        android:backgroundTint="@color/button_quotation"
+                        android:textColor="@color/text_on_primary"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
                         android:id="@+id/icon_theme"
                         android:layout_width="@dimen/top_bar_icon_size"
                         android:layout_height="@dimen/top_bar_icon_size"

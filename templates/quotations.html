@@ -157,7 +157,7 @@
                     <option value="expired">Expired</option>
                     <option value="converted">Converted</option>
                 </select>
-                <input type="text" id="filter-customer" placeholder="Filter by customer name">
+                <input type="text" id="filter-customer" placeholder="Search quotation # or customer name">
                 <input type="text" id="filter-phone" placeholder="Filter by phone number">
                 <button id="btn-apply-filters" class="primary small">Apply Filters</button>
                 <button id="btn-clear-filters" class="small">Clear</button>
@@ -240,7 +240,8 @@
         <div id="quotation-detail-content"></div>
         <div style="display: flex; gap: 10px; margin-top: 20px;">
             <button id="btn-download-pdf" class="primary">Download PDF</button>
-            <button id="btn-convert-sale" class="primary">Convert to Sale</button>
+            <button id="btn-convert-sale" class="primary">Convert to Sale &amp; Print Receipt</button>
+            <button id="btn-reprint-receipt" class="primary" style="display:none;">Reprint Receipt</button>
             <button id="btn-delete-quotation" class="danger">Delete</button>
         </div>
         <div id="quotation-detail-message" style="margin-top: 10px;"></div>
@@ -251,7 +252,7 @@
 
 <script src="/static/js/price-input-formatter.js?v=7"></script>
 <script src="/static/js/list-fetch.js?v=1"></script>
-<script src="/static/js/quotations.js?v=2"></script>
+<script src="/static/js/quotations.js?v=3"></script>
 <!-- Three.js for 3D Background -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>

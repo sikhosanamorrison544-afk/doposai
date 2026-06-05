@@ -58,6 +58,11 @@
             android:exported="false"
             android:parentActivityName=".ui.MainActivity" />
         <activity
+            android:name=".ui.QuotationHistoryActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
             android:name=".ui.WithdrawalActivity"
             android:exported="false"
             android:parentActivityName=".ui.MainActivity"

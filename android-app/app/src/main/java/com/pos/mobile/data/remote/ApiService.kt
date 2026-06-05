@@ -51,6 +51,46 @@ interface ApiService {
         @Body body: QuotationCreateDto,
     ): Response<QuotationReadDto>
 
+    @GET("api/quotations")
+    suspend fun listQuotations(
+        @Header("Authorization") token: String,
+        @Query("search") search: String? = null,
+        @Query("status") status: String? = null,
+        @Query("limit") limit: Int = 100,
+        @Query("offset") offset: Int = 0,
+    ): Response<QuotationListResponse>
+
+    @GET("api/quotations/lookup/{number}")
+    suspend fun lookupQuotation(
+        @Header("Authorization") token: String,
+        @Path("number") number: String,
+    ): Response<QuotationDetailDto>
+
+    @GET("api/quotations/{id}")
+    suspend fun getQuotation(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int,
+    ): Response<QuotationDetailDto>
+
+    @DELETE("api/quotations/{id}")
+    suspend fun deleteQuotation(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int,
+    ): Response<Void>
+
+    @GET("api/quotations/{id}/receipt-data")
+    suspend fun getQuotationReceiptData(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int,
+    ): Response<QuotationReceiptDto>
+
+    @POST("api/quotations/{id}/convert-to-sale")
+    suspend fun convertQuotationToSale(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int,
+        @Body body: QuotationConvertRequestDto,
+    ): Response<QuotationReceiptDto>
+
     @GET("api/quotations/{id}/pdf")
     @Streaming
     suspend fun downloadQuotationPdf(
@@ -333,6 +373,77 @@ data class QuotationReadDto(
     val status: String,
     val valid_until: String? = null,
     val created_at: String,
+)
+
+data class QuotationListResponse(
+    val quotations: List<QuotationSummaryDto>,
+    val total: Int,
+)
+
+data class QuotationSummaryDto(
+    val id: Int,
+    val quotation_number: String,
+    val customer_name: String? = null,
+    val total: Double,
+    val status: String,
+    val created_at: String,
+)
+
+data class QuotationItemReadDto(
+    val id: Int = 0,
+    val product_id: Int,
+    val product_name: String,
+    val quantity: Int,
+    val unit_price: Double,
+    val discount: Double = 0.0,
+    val line_total: Double,
+)
+
+data class QuotationDetailDto(
+    val id: Int,
+    val quotation_number: String,
+    val customer_id: Int? = null,
+    val customer_name: String? = null,
+    val customer_phone: String? = null,
+    val customer_email: String? = null,
+    val subtotal: Double = 0.0,
+    val discount_total: Double = 0.0,
+    val total: Double,
+    val status: String,
+    val valid_until: String? = null,
+    val notes: String? = null,
+    val converted_to_sale_id: Int? = null,
+    val created_at: String,
+    val items: List<QuotationItemReadDto> = emptyList(),
+)
+
+data class QuotationReceiptItemDto(
+    val product_id: Int,
+    val product_name: String,
+    val quantity: Int,
+    val unit_price: Double,
+    val discount: Double = 0.0,
+    val line_total: Double,
+)
+
+data class QuotationReceiptDto(
+    val quotation_id: Int,
+    val quotation_number: String,
+    val sale_id: Int? = null,
+    val status: String,
+    val customer_name: String? = null,
+    val subtotal: Double,
+    val discount_total: Double,
+    val total: Double,
+    val collection_status: String = "collected",
+    val items: List<QuotationReceiptItemDto>,
+    val payments: List<PaymentInputDto> = emptyList(),
+    val already_converted: Boolean = false,
+    val message: String? = null,
+)
+
+data class QuotationConvertRequestDto(
+    val payments: List<PaymentInputDto>,
 )
 
 data class LaybyCustomerCreateDto(

@@ -748,6 +748,7 @@ class MainActivity : AppCompatActivity() {
         val iconSync = posContainer.findViewById<android.widget.Button>(R.id.icon_sync)
         val iconPayment = posContainer.findViewById<android.widget.Button>(R.id.icon_payment)
         val iconQuotation = posContainer.findViewById<android.widget.Button>(R.id.icon_quotation)
+        val iconQuotationHistory = posContainer.findViewById<android.widget.Button>(R.id.icon_quotation_history)
         val iconTheme = posContainer.findViewById<android.widget.Button>(R.id.icon_theme)
         val iconPrinter = posContainer.findViewById<android.widget.Button>(R.id.icon_printer)
         val iconSettings = posContainer.findViewById<android.widget.Button>(R.id.icon_settings)
@@ -915,6 +916,10 @@ class MainActivity : AppCompatActivity() {
                 promptAndGenerateQuotation()
             }
         }
+        btnQuotation.setOnLongClickListener {
+            startActivity(Intent(this, QuotationHistoryActivity::class.java))
+            true
+        }
 
         btnAdmin.isVisible = WebPosRules.roleCanAccessAdmin(role)
         btnAdmin.setOnClickListener {
@@ -933,6 +938,13 @@ class MainActivity : AppCompatActivity() {
             } else {
                 promptAndGenerateQuotation()
             }
+        }
+        iconQuotationHistory.setOnClickListener {
+            startActivity(Intent(this, QuotationHistoryActivity::class.java))
+        }
+        iconQuotation.setOnLongClickListener {
+            startActivity(Intent(this, QuotationHistoryActivity::class.java))
+            true
         }
         iconTheme.setOnClickListener { showThemeDialog(prefs) }
         iconSettings.setOnClickListener {
@@ -1508,6 +1520,8 @@ class MainActivity : AppCompatActivity() {
                 var pdfFile: java.io.File? = null
                 var toastMessage: String? = null
                 var usedOffline = false
+                var savedNumber: String? = null
+                var savedServerId: Int? = null
 
                 if (NetworkUtils.hasValidatedInternet(this@MainActivity)) {
                     val bearer = when (val auth = PosAuth.ensureBearer(this@MainActivity)) {
@@ -1542,6 +1556,8 @@ class MainActivity : AppCompatActivity() {
                                         }
                                         out
                                     }
+                                    savedNumber = quotation.quotation_number
+                                    savedServerId = quotation.id
                                     toastMessage = getString(
                                         R.string.quotation_success,
                                         quotation.quotation_number,
@@ -1583,10 +1599,23 @@ class MainActivity : AppCompatActivity() {
                             ),
                         )
                     }
+                    savedNumber = qNum
                     toastMessage = getString(R.string.quotation_offline_success, qNum)
                 }
 
                 withContext(Dispatchers.IO) {
+                    val qNum = savedNumber
+                    if (qNum != null) {
+                        QuotationLocalStore.save(
+                            this@MainActivity,
+                            quotationNumber = qNum,
+                            customerName = customerName,
+                            total = totals.total,
+                            serverId = savedServerId,
+                            status = if (savedServerId != null) "draft" else "local",
+                            itemsJson = QuotationLocalStore.cartItemsJson(cart),
+                        )
+                    }
                     viewModel.refreshCartProductsFromLocalDb()
                 }
                 progress.dismiss()

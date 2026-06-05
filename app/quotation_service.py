@@ -56,13 +56,15 @@ class QuotationService:
     def __init__(self, db: Session):
         self.db = db
     
-    def _generate_quotation_number(self) -> str:
-        """Generate unique quotation number (e.g., Q-2024-001)."""
+    def _generate_quotation_number(self, tenant_id: Optional[int] = None) -> str:
+        """Generate globally unique quotation number (e.g., Q-2024-001)."""
         year = datetime.now().year
-        # Get the last quotation number for this year
-        last_quotation = self.db.query(Quotation).filter(
-            Quotation.quotation_number.like(f"Q-{year}-%")
-        ).order_by(Quotation.id.desc()).first()
+        last_quotation = (
+            self.db.query(Quotation)
+            .filter(Quotation.quotation_number.like(f"Q-{year}-%"))
+            .order_by(Quotation.id.desc())
+            .first()
+        )
         
         if last_quotation:
             # Extract number and increment
@@ -174,7 +176,7 @@ class QuotationService:
         # Create quotation
         quotation = Quotation(
             tenant_id=tenant_id,
-            quotation_number=self._generate_quotation_number(),
+            quotation_number=self._generate_quotation_number(tenant_id=tenant_id),
             customer_id=customer_id,
             customer_name=customer_name,
             customer_phone=customer_phone,
@@ -214,13 +216,19 @@ class QuotationService:
     
     def get_quotation(self, quotation_id: int) -> Optional[Quotation]:
         """Get quotation by ID."""
-        return self.db.get(Quotation, quotation_id)
+        return (
+            self.db.query(Quotation)
+            .options(joinedload(Quotation.items))
+            .filter(Quotation.id == quotation_id)
+            .first()
+        )
     
     def list_quotations(
         self,
         customer_id: Optional[int] = None,
         customer_phone: Optional[str] = None,
         status: Optional[str] = None,
+        search: Optional[str] = None,
         tenant_id: Optional[int] = None,
         limit: int = 50,
         offset: int = 0
@@ -246,11 +254,123 @@ class QuotationService:
         
         if status:
             query = query.filter(Quotation.status == status)
+
+        if search:
+            term = f"%{search.strip()}%"
+            query = query.filter(
+                (Quotation.quotation_number.ilike(term))
+                | (Quotation.customer_name.ilike(term))
+                | (Quotation.customer_phone.ilike(term))
+            )
         
         total = query.count()
         quotations = query.order_by(Quotation.created_at.desc()).limit(limit).offset(offset).all()
         
         return quotations, total
+
+    def get_quotation_by_number(
+        self,
+        quotation_number: str,
+        tenant_id: Optional[int] = None,
+        acting_user: Optional[User] = None,
+    ) -> Optional[Quotation]:
+        """Find a quotation by its human-readable number."""
+        qnum = quotation_number.strip()
+        if not qnum:
+            return None
+        query = self.db.query(Quotation).filter(
+            func.lower(Quotation.quotation_number) == qnum.lower()
+        )
+        if tenant_id is not None:
+            query = query.filter(Quotation.tenant_id == tenant_id)
+        else:
+            query = query.filter(Quotation.tenant_id.is_(None))
+        quotation = (
+            query.options(joinedload(Quotation.items))
+            .first()
+        )
+        if quotation is None:
+            return None
+        if acting_user is not None and not row_visible(
+            getattr(quotation, "tenant_id", None), acting_user
+        ):
+            return None
+        return quotation
+
+    def build_receipt_payload(self, quotation_id: int, acting_user: Optional[User] = None) -> dict:
+        """Receipt line items and totals for printing (draft or already converted)."""
+        quotation = self.get_quotation(quotation_id)
+        if not quotation:
+            raise ValueError(f"Quotation {quotation_id} not found")
+        if acting_user is not None and not row_visible(
+            getattr(quotation, "tenant_id", None), acting_user
+        ):
+            raise ValueError(f"Quotation {quotation_id} not found")
+
+        if quotation.status == "converted" and quotation.converted_to_sale_id:
+            sale = (
+                self.db.query(Sale)
+                .options(joinedload(Sale.items), joinedload(Sale.payments))
+                .filter(Sale.id == quotation.converted_to_sale_id)
+                .first()
+            )
+            if not sale:
+                raise ValueError("Linked sale not found for converted quotation")
+            items = []
+            for si in sale.items:
+                product = self.db.get(Product, si.product_id)
+                items.append({
+                    "product_id": si.product_id,
+                    "product_name": product.name if product else f"Product #{si.product_id}",
+                    "quantity": int(si.quantity),
+                    "unit_price": float(si.unit_price),
+                    "discount": float(si.discount or 0),
+                    "line_total": float(si.line_total),
+                })
+            payments = [
+                {"method": p.method, "amount": float(p.amount)}
+                for p in sale.payments
+            ]
+            return {
+                "quotation_id": quotation.id,
+                "quotation_number": quotation.quotation_number,
+                "sale_id": sale.id,
+                "status": quotation.status,
+                "customer_name": quotation.customer_name,
+                "subtotal": float(sale.subtotal),
+                "discount_total": float(sale.discount_total),
+                "total": float(sale.total),
+                "collection_status": sale.collection_status or "collected",
+                "items": items,
+                "payments": payments,
+                "already_converted": True,
+            }
+
+        items = [
+            {
+                "product_id": item.product_id,
+                "product_name": item.product_name,
+                "quantity": int(item.quantity),
+                "unit_price": float(item.unit_price),
+                "discount": float(item.discount or 0),
+                "line_total": float(item.line_total),
+            }
+            for item in quotation.items
+        ]
+        return {
+            "quotation_id": quotation.id,
+            "quotation_number": quotation.quotation_number,
+            "sale_id": None,
+            "status": quotation.status,
+            "customer_name": quotation.customer_name,
+            "subtotal": float(quotation.subtotal),
+            "discount_total": float(quotation.discount_total),
+            "total": float(quotation.total),
+            "collection_status": "collected",
+            "items": items,
+            "payments": [],
+            "already_converted": False,
+        }
     
     def update_quotation(
         self,
@@ -327,16 +447,23 @@ class QuotationService:
         return quotation
     
     def delete_quotation(self, quotation_id: int, acting_user: Optional[User] = None) -> bool:
-        """Delete quotation (only draft quotations can be deleted)."""
+        """
+        Remove quotation from history. Drafts can always be deleted.
+        Converted quotations can be deleted after the receipt/sale was recorded
+        (the linked sale is kept; only the quotation record is removed).
+        """
         quotation = self.get_quotation(quotation_id)
         if not quotation:
             return False
         if acting_user is not None and not row_visible(getattr(quotation, "tenant_id", None), acting_user):
             return False
 
-        if quotation.status != "draft":
-            raise ValueError(f"Cannot delete quotation with status '{quotation.status}'")
-        
+        if quotation.status not in ("draft", "converted"):
+            raise ValueError(
+                f"Cannot delete quotation with status '{quotation.status}'. "
+                "Only draft or converted (receipt already printed) quotations can be removed."
+            )
+
         self.db.delete(quotation)
         self.db.commit()
         return True
@@ -450,7 +577,26 @@ class QuotationService:
         self.db.refresh(sale)
         
         logger.info(f"Converted quotation {quotation.quotation_number} to sale {sale.id}")
+        self.db.refresh(sale)
         return sale
+
+    def convert_to_sale_receipt_payload(
+        self,
+        quotation_id: int,
+        payments: List[dict],
+        cashier_id: int,
+        acting_user: Optional[User] = None,
+    ) -> dict:
+        """Convert quotation to sale and return receipt data for printing."""
+        sale = self.convert_to_sale(
+            quotation_id=quotation_id,
+            payments=payments,
+            cashier_id=cashier_id,
+            acting_user=acting_user,
+        )
+        payload = self.build_receipt_payload(quotation_id, acting_user=acting_user)
+        payload["message"] = "Quotation converted to sale successfully"
+        return payload
     
     def expire_quotations(self) -> int:
         """Mark expired quotations (background task)."""

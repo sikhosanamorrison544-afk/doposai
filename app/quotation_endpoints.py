@@ -58,9 +58,14 @@ class QuotationRead(BaseModel):
     customer_id: Optional[int]
     customer_name: Optional[str]
     customer_phone: Optional[str]
+    customer_email: Optional[str] = None
+    subtotal: Decimal
+    discount_total: Decimal
     total: Decimal
     status: str
     valid_until: Optional[datetime]
+    notes: Optional[str] = None
+    converted_to_sale_id: Optional[int] = None
     created_at: datetime
     items: List[QuotationItemRead]
 
@@ -118,26 +123,12 @@ def register_quotation_endpoints(app):
             logger.error(f"Error creating quotation: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e))
 
-    @app.get("/api/quotations/{quotation_id}", response_model=QuotationRead)
-    async def get_quotation(
-        quotation_id: int,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(auth.get_current_active_user),
-    ):
-        """Get quotation by ID."""
-        service = QuotationService(db)
-        quotation = service.get_quotation(quotation_id)
-
-        if not quotation or not row_visible(getattr(quotation, "tenant_id", None), current_user):
-            raise HTTPException(status_code=404, detail="Quotation not found")
-
-        return quotation
-
     @app.get("/api/quotations", response_model=dict)
     async def list_quotations(
         customer_id: Optional[int] = None,
         customer_phone: Optional[str] = None,
         status: Optional[str] = None,
+        search: Optional[str] = None,
         limit: int = 50,
         offset: int = 0,
         db: Session = Depends(get_db),
@@ -149,6 +140,7 @@ def register_quotation_endpoints(app):
             customer_id=customer_id,
             customer_phone=customer_phone,
             status=status,
+            search=search,
             tenant_id=current_user.tenant_id,
             limit=limit,
             offset=offset,
@@ -168,6 +160,38 @@ def register_quotation_endpoints(app):
             ],
             "total": total,
         }
+
+    @app.get("/api/quotations/lookup/{quotation_number}", response_model=QuotationRead)
+    async def lookup_quotation_by_number(
+        quotation_number: str,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(auth.get_current_active_user),
+    ):
+        """Find a quotation by its number (e.g. Q-2026-001)."""
+        service = QuotationService(db)
+        quotation = service.get_quotation_by_number(
+            quotation_number,
+            tenant_id=current_user.tenant_id,
+            acting_user=current_user,
+        )
+        if not quotation:
+            raise HTTPException(status_code=404, detail="Quotation not found")
+        return quotation
+
+    @app.get("/api/quotations/{quotation_id}", response_model=QuotationRead)
+    async def get_quotation(
+        quotation_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(auth.get_current_active_user),
+    ):
+        """Get quotation by ID."""
+        service = QuotationService(db)
+        quotation = service.get_quotation(quotation_id)
+
+        if not quotation or not row_visible(getattr(quotation, "tenant_id", None), current_user):
+            raise HTTPException(status_code=404, detail="Quotation not found")
+
+        return quotation
 
     @app.put("/api/quotations/{quotation_id}", response_model=QuotationRead)
     async def update_quotation(
@@ -201,17 +225,30 @@ def register_quotation_endpoints(app):
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
+    @app.get("/api/quotations/{quotation_id}/receipt-data")
+    async def quotation_receipt_data(
+        quotation_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(auth.get_current_active_user),
+    ):
+        """Receipt line items for printing (draft preview or reprint after convert)."""
+        service = QuotationService(db)
+        try:
+            return service.build_receipt_payload(quotation_id, acting_user=current_user)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+
     @app.delete("/api/quotations/{quotation_id}", status_code=204)
     async def delete_quotation(
         quotation_id: int,
         db: Session = Depends(get_db),
-        current_admin: User = Depends(auth.get_current_admin_user),
+        current_user: User = Depends(auth.get_current_active_user),
     ):
-        """Delete quotation (only draft quotations)."""
+        """Delete quotation from history (draft or converted after receipt; any active user)."""
         service = QuotationService(db)
 
         try:
-            success = service.delete_quotation(quotation_id, acting_user=current_admin)
+            success = service.delete_quotation(quotation_id, acting_user=current_user)
             if not success:
                 raise HTTPException(status_code=404, detail="Quotation not found")
         except ValueError as e:
@@ -228,18 +265,12 @@ def register_quotation_endpoints(app):
         service = QuotationService(db)
 
         try:
-            sale = service.convert_to_sale(
+            return service.convert_to_sale_receipt_payload(
                 quotation_id=quotation_id,
                 payments=convert_data.payments,
                 cashier_id=current_user.id,
                 acting_user=current_user,
             )
-
-            return {
-                "sale_id": sale.id,
-                "quotation_id": quotation_id,
-                "message": "Quotation converted to sale successfully",
-            }
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:

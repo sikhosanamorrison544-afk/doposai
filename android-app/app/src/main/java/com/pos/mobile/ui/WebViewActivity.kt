@@ -298,6 +298,10 @@ class WebViewActivity : AppCompatActivity() {
             R.id.page_analytics -> loadPage("/analytics", "Analytics")
             R.id.page_withdrawals -> loadPage("/withdrawals/history", "Withdrawals History")
             R.id.page_outstanding_debts -> loadPage("/debts/outstanding", "Outstanding Debts")
+            R.id.page_quotations -> {
+                startActivity(Intent(this, QuotationHistoryActivity::class.java))
+                return true
+            }
         }
         return super.onOptionsItemSelected(item)
     }
