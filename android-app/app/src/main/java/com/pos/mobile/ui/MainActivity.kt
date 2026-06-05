@@ -1482,9 +1482,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // Always attempt background sync / server reachability before quotation.
-        triggerSyncWhenOnline()
-
+        // Quotations are non-transactional: no sale upload, no catalog/stock sync.
         val progress = android.app.ProgressDialog(this).apply {
             setMessage(getString(R.string.quotation_generating))
             setCancelable(false)
@@ -1588,6 +1586,9 @@ class MainActivity : AppCompatActivity() {
                     toastMessage = getString(R.string.quotation_offline_success, qNum)
                 }
 
+                withContext(Dispatchers.IO) {
+                    viewModel.refreshCartProductsFromLocalDb()
+                }
                 progress.dismiss()
                 Toast.makeText(
                     this@MainActivity,

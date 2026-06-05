@@ -130,6 +130,18 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Reload cart line products from local DB without changing stock (e.g. after quotation PDF). */
+    suspend fun refreshCartProductsFromLocalDb() = withContext(Dispatchers.IO) {
+        val cart = _cart.value
+        if (cart.isEmpty()) return@withContext
+        val byId = productDao.getAllActiveList().associateBy { it.id }
+        val refreshed = cart.map { line ->
+            val latest = byId[line.product.id] ?: line.product
+            line.copy(product = latest)
+        }
+        _cart.value = refreshed
+    }
+
     fun completeSale(
         authToken: String?,
         cashierId: Int,

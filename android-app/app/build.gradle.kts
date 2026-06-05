@@ -32,8 +32,8 @@ android {
         applicationId = "com.pos.mobile"
         minSdk = 24
         targetSdk = 34
-        versionCode = 23
-        versionName = "1.3.1"
+        versionCode = 24
+        versionName = "1.3.2"
         // Default API: https://doposai.com/ — override with pos.api.base.url in local.properties for dev only.
         buildConfigField("String", "DEFAULT_API_BASE_URL", "\"$defaultApiBaseUrl\"")
     }
