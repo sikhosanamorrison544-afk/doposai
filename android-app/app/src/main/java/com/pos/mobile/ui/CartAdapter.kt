@@ -54,6 +54,20 @@ class CartAdapter(
         private var suppressTextWatchers = false
 
         init {
+            qty.setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) {
+                    qty.post { qty.selectAll() }
+                } else {
+                    commitQtyField()
+                }
+            }
+            disc.setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) {
+                    disc.post { disc.selectAll() }
+                } else {
+                    commitDiscField()
+                }
+            }
             qty.addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -61,14 +75,14 @@ class CartAdapter(
                     if (suppressTextWatchers) return
                     val pos = adapterPosition
                     if (pos == RecyclerView.NO_POSITION) return
-                    val v = s?.toString()?.toIntOrNull() ?: 1
-                    val normalized = CartMath.normalizedQty(v)
-                    if (normalized.toString() != s?.toString()) {
-                        suppressTextWatchers = true
-                        qty.setText(normalized.toString())
-                        qty.setSelection(qty.text.length)
-                        suppressTextWatchers = false
+                    val raw = s?.toString()?.trim() ?: ""
+                    // Allow blank while cashier replaces the whole number (avoid forcing "1" mid-edit).
+                    if (raw.isEmpty()) {
+                        updateLineTotalPreview(pos, 1)
+                        return
                     }
+                    val parsed = raw.toIntOrNull() ?: return
+                    val normalized = CartMath.normalizedQty(parsed)
                     onQtyChange(pos, normalized)
                     updateLineTotalPreview(pos, normalized)
                 }
@@ -80,14 +94,13 @@ class CartAdapter(
                     if (suppressTextWatchers) return
                     val pos = adapterPosition
                     if (pos == RecyclerView.NO_POSITION) return
-                    val v = s?.toString()?.toDoubleOrNull() ?: 0.0
-                    val normalized = CartMath.normalizedDiscount(v)
-                    if (normalized.toInt().toString() != s?.toString()?.trim()) {
-                        suppressTextWatchers = true
-                        disc.setText(normalized.toInt().toString())
-                        disc.setSelection(disc.text.length)
-                        suppressTextWatchers = false
+                    val raw = s?.toString()?.trim() ?: ""
+                    if (raw.isEmpty()) {
+                        updateLineTotalPreview(pos)
+                        return
                     }
+                    val parsed = raw.toDoubleOrNull() ?: return
+                    val normalized = CartMath.normalizedDiscount(parsed)
                     onDiscChange(pos, normalized)
                     updateLineTotalPreview(pos)
                 }
@@ -101,21 +114,55 @@ class CartAdapter(
         fun bind(line: CartLine) {
             suppressTextWatchers = true
             name.text = line.product.name
-            qty.setText(line.quantity.toString())
+            // Do not overwrite fields the cashier is editing — setText() resets cursor to 0
+            // and causes digits to appear right-to-left.
+            if (!qty.hasFocus()) {
+                setQtyText(line.quantity.toString())
+            }
             price.text = format.format(line.product.sellingPrice)
-            disc.setText(line.discount.toInt().toString())
-            total.text = format.format(line.lineTotal)
+            if (!disc.hasFocus()) {
+                setDiscText(line.discount.toInt().toString())
+            }
+            if (!qty.hasFocus() && !disc.hasFocus()) {
+                total.text = format.format(line.lineTotal)
+            }
             applyStockStyle(line)
             suppressTextWatchers = false
         }
 
+        private fun setQtyText(value: String) {
+            qty.setText(value)
+            qty.setSelection(value.length)
+        }
+
+        private fun setDiscText(value: String) {
+            disc.setText(value)
+            disc.setSelection(value.length)
+        }
+
         fun commitEdits() {
+            commitQtyField()
+            commitDiscField()
+        }
+
+        private fun commitQtyField() {
             val pos = adapterPosition
             if (pos == RecyclerView.NO_POSITION) return
-            val q = qty.text.toString().toIntOrNull() ?: 1
-            val d = disc.text.toString().toDoubleOrNull() ?: 0.0
-            onQtyChange(pos, CartMath.normalizedQty(q))
-            onDiscChange(pos, CartMath.normalizedDiscount(d))
+            val q = qty.text.toString().trim().toIntOrNull()?.let { CartMath.normalizedQty(it) } ?: 1
+            suppressTextWatchers = true
+            setQtyText(q.toString())
+            suppressTextWatchers = false
+            onQtyChange(pos, q)
+        }
+
+        private fun commitDiscField() {
+            val pos = adapterPosition
+            if (pos == RecyclerView.NO_POSITION) return
+            val d = disc.text.toString().trim().toDoubleOrNull()?.let { CartMath.normalizedDiscount(it) } ?: 0.0
+            suppressTextWatchers = true
+            setDiscText(d.toInt().toString())
+            suppressTextWatchers = false
+            onDiscChange(pos, d)
         }
 
         private fun updateLineTotalPreview(pos: Int, qtyOverride: Int? = null) {

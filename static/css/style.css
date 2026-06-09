@@ -2133,6 +2133,19 @@ body.page-admin #btn-price-list-pdf-mobile.is-loading {
     }
 }
 
+/* Settings Panel — compact theme picker (not full-screen like admin modals) */
+#settings-panel.floating-panel.settings-panel {
+    width: min(90vw, 420px) !important;
+    max-width: 420px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: min(70vh, 360px) !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    z-index: 10000 !important;
+}
+
 /* Settings Panel */
 .settings-panel {
     max-width: min(90vw, 500px) !important;

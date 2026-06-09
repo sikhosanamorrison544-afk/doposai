@@ -117,34 +117,31 @@ window.toggleSettingsPanel = function() {
         console.error('settings-panel not found');
         return;
     }
-    if (!backdrop) {
-        console.error('pos-backdrop not found');
-        return;
-    }
-    
+
     // Check if panel is currently visible
     const computedStyle = window.getComputedStyle(panel);
     const isVisible = computedStyle.display !== 'none' && computedStyle.display !== '';
     console.log('Toggle settings panel, isVisible:', isVisible, 'computed display:', computedStyle.display);
-    
-    // Close payment panel if open
-    if (paymentPanel) {
+
+    // Close payment panel if open (docked checkout stays visible)
+    if (paymentPanel && !(paymentPanel.classList && paymentPanel.classList.contains('payment-dock'))) {
         paymentPanel.style.setProperty('display', 'none', 'important');
     }
-    
-    // Toggle settings panel
+
+    // Toggle settings panel (backdrop optional — removed when payment dock has no modal)
     if (isVisible) {
-        // Hide panel
         panel.style.setProperty('display', 'none', 'important');
-        backdrop.style.setProperty('display', 'none', 'important');
+        if (backdrop) backdrop.style.setProperty('display', 'none', 'important');
         console.log('Settings panel hidden');
     } else {
-        // Show panel
         panel.style.setProperty('display', 'block', 'important');
         panel.style.setProperty('visibility', 'visible', 'important');
         panel.style.setProperty('opacity', '1', 'important');
-        backdrop.style.setProperty('display', 'block', 'important');
-        backdrop.style.setProperty('visibility', 'visible', 'important');
+        panel.style.setProperty('z-index', '10000', 'important');
+        if (backdrop) {
+            backdrop.style.setProperty('display', 'block', 'important');
+            backdrop.style.setProperty('visibility', 'visible', 'important');
+        }
         console.log('Settings panel shown');
         
         // Add water droplets if light theme is active
@@ -180,11 +177,7 @@ window.toggleWithdrawalModal = function() {
         console.error('withdrawal-modal element not found in DOM');
         return;
     }
-    if (!backdrop) {
-        console.error('pos-backdrop element not found in DOM');
-        return;
-    }
-    
+
     // Close other panels
     if (settingsPanel) settingsPanel.style.setProperty('display', 'none', 'important');
     if (paymentPanel) paymentPanel.style.setProperty('display', 'none', 'important');

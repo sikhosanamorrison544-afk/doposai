@@ -73,7 +73,7 @@
     </script>
     <!-- Preload 3D model for faster loading -->
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
-    <link rel="stylesheet" href="/static/css/style.css?v=20260608b">
+    <link rel="stylesheet" href="/static/css/style.css?v=20260608c">
     <script>
         // Immediately prevent password saving before page fully loads
         (function() {
@@ -223,7 +223,7 @@
                         🔔
                         <span id="notification-badge" class="notification-badge" style="display:none;">0</span>
                     </button>
-                    <button type="button" id="btn-toggle-settings" class="floating-icon settings-icon" title="Settings">
+                    <button type="button" id="btn-toggle-settings" class="floating-icon settings-icon" title="Settings" onclick="if(window.toggleSettingsPanel){window.toggleSettingsPanel();} return false;">
                         ⚙️
                     </button>
                     <button type="button" id="btn-withdraw" class="floating-icon withdraw-icon" title="Withdraw Money" style="background: rgba(239, 68, 68, 0.8); display: none;">
@@ -505,6 +505,9 @@
     </div>
 </div>
 
+<!-- Backdrop for settings / notifications / withdrawal floating panels -->
+<div id="pos-backdrop" class="panel-backdrop" style="display:none;" aria-hidden="true"></div>
+
 <!-- Payment panel is now docked inside the POS screen (no backdrop). -->
 
 <!-- Three.js for 3D Background -->
@@ -518,7 +521,7 @@
 <script src="/static/js/plan-features.js?v=1"></script>
 <script src="/static/js/role-permissions.js?v=1"></script>
 <script src="/static/js/list-fetch.js?v=1"></script>
-<script src="/static/js/app.js?v=17"></script>
+<script src="/static/js/app.js?v=18"></script>
 <script src="/static/js/background3d.js?v=5"></script>
 <script src="/static/js/store-branding.js?v=4"></script>
 </body>
