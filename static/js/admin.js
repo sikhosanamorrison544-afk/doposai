@@ -582,9 +582,20 @@ window.deleteAdminProduct = async function deleteAdminProduct(id) {
     if (!confirm('Delete "' + label + '" from stock?\n\nThis cannot be undone for unused products. Products with sales history stay inactive for reports.')) {
         return;
     }
+    const adminPassword = prompt(
+        'Admin password required\n\nEnter your admin password to delete "' + label + '":'
+    );
+    if (adminPassword === null) {
+        return;
+    }
+    if (!String(adminPassword).trim()) {
+        alert('Admin password is required to delete a product.');
+        return;
+    }
     try {
         const result = await adminApi('/api/products/' + encodeURIComponent(id), {
             method: 'DELETE',
+            body: JSON.stringify({ admin_password: String(adminPassword).trim() }),
         });
         adminProducts = (adminProducts || []).filter((x) => x.id !== id);
         window.adminProducts = adminProducts;

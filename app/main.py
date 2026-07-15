@@ -766,12 +766,29 @@ async def update_product(
     return db_product
 
 
+class DeleteProductRequest(BaseModel):
+    admin_password: str
+
+
 @app.delete("/api/products/{product_id}")
 async def delete_product(
     product_id: int,
+    body: DeleteProductRequest,
     db: Session = Depends(get_db),
     current_admin: User = Depends(auth.get_current_admin_user),
 ):
+    """Remove one product from stock (admin password required)."""
+    if not body.admin_password or not body.admin_password.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Admin password is required to delete a product",
+        )
+    if not auth.verify_password(body.admin_password.strip(), current_admin.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid admin password",
+        )
+
     from .inventory_clear import remove_product_from_stock
 
     result = remove_product_from_stock(db, current_admin, product_id)
