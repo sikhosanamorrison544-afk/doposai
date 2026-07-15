@@ -398,7 +398,7 @@ function paintAdminProductsTable(products) {
                 document.createElement('td'), // Cost
                 document.createElement('td'), // Price
                 document.createElement('td'), // Expiry
-                document.createElement('td')  // Edit button
+                document.createElement('td')  // Actions
             ];
             
             cells[0].textContent = p.id;
@@ -408,35 +408,31 @@ function paintAdminProductsTable(products) {
             cells[4].textContent = parseFloat(p.cost_price).toFixed(2);
             cells[5].textContent = parseFloat(p.selling_price).toFixed(2);
             cells[6].textContent = expiryDate;
-            
-            // Create Edit button
+
+            const actions = document.createElement('div');
+            actions.className = 'product-row-actions';
+
             const editBtn = document.createElement('button');
-            editBtn.className = 'small';
-            editBtn.textContent = 'Edit';
-            editBtn.setAttribute('data-product-id', p.id);
-            
-            // Add click handler
-            editBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const pid = parseInt(this.getAttribute('data-product-id'), 10);
-                if (typeof window.startEditProduct === 'function') {
-                    window.startEditProduct(pid);
-                }
-                return false;
-            });
-            
-            editBtn.onclick = function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const pid = parseInt(this.getAttribute('data-product-id'), 10);
-                if (typeof window.startEditProduct === 'function') {
-                    window.startEditProduct(pid);
-                }
-                return false;
-            };
-            
-            cells[7].appendChild(editBtn);
+            editBtn.type = 'button';
+            editBtn.className = 'small product-action-btn product-edit-btn';
+            editBtn.textContent = '✏️';
+            editBtn.title = 'Edit product';
+            editBtn.setAttribute('aria-label', 'Edit product');
+            editBtn.setAttribute('data-product-id', String(p.id));
+            editBtn.setAttribute('data-action', 'edit');
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.className = 'small product-action-btn product-delete-btn';
+            deleteBtn.textContent = '🗑️';
+            deleteBtn.title = 'Delete product';
+            deleteBtn.setAttribute('aria-label', 'Delete product');
+            deleteBtn.setAttribute('data-product-id', String(p.id));
+            deleteBtn.setAttribute('data-action', 'delete');
+
+            actions.appendChild(editBtn);
+            actions.appendChild(deleteBtn);
+            cells[7].appendChild(actions);
             
             // Add all cells to row
             cells.forEach(cell => tr.appendChild(cell));
@@ -448,15 +444,20 @@ function paintAdminProductsTable(products) {
         body.addEventListener(
             'click',
             function (e) {
-                if (e.target.tagName === 'BUTTON' && e.target.hasAttribute('data-product-id')) {
-                    const productId = parseInt(e.target.getAttribute('data-product-id'), 10);
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (typeof window.startEditProduct === 'function') {
-                        window.startEditProduct(productId);
+                const btn = e.target.closest('button[data-product-id][data-action]');
+                if (!btn || !body.contains(btn)) return;
+                const productId = parseInt(btn.getAttribute('data-product-id'), 10);
+                const action = btn.getAttribute('data-action');
+                e.preventDefault();
+                e.stopPropagation();
+                if (action === 'delete') {
+                    if (typeof window.deleteAdminProduct === 'function') {
+                        window.deleteAdminProduct(productId);
                     }
-                    return false;
+                } else if (typeof window.startEditProduct === 'function') {
+                    window.startEditProduct(productId);
                 }
+                return false;
             },
             true
         );
@@ -574,6 +575,44 @@ async function loadAdminProducts(opts) {
         body.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:16px;color:#ef4444;">Error loading products: ${e.message}</td></tr>`;
     }
 }
+
+window.deleteAdminProduct = async function deleteAdminProduct(id) {
+    const product = (adminProducts || []).find((x) => x.id === id);
+    const label = product && product.name ? product.name : '#' + id;
+    if (!confirm('Delete "' + label + '" from stock?\n\nThis cannot be undone for unused products. Products with sales history stay inactive for reports.')) {
+        return;
+    }
+    try {
+        const result = await adminApi('/api/products/' + encodeURIComponent(id), {
+            method: 'DELETE',
+        });
+        adminProducts = (adminProducts || []).filter((x) => x.id !== id);
+        window.adminProducts = adminProducts;
+        if (typeof adminProductTotalCount === 'number' && adminProductTotalCount > 0) {
+            adminProductTotalCount -= 1;
+            window.adminProductTotalCount = adminProductTotalCount;
+        }
+        if (typeof updateAdminProductCount === 'function') {
+            updateAdminProductCount(
+                typeof adminProductTotalCount === 'number'
+                    ? adminProductTotalCount
+                    : adminProducts.length
+            );
+        }
+        paintAdminProductsTable(adminProducts);
+        const msg = document.getElementById('prod-message');
+        if (msg) {
+            msg.textContent = (result && result.message) || 'Product deleted.';
+            msg.style.color = 'rgba(34, 197, 94, 1)';
+        }
+        if (editingProductId === id) {
+            clearProductForm();
+        }
+    } catch (e) {
+        console.error(e);
+        alert(e.message || 'Failed to delete product');
+    }
+};
 
 // Make startEditProduct globally accessible  
 window.startEditProduct = async function startEditProduct(id) {

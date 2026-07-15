@@ -5,6 +5,8 @@ html {
 
 /* Input tokens — default/classic use light fields; light theme overrides below */
 :root {
+    --top-bar-height: 108px;
+    --top-bar-action-line: calc(var(--top-bar-height) + 8px + 26px);
     --input-bg: #ffffff;
     --input-bg-hover: #f9fafb;
     --input-bg-focus: #ffffff;
@@ -13,6 +15,17 @@ html {
     --input-border: rgba(0, 0, 0, 0.15);
     --input-focus-border: #667eea;
     --input-focus-ring: rgba(102, 126, 234, 0.25);
+}
+
+body.theme-classic {
+    --input-bg: #141414;
+    --input-bg-hover: #1f1f1f;
+    --input-bg-focus: #0a0a0a;
+    --input-text: #ffffff;
+    --input-placeholder: rgba(255, 255, 255, 0.45);
+    --input-border: rgba(255, 255, 255, 0.22);
+    --input-focus-border: #667eea;
+    --input-focus-ring: rgba(102, 126, 234, 0.35);
 }
 
 body.theme-light {
@@ -132,7 +145,7 @@ h1 {
 
 /* Login screen h1 should be white */
 #login-screen h1 {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 .platform-motto {
@@ -159,7 +172,6 @@ h1 {
 }
 
 .top-bar-brand {
-    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -201,7 +213,7 @@ h2, h3, h4, h5, h6 {
 
 /* Login screen card - light background for black text on all themes */
 #login-screen .card {
-    background: rgba(255, 255, 255, 0.95) !important;
+    background: rgba(20, 20, 20, 0.95) !important;
     border: 1px solid rgba(0, 0, 0, 0.15) !important;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
     backdrop-filter: blur(10px) !important;
@@ -214,7 +226,7 @@ h2, h3, h4, h5, h6 {
 #login-screen .card label,
 #login-screen #login-button,
 #login-screen .card button {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* Login inputs — dark fields */
@@ -481,9 +493,13 @@ button.big {
 }
 
 .top-bar {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
     align-items: center;
+    column-gap: 8px;
+    row-gap: 2px;
+    min-height: var(--top-bar-height);
     padding: 8px 12px;
     background: rgba(255, 255, 255, 0.92) !important;
     border-bottom: 1px solid rgba(0, 0, 0, 0.1);
@@ -495,6 +511,46 @@ button.big {
     overflow: visible !important;
 }
 
+/* App / store name on its own row at the top */
+.top-bar-brand,
+.top-bar > .shop-name {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    width: 100%;
+    text-align: center;
+    margin: 0;
+    justify-self: center;
+}
+
+.top-bar-brand .shop-name {
+    width: 100%;
+    text-align: center;
+}
+
+/* Page title (e.g. Pending Collection) on the left of the button row */
+.top-bar-page-title {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+    font-weight: 600;
+    min-width: 0;
+}
+
+/* User info on the left of the button row */
+.top-bar > span:not(.platform-motto) {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+    min-width: 0;
+}
+
+.top-bar-right {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+    margin-left: 0;
+}
+
 html body.theme-light .top-bar {
     background: rgba(255, 255, 255, 0.2) !important;
     backdrop-filter: blur(20px) saturate(200%) !important;
@@ -503,8 +559,7 @@ html body.theme-light .top-bar {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
 }
 
-.top-bar > span {
-    flex: 0 0 auto;
+.top-bar > span:not(.platform-motto) {
     font-weight: 600;
     color: #1a1a2e;
 }
@@ -514,19 +569,18 @@ html body.theme-light .top-bar {
     font-weight: 700;
     color: #1a1a2e;
     text-shadow: none;
-    flex: 1;
     text-align: center;
-    margin: 0 auto;
+    margin: 0;
 }
 
 .top-bar-right {
     display: flex;
     gap: 8px;
-    flex: 0 0 auto;
-    margin-left: auto;
     position: relative !important;
     align-items: center !important;
     overflow: visible !important;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .pos-layout {
@@ -588,17 +642,21 @@ body.pos-payment-expanded {
     max-height: var(--pos-payment-dock-expanded) !important;
 }
 
-body.theme-default #payment-panel.payment-dock,
-body.theme-classic #payment-panel.payment-dock {
+body.theme-default #payment-panel.payment-dock {
     background: #ffffff !important;
     color: #1a1a2e !important;
+}
+
+body.theme-classic #payment-panel.payment-dock {
+    background: #353535 !important;
+    color: #ffffff !important;
 }
 
 body.theme-light #payment-panel.payment-dock {
     background: rgba(255, 255, 255, 0.55) !important;
     backdrop-filter: blur(18px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 #payment-panel.payment-dock .payments {
@@ -639,9 +697,13 @@ body.theme-light #payment-panel.payment-dock {
     margin-top: 0 !important;
 }
 
-body.theme-default #pos-action-bar.pos-action-bar,
-body.theme-classic #pos-action-bar.pos-action-bar {
+body.theme-default #pos-action-bar.pos-action-bar {
     background: #ffffff;
+}
+
+body.theme-classic #pos-action-bar.pos-action-bar {
+    background: #353535;
+    color: #ffffff;
 }
 
 body.theme-light #pos-action-bar.pos-action-bar {
@@ -697,7 +759,7 @@ h2 {
 #products-table tbody,
 #products-table tbody td,
 #products-table td {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* Products table headers should be black across all themes and sticky when scrolling */
@@ -775,7 +837,7 @@ html body.theme-light #products-table thead {
 .product-form-card div,
 .product-form-card span,
 .product-form-card #prod-message {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 .product-form-card input:not([type="checkbox"]):not([type="radio"]),
@@ -832,7 +894,7 @@ html body.theme-light #products-table thead {
 /* Updated calculation: 60px (top bar) + 8px (section padding) + 26px (button height) = 94px */
 html body:not(.theme-classic) #app:not(.fullscreen-mode) #btn-toggle-fullscreen,
 html body:not(.theme-classic) #app #btn-toggle-fullscreen:not(.fullscreen-mode) {
-    top: calc(94px - clamp(40px, 5vw, 56px)) !important;
+    top: calc(var(--top-bar-action-line) - clamp(40px, 5vw, 56px)) !important;
     right: calc(clamp(8px, 1.5vw, 24px) + clamp(40px, 5vw, 56px) + 8px) !important;
 }
 
@@ -872,7 +934,7 @@ html body:not(.theme-classic) #app #btn-toggle-fullscreen:not(.fullscreen-mode) 
 /* POS Floating Payment Icon */
 .pos-floating-icons {
     position: fixed !important;
-    top: 60px !important;
+    top: var(--top-bar-height) !important;
     right: auto !important;
     left: calc(100% - clamp(8px, 1.5vw, 24px) - clamp(40px, 5vw, 56px)) !important;
     bottom: auto !important;
@@ -911,10 +973,10 @@ body.theme-classic .top-bar-right .pos-floating-icons {
 /* Align fullscreen icon vertically with more icon for all themes */
 /* Default alignment - overridden by theme-specific CSS below for non-classic themes */
 /* This is the base rule - will be overridden by more specific rules below */
-/* Updated calculation: 60px (top bar) + 8px (section padding) + 26px (button height) = 94px */
+/* Updated calculation: top bar + section padding + button height */
 #btn-toggle-fullscreen {
     position: fixed !important;
-    top: calc(94px - clamp(40px, 5vw, 56px)) !important;
+    top: calc(var(--top-bar-action-line) - clamp(40px, 5vw, 56px)) !important;
     right: calc(clamp(8px, 1.5vw, 24px) + clamp(40px, 5vw, 56px) + 8px) !important;
 }
 
@@ -922,7 +984,7 @@ body.theme-classic .top-bar-right .pos-floating-icons {
 /* This ensures proper positioning when app is NOT in fullscreen mode */
 /* Updated calculation: 60px (top bar) + 8px (section padding) + 26px (button height) = 94px */
 html body:not(.theme-classic) #app:not(.fullscreen-mode) #btn-toggle-fullscreen {
-    top: calc(94px - clamp(40px, 5vw, 56px)) !important;
+    top: calc(var(--top-bar-action-line) - clamp(40px, 5vw, 56px)) !important;
     right: calc(clamp(8px, 1.5vw, 24px) + clamp(40px, 5vw, 56px) + 8px) !important;
 }
 
@@ -943,7 +1005,7 @@ body:not(.theme-classic) #app .top-bar-right .pos-floating-icons,
 html body:not(.theme-classic) .top-bar-right .floating-icons,
 html body:not(.theme-classic) .top-bar-right .pos-floating-icons {
     position: fixed !important;
-    top: calc(94px - clamp(32px, 4vw, 48px)) !important;
+    top: calc(var(--top-bar-action-line) - clamp(32px, 4vw, 48px)) !important;
     right: clamp(4px, 1vw, 16px) !important;
     left: auto !important;
     bottom: auto !important;
@@ -958,7 +1020,7 @@ html body:not(.theme-classic) .top-bar-right .pos-floating-icons {
     white-space: nowrap !important;
     overflow-y: auto !important;
     overflow-x: visible !important;
-    max-height: calc(100vh - 94px) !important;
+    max-height: calc(100vh - var(--top-bar-action-line)) !important;
     padding-right: clamp(2px, 0.5vw, 4px) !important;
     padding-bottom: clamp(4px, 1vh, 8px) !important;
     /* Scrollbars hidden globally */
@@ -977,7 +1039,7 @@ body:not(.theme-classic) .top-bar-right .pos-floating-icons .more-button {
 /* Updated calculation: 60px (top bar) + 8px (section padding) + 26px (button height) = 94px */
 html body:not(.theme-classic) #app:not(.fullscreen-mode) #btn-toggle-fullscreen,
 html body:not(.theme-classic) #btn-toggle-fullscreen {
-    top: calc(94px - clamp(32px, 4vw, 48px)) !important;
+    top: calc(var(--top-bar-action-line) - clamp(32px, 4vw, 48px)) !important;
     right: calc(clamp(4px, 1vw, 16px) + clamp(32px, 4vw, 48px) + clamp(4px, 0.8vw, 8px)) !important;
     transform: none !important;
     position: fixed !important;
@@ -1029,7 +1091,7 @@ html body:not(.theme-classic) #btn-toggle-fullscreen {
     background: rgba(59, 130, 246, 0.9) !important;
     font-weight: bold !important;
     pointer-events: auto !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     font-size: clamp(18px, 2vw, 24px) !important;
     line-height: 1 !important;
     width: clamp(32px, 4vw, 48px) !important;
@@ -1050,10 +1112,10 @@ html body:not(.theme-classic) #btn-toggle-fullscreen {
     max-width: 48px !important;
     max-height: 48px !important;
     font-size: clamp(18px, 2vw, 24px) !important;
-    background: rgba(255, 255, 255, 0.9) !important;
+    background: rgba(20, 20, 20, 0.95) !important;
     border: 1px solid rgba(255, 255, 255, 0.5) !important;
     flex-shrink: 0 !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 .payment-icon {
@@ -1067,7 +1129,7 @@ html body:not(.theme-classic) #btn-toggle-fullscreen {
     background: rgba(158, 240, 210, 0.9) !important;
     box-shadow: 0 4px 20px rgba(158, 240, 210, 0.3) !important;
     flex-shrink: 0 !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 .payment-icon:hover {
@@ -1081,13 +1143,22 @@ body.theme-default .payment-panel .totals,
 body.theme-classic .payment-panel .totals {
     margin-bottom: 16px;
     padding: 12px;
-    background: #f3f4f6 !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     border-radius: 12px;
-    border: 1px solid #e5e7eb !important;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+}
+
+body.theme-default .payment-panel .totals {
+    background: #f3f4f6 !important;
+    border: 1px solid #e5e7eb !important;
     color: #1a1a2e !important;
+}
+
+body.theme-classic .payment-panel .totals {
+    background: #404040 !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: #ffffff !important;
 }
 
 body.theme-light .payment-panel .totals {
@@ -1186,7 +1257,7 @@ body.theme-light .payment-panel .totals {
 body > .floating-icons,
 #app > .floating-icons {
     position: fixed;
-    top: 60px;
+    top: var(--top-bar-height);
     right: auto;
     left: calc(100% - clamp(4px, 1vw, 16px) - clamp(32px, 4vw, 48px));
     display: flex;
@@ -1241,7 +1312,7 @@ body.theme-classic .top-bar-right .floating-icons .more-button {
     background: rgba(59, 130, 246, 0.9) !important;
     font-weight: bold !important;
     pointer-events: auto !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     font-size: clamp(18px, 2vw, 24px) !important;
     line-height: 1 !important;
     width: clamp(32px, 4vw, 48px) !important;
@@ -1427,12 +1498,18 @@ body.theme-classic .top-bar-right .floating-icons .more-button {
 }
 
 /* Solid panels — default & classic only (light theme uses frosted glass below) */
-body.theme-default .floating-panel,
-body.theme-classic .floating-panel {
+body.theme-default .floating-panel {
     background: #ffffff !important;
     border: 1px solid rgba(0, 0, 0, 0.1) !important;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
     color: #1a1a2e !important;
+}
+
+body.theme-classic .floating-panel {
+    background: #3a3a3a !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
+    color: #ffffff !important;
 }
 
 /* AI Insights Panel - Very wide and tall, leaving just a few mm from screen edges */
@@ -1460,7 +1537,7 @@ body.theme-classic .floating-panel {
     width: calc(100vw - 16px) !important; /* 8px (4mm) margin on each side */
     max-width: calc(100vw - 16px) !important;
     /* Leave 8px margin below top bar (60px) and 8px margin at bottom */
-    top: 68px !important; /* 60px (top bar) + 8px margin */
+    top: calc(var(--top-bar-height) + 8px) !important;
     left: 50% !important;
     height: calc(100vh - 76px) !important; /* 68px top + 8px bottom margin */
     max-height: calc(100vh - 76px) !important;
@@ -1561,7 +1638,7 @@ body.theme-classic .floating-panel {
 .history-content-fullscreen tbody td {
     padding: 30px 24px !important;
     font-size: 19px !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     line-height: 2.2 !important;
     vertical-align: middle !important;
     letter-spacing: 0.4px !important;
@@ -1610,7 +1687,7 @@ body.theme-classic .floating-panel {
     border-bottom: 3px solid rgba(0, 0, 0, 0.15) !important;
     font-weight: bold !important;
     font-size: 21px !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     line-height: 2 !important;
     letter-spacing: 0.6px !important;
     white-space: normal !important;
@@ -1690,7 +1767,7 @@ thead {
     background: transparent !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 th, td {
@@ -1725,7 +1802,7 @@ td {
 
 #customers-table th,
 #customers-table td {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* Layby light theme: table containers and table match app-wide light table style */
@@ -1877,7 +1954,7 @@ td:nth-child(5) {
 }
 
 .product-form-card {
-    background: rgba(255, 255, 255, 0.85) !important;
+    background: rgba(58, 58, 58, 0.95) !important;
 }
 
 @media (max-width: 1200px) {
@@ -1948,7 +2025,6 @@ td:nth-child(5) {
     }
     body.page-admin .top-bar {
         padding: 4px 6px !important;
-        flex-wrap: wrap !important;
     }
     body.page-admin .shop-name {
         font-size: 14px !important;
@@ -2041,6 +2117,46 @@ body.page-admin .admin-products-list-hint {
     line-height: 1.35;
     opacity: 0.85;
     max-width: 420px;
+}
+body.page-admin #products-table .product-row-actions,
+body.page-admin .product-row-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 44px;
+}
+body.page-admin #products-table button.small.product-action-btn,
+body.page-admin #products-table .product-action-btn,
+body.page-admin button.small.product-action-btn,
+body.page-admin .product-action-btn {
+    min-width: 36px !important;
+    width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    max-width: 36px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px !important;
+    line-height: 1 !important;
+    border-radius: 8px !important;
+    cursor: pointer;
+}
+body.page-admin #products-table button.small.product-edit-btn,
+body.page-admin .product-edit-btn {
+    background: rgba(37, 99, 235, 0.18) !important;
+    border: 1px solid rgba(37, 99, 235, 0.4) !important;
+    color: #1d4ed8 !important;
+}
+body.page-admin #products-table button.small.product-delete-btn,
+body.page-admin .product-delete-btn {
+    background: rgba(239, 68, 68, 0.16) !important;
+    border: 1px solid rgba(239, 68, 68, 0.45) !important;
+    color: #ef4444 !important;
+    filter: none !important;
 }
 
 body.page-admin .price-list-download-status {
@@ -2357,7 +2473,7 @@ body.theme-default {
 
 body.theme-default .card,
 body.theme-default .floating-panel {
-    background: rgba(255, 255, 255, 0.7) !important;
+    background: rgba(58, 58, 58, 0.9) !important;
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
     border: 1px solid rgba(255, 255, 255, 0.3) !important;
@@ -2373,7 +2489,7 @@ body.theme-default #payment-panel.payment-panel:not(.payment-dock) {
     -webkit-backdrop-filter: none !important;
     border: 1px solid rgba(0, 0, 0, 0.1) !important;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-default #payment-panel .floating-panel-header,
@@ -2382,7 +2498,7 @@ body.theme-default #payment-panel label,
 body.theme-default #payment-panel h3,
 body.theme-default #payment-panel small,
 body.theme-default #payment-panel .payments label {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-default #payment-panel .payment-panel-hint {
@@ -2441,8 +2557,8 @@ body.theme-default button.primary {
 
 body.theme-default button.danger {
     background: transparent !important;
-    border-color: #ef4444 !important;
-    color: #ef4444 !important;
+    border-color: #ffffff !important;
+    color: #ffffff !important;
 }
 
 body.theme-default .floating-icon,
@@ -2452,7 +2568,7 @@ body.theme-default .totals {
     backdrop-filter: blur(8px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(8px) saturate(180%) !important;
     border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-light {
@@ -3017,7 +3133,7 @@ html body.theme-light #store-settings-panel .grid-2 {
     opacity: 1 !important;
     border: 1px solid rgba(0, 0, 0, 0.2) !important;
     background: #ffffff !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     border-radius: clamp(0.5rem, 1vw, 0.75rem) !important;
 }
 
@@ -4212,7 +4328,7 @@ html body.theme-light .store-settings-page-content details.settings-section > su
 }
 
 html body.theme-light #store-settings-panel .settings-page-nav {
-    background: rgba(255, 255, 255, 0.95) !important;
+    background: rgba(20, 20, 20, 0.95) !important;
 }
 
 #store-settings-panel details.settings-section {
@@ -4236,7 +4352,7 @@ html body.theme-light #store-settings-panel .settings-page-nav {
     .store-settings-page-content {
         padding: 12px 16px 12px 16px !important;
         box-sizing: border-box !important;
-        background: #f5f5f5 !important;
+        background: #353535 !important;
     }
     body:not(.theme-light):not(.theme-classic) .store-settings-page-content {
         background: rgba(30, 35, 50, 0.97) !important;
@@ -4320,7 +4436,7 @@ html body.theme-light #store-settings-panel .settings-page-nav {
         padding: 0.55rem 0.75rem !important;
         margin: 0.4rem 0 !important;
         border-radius: 6px !important;
-        background: #f0f0f0 !important;
+        background: #404040 !important;
         border: 1px solid rgba(0, 0, 0, 0.08) !important;
         box-shadow: none !important;
         backdrop-filter: none !important;
@@ -4420,7 +4536,7 @@ html body.theme-light #store-settings-panel .settings-page-nav {
     .store-settings-page-content button.danger,
     .store-settings-page-content .danger {
         background: #dc2626 !important;
-        border-color: #b91c1c !important;
+        border-color: #ffffff !important;
     }
     html body.theme-light .store-settings-page-content button {
         font-size: 0.88rem !important;
@@ -4780,7 +4896,7 @@ html body.theme-light #store-settings-panel details.settings-section[open] > sum
     box-sizing: border-box !important;
     border: 2px solid rgba(0, 0, 0, 0.3) !important;
     background: #ffffff !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     border-radius: clamp(0.5rem, 1vw, 0.75rem) !important;
     font-size: clamp(0.875rem, 1.6vw, 1.125rem) !important;
     line-height: 1.5 !important;
@@ -5369,10 +5485,10 @@ body.theme-light #payment-panel #layby-toggle-icon {
     display: block !important;
 }
 
-/* ========== Classic theme: neutral POS, no fancy colors ========== */
+/* ========== Classic theme: neutral dark POS, white text ========== */
 body.theme-classic {
-    background: #e8e8e8 !important;
-    color: #1a1a1a !important;
+    background: #2a2a2a !important;
+    color: #ffffff !important;
     animation: none !important;
     font-size: 19px !important;
     line-height: 1.45 !important;
@@ -5382,18 +5498,18 @@ body.theme-classic {
 
 body.theme-classic .card,
 body.theme-classic .floating-panel {
-    background: #fff !important;
-    border: 1px solid #ccc !important;
-    color: #1a1a1a !important;
+    background: #3a3a3a !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: #ffffff !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25) !important;
 }
 
 body.theme-classic .top-bar {
-    background: #f5f5f5 !important;
-    border-bottom: 1px solid #ccc !important;
-    color: #1a1a1a !important;
+    background: #353535 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: #ffffff !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
 }
@@ -5410,9 +5526,9 @@ body.theme-classic textarea {
 }
 
 body.theme-classic button {
-    background: #f5f5f5 !important;
-    border: 1px solid #aaa !important;
-    color: #1a1a1a !important;
+    background: #404040 !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    color: #ffffff !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     font-size: 19px !important;
@@ -5433,31 +5549,31 @@ body.theme-classic button.danger {
 body.theme-classic .floating-icon,
 body.theme-classic #search-results,
 body.theme-classic .totals {
-    background: #fff !important;
-    border: 1px solid #ccc !important;
-    color: #1a1a1a !important;
+    background: #3a3a3a !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: #ffffff !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
 }
 
 body.theme-classic .shop-name,
 body.theme-classic .top-bar * {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic .floating-panel-header {
-    background: #f5f5f5 !important;
-    border-bottom: 1px solid #ccc !important;
-    color: #1a1a1a !important;
+    background: #353535 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic .floating-panel-header h2 {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     font-size: 1.25rem !important;
     font-weight: 600 !important;
 }
 
-/* Classic: ensure labels, headings and list text are readable */
+/* Classic: white text throughout */
 body.theme-classic label,
 body.theme-classic h1,
 body.theme-classic h2,
@@ -5466,7 +5582,7 @@ body.theme-classic p,
 body.theme-classic span,
 body.theme-classic td,
 body.theme-classic th {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic h1 { font-size: 1.75rem !important; font-weight: 600 !important; }
@@ -5475,7 +5591,7 @@ body.theme-classic h3 { font-size: 1.25rem !important; font-weight: 600 !importa
 body.theme-classic label { font-weight: 500 !important; }
 body.theme-classic .totals,
 body.theme-classic .totals * {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     font-weight: 500 !important;
 }
 
@@ -5493,7 +5609,7 @@ body.theme-light #btn-process-withdrawal:hover {
 body.theme-light button.danger {
     background: rgba(239, 68, 68, 0.2) !important;
     border-color: rgba(239, 68, 68, 0.4) !important;
-    color: #ef4444 !important;
+    color: #ffffff !important;
 }
 
 body.theme-light button.danger:hover {
@@ -5756,28 +5872,28 @@ body:not([class*="theme-"]) #debts-table-container *,
 body:not([class*="theme-"]) #debts-body,
 body:not([class*="theme-"]) #debts-body *,
 body:not([class*="theme-"]) #debts-count {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* Grand total should stay red (not black), so keep it red */
 body:not([class*="theme-"]) #grand-total {
-    color: #ef4444 !important;
+    color: #ffffff !important;
 }
 
 /* Ensure table headers and cells are white in default theme for outstanding debts */
 body:not([class*="theme-"]) #debts-table-container table th,
 body:not([class*="theme-"]) #debts-table-container table td {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     border-color: rgba(255, 255, 255, 0.3) !important;
 }
 
 body:not([class*="theme-"]) #debts-table-container table thead th {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     background: rgba(255, 255, 255, 0.2) !important;
 }
 
 body:not([class*="theme-"]) #debts-table-container table tbody td {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* Also handle explicit theme-default class if it exists */
@@ -5798,26 +5914,26 @@ body.theme-default #debts-table-container *,
 body.theme-default #debts-body,
 body.theme-default #debts-body *,
 body.theme-default #debts-count {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-default #grand-total {
-    color: #ef4444 !important;
+    color: #ffffff !important;
 }
 
 body.theme-default #debts-table-container table th,
 body.theme-default #debts-table-container table td {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     border-color: rgba(255, 255, 255, 0.3) !important;
 }
 
 body.theme-default #debts-table-container table thead th {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     background: rgba(255, 255, 255, 0.2) !important;
 }
 
 body.theme-default #debts-table-container table tbody td {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* Layby Customer Form - Theme Adaptation */
@@ -5868,7 +5984,7 @@ body:not([class*="theme-"]) #customer-form-container .info,
 body.theme-default #customer-form-container h3,
 body.theme-default #customer-form-container label,
 body.theme-default #customer-form-container .info {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
 }
 
@@ -5881,7 +5997,7 @@ body.theme-default #customer-form-container textarea {
     background: rgba(255, 255, 255, 0.2) !important;
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     border: 1px solid rgba(255, 255, 255, 0.3) !important;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1) !important;
 }
@@ -5890,7 +6006,7 @@ body:not([class*="theme-"]) #customer-form-container input::placeholder,
 body:not([class*="theme-"]) #customer-form-container textarea::placeholder,
 body.theme-default #customer-form-container input::placeholder,
 body.theme-default #customer-form-container textarea::placeholder {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body:not([class*="theme-"]) #customer-form-container input:focus,
@@ -5927,7 +6043,7 @@ body.theme-default #customer-form-container button:not(.primary):not(.danger) {
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
     border: 1px solid rgba(255, 255, 255, 0.3) !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
 }
 
@@ -6024,7 +6140,7 @@ body.theme-light #customer-form-container button:not(.primary):not(.danger):hove
 
 /* Classic Theme - Customer Form */
 body.theme-classic #customer-form-container {
-    background: #fff !important;
+    background: #3a3a3a !important;
     border: 1px solid #ccc !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
@@ -6034,7 +6150,7 @@ body.theme-classic #customer-form-container {
 body.theme-classic #customer-form-container h3,
 body.theme-classic #customer-form-container label,
 body.theme-classic #customer-form-container .info {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     font-weight: 500 !important;
 }
 
@@ -6045,8 +6161,8 @@ body.theme-classic #customer-form-container h3 {
 body.theme-classic #customer-form-container input,
 body.theme-classic #customer-form-container select,
 body.theme-classic #customer-form-container textarea {
-    background: #fff !important;
-    color: #1a1a1a !important;
+    background: #3a3a3a !important;
+    color: #ffffff !important;
     border: 1px solid #aaa !important;
     font-size: 19px !important;
 }
@@ -6057,13 +6173,13 @@ body.theme-classic #app.screen.active header.top-bar > div,
 body.theme-classic #app.screen.active header.top-bar .shop-name,
 body.theme-classic #app.screen.active header.top-bar .top-bar-right,
 body.theme-classic #app.screen.active header.top-bar button {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     font-size: 19px !important;
 }
 
 body.theme-classic #app.screen.active main h1,
 body.theme-classic #app.screen.active main p {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #app.screen.active main h1 {
@@ -6075,12 +6191,12 @@ body.theme-classic #pending-collection-list > div,
 body.theme-classic #pending-collection-list > div[style*="background"],
 body.theme-classic #pending-collection-list .card,
 body.theme-classic #pending-collection-list div.card {
-    background: #fff !important;
+    background: #3a3a3a !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     border: 1px solid #ccc !important;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #pending-collection-list h3,
@@ -6089,7 +6205,7 @@ body.theme-classic #pending-collection-list span,
 body.theme-classic #pending-collection-list strong,
 body.theme-classic #pending-collection-list td,
 body.theme-classic #pending-collection-list th {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #pending-collection-list h3 {
@@ -6113,12 +6229,12 @@ body.theme-classic #pending-collection-list table td {
 }
 
 body.theme-classic #pending-collection-list table thead th {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     font-weight: 600 !important;
 }
 
 body.theme-classic #pending-collection-list table td {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #pending-collection-list button.primary {
@@ -6133,7 +6249,7 @@ body.theme-classic #pending-collection-list button.primary:hover {
 }
 
 body.theme-classic #pending-collection-list button.small {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     font-size: 16px !important;
 }
 
@@ -6142,19 +6258,19 @@ body.theme-classic #pending-collection-list [style*="color: #3b82f6"],
 body.theme-classic #pending-collection-list [style*="color:#3b82f6"],
 body.theme-classic #pending-collection-list [style*="color: #2563eb"],
 body.theme-classic #pending-collection-list [style*="color:#2563eb"] {
-    color: #2596be !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #pending-collection-list [style*="color: #10b981"],
 body.theme-classic #pending-collection-list [style*="color:#10b981"],
 body.theme-classic #pending-collection-list [style*="color: #059669"],
 body.theme-classic #pending-collection-list [style*="color:#059669"] {
-    color: #48bb78 !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #pending-collection-list [style*="color: rgba(255,255,255"],
 body.theme-classic #pending-collection-list [style*="color:rgba(255,255,255"] {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* Pending Collection Page - Center and enlarge content panel */
@@ -6280,7 +6396,7 @@ body.theme-classic .analytics-container *,
 body.theme-classic .analytics-header,
 body.theme-classic .analytics-header *,
 body.theme-classic .analytics-header h1 {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic .analytics-header h1 {
@@ -6291,21 +6407,21 @@ body.theme-classic .analytics-header h1 {
 body.theme-classic .period-selector,
 body.theme-classic .period-selector label,
 body.theme-classic .period-selector select {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     font-size: 19px !important;
 }
 
 body.theme-classic .period-selector select {
-    background: #fff !important;
+    background: #3a3a3a !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     border: 1px solid #aaa !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic .period-selector select option {
-    background: #fff !important;
-    color: #1a1a1a !important;
+    background: #3a3a3a !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic .stats-grid,
@@ -6315,7 +6431,7 @@ body.theme-classic .stat-card *,
 body.theme-classic .stat-card h3,
 body.theme-classic .stat-card .value,
 body.theme-classic .stat-card .label {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic .stat-card h3,
@@ -6325,7 +6441,7 @@ body.theme-classic .stat-card .value {
 }
 
 body.theme-classic .stat-card {
-    background: #fff !important;
+    background: #3a3a3a !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     border: 1px solid #ccc !important;
@@ -6340,7 +6456,7 @@ body.theme-classic .products-table *,
 body.theme-classic .products-table th,
 body.theme-classic .products-table td,
 body.theme-classic .products-table tr {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic .products-section h2 {
@@ -6349,7 +6465,7 @@ body.theme-classic .products-section h2 {
 }
 
 body.theme-classic .products-section {
-    background: #fff !important;
+    background: #3a3a3a !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     border: 1px solid #ccc !important;
@@ -6357,80 +6473,80 @@ body.theme-classic .products-section {
 }
 
 body.theme-classic .products-table table {
-    background: #fff !important;
+    background: #3a3a3a !important;
 }
 
 body.theme-classic .products-table th {
-    background: #f0f0f0 !important;
+    background: #404040 !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     border-bottom: 2px solid #ccc !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     font-weight: 600 !important;
     font-size: 16px !important;
 }
 
 body.theme-classic .products-table td {
-    background: #fff !important;
+    background: #3a3a3a !important;
     border-bottom: 1px solid #e0e0e0 !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     font-size: 16px !important;
 }
 
 body.theme-classic .products-table tr:hover td {
-    background: #f8f8f8 !important;
+    background: #454545 !important;
 }
 
 body.theme-classic .badge,
 body.theme-classic .badge.success,
 body.theme-classic .badge.warning,
 body.theme-classic .badge.danger {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
     font-weight: 500 !important;
 }
 
 body.theme-classic .badge.success {
     background: rgba(16, 185, 129, 0.2) !important;
     border: 1px solid rgba(16, 185, 129, 0.5) !important;
-    color: #0d9668 !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic .badge.warning {
     background: rgba(245, 158, 11, 0.2) !important;
     border: 1px solid rgba(245, 158, 11, 0.5) !important;
-    color: #b45309 !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic .badge.danger {
     background: rgba(239, 68, 68, 0.2) !important;
     border: 1px solid rgba(239, 68, 68, 0.5) !important;
-    color: #b91c1c !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic .loading {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic .error {
     background: rgba(239, 68, 68, 0.12) !important;
     border: 1px solid rgba(239, 68, 68, 0.4) !important;
-    color: #b91c1c !important;
+    color: #ffffff !important;
 }
 
-/* Override inline styles for dynamically generated content - keep dark */
+/* Override inline styles for dynamically generated content — white text */
 body.theme-classic [style*="color: #1a1a2e"],
 body.theme-classic [style*="color:#1a1a2e"],
 body.theme-classic [style*="color: rgba(26, 26, 46"],
 body.theme-classic [style*="color:rgba(26, 26, 46"] {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
-/* Top bar text in analytics page - dark for visibility on light gray */
+/* Top bar text in analytics page — white in classic theme */
 body.theme-classic #app.screen.active header.top-bar,
 body.theme-classic #app.screen.active header.top-bar > span,
 body.theme-classic #app.screen.active header.top-bar .shop-name,
 body.theme-classic #app.screen.active header.top-bar button {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* AI Insights Panel in analytics page - White/light background with black text */
@@ -6441,48 +6557,48 @@ body.theme-classic #ai-insights-panel {
     height: calc(100vh - 16px) !important; /* 8px (4mm) margin on top and bottom */
     max-height: calc(100vh - 16px) !important;
     margin: 0 !important; /* No margin, height/width handle spacing */
-    background: rgba(255, 255, 255, 0.85) !important;
+    background: rgba(58, 58, 58, 0.95) !important;
     backdrop-filter: blur(20px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
     border: 1px solid rgba(255, 255, 255, 0.5) !important;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
 }
 
 body.theme-classic #ai-insights-panel .floating-panel-header {
-    background: rgba(255, 255, 255, 0.7) !important;
+    background: rgba(58, 58, 58, 0.9) !important;
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
     border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-insights-panel .floating-panel-header h2,
 body.theme-classic #ai-insights-panel .floating-panel-header button {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-insights-panel .close-btn {
     background: rgba(239, 68, 68, 0.2) !important;
     border: 1px solid rgba(239, 68, 68, 0.4) !important;
-    color: #ef4444 !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-insights-panel .close-btn:hover {
     background: rgba(239, 68, 68, 0.3) !important;
     border-color: rgba(239, 68, 68, 0.6) !important;
-    color: #dc2626 !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-insights-panel .card {
-    background: rgba(255, 255, 255, 0.7) !important;
+    background: rgba(58, 58, 58, 0.9) !important;
     backdrop-filter: blur(15px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(15px) saturate(180%) !important;
     border: 1px solid rgba(0, 0, 0, 0.1) !important;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-insights-panel *,
@@ -6503,7 +6619,7 @@ body.theme-classic #ai-chat-panel,
 body.theme-classic #ai-chat-panel *,
 body.theme-classic #ai-chat-messages,
 body.theme-classic #ai-chat-messages * {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-status,
@@ -6517,60 +6633,60 @@ body.theme-classic #ai-chat-loading,
 body.theme-classic #ai-chat-loading *,
 body.theme-classic #ai-chat-error,
 body.theme-classic #ai-chat-error * {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-insights-panel select,
 body.theme-classic #ai-period-select {
-    background: rgba(255, 255, 255, 0.9) !important;
+    background: rgba(20, 20, 20, 0.95) !important;
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
     border: 1px solid rgba(0, 0, 0, 0.2) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-insights-panel select option {
-    background: rgba(255, 255, 255, 0.95) !important;
-    color: #1a1a2e !important;
+    background: rgba(20, 20, 20, 0.95) !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-insights-panel button.primary {
     background: rgba(37, 150, 190, 0.2) !important;
     border-color: rgba(37, 150, 190, 0.4) !important;
-    color: #2596be !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-insights-panel button.primary:hover {
     background: rgba(37, 150, 190, 0.3) !important;
     border-color: rgba(37, 150, 190, 0.6) !important;
-    color: #1e7a9e !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-insights-panel #ai-status {
-    background: rgba(255, 255, 255, 0.7) !important;
+    background: rgba(58, 58, 58, 0.9) !important;
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
     border: 1px solid rgba(0, 0, 0, 0.1) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* Content sections with frosted glass - lighter background for black text */
 body.theme-classic #ai-insights-content > div[style*="background"],
 body.theme-classic #ai-insights-content > div {
-    background: rgba(255, 255, 255, 0.7) !important;
+    background: rgba(58, 58, 58, 0.9) !important;
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
     border: 1px solid rgba(0, 0, 0, 0.1) !important;
     border-left: 4px solid rgba(37, 150, 190, 0.6) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-chat-input {
-    background: rgba(255, 255, 255, 0.9) !important;
+    background: rgba(20, 20, 20, 0.95) !important;
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
     border: 1px solid rgba(0, 0, 0, 0.2) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-chat-input::placeholder {
@@ -6578,71 +6694,71 @@ body.theme-classic #ai-chat-input::placeholder {
 }
 
 body.theme-classic #ai-chat-messages {
-    background: rgba(255, 255, 255, 0.7) !important;
+    background: rgba(58, 58, 58, 0.9) !important;
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
     border: 1px solid rgba(0, 0, 0, 0.1) !important;
 }
 
 body.theme-classic #ai-chat-messages > div {
-    background: rgba(255, 255, 255, 0.8) !important;
+    background: rgba(58, 58, 58, 0.92) !important;
     backdrop-filter: blur(5px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(5px) saturate(180%) !important;
     border-left: 3px solid rgba(37, 150, 190, 0.4) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-error {
     background: rgba(239, 68, 68, 0.15) !important;
     border: 1px solid rgba(239, 68, 68, 0.3) !important;
-    color: #dc2626 !important;
+    color: #ffffff !important;
 }
 
 /* Override inline styles for AI insights content sections */
 body.theme-classic #ai-insights-content div[style*="background:rgba(168, 85, 247"],
 body.theme-classic #ai-insights-content div[style*="background: rgba(168, 85, 247"] {
-    background: rgba(255, 255, 255, 0.75) !important;
+    background: rgba(58, 58, 58, 0.9) !important;
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
     border-left: 4px solid rgba(168, 85, 247, 0.6) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-insights-content div[style*="background:rgba(34, 197, 94"],
 body.theme-classic #ai-insights-content div[style*="background: rgba(34, 197, 94"] {
-    background: rgba(255, 255, 255, 0.75) !important;
+    background: rgba(58, 58, 58, 0.9) !important;
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
     border-left: 4px solid rgba(34, 197, 94, 0.6) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-insights-content div[style*="background:rgba(59, 130, 246"],
 body.theme-classic #ai-insights-content div[style*="background: rgba(59, 130, 246"] {
-    background: rgba(255, 255, 255, 0.75) !important;
+    background: rgba(58, 58, 58, 0.9) !important;
     backdrop-filter: blur(10px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
     border-left: 4px solid rgba(59, 130, 246, 0.6) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* Override inline style backgrounds for dynamically generated content */
 body.theme-classic #ai-summary-stats > div[style*="background"],
 body.theme-classic #ai-summary-stats > div {
-    background: rgba(255, 255, 255, 0.7) !important;
+    background: rgba(58, 58, 58, 0.9) !important;
     backdrop-filter: blur(5px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(5px) saturate(180%) !important;
     border: 1px solid rgba(0, 0, 0, 0.1) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-top-products > div[style*="background"],
 body.theme-classic #ai-top-products > div {
-    background: rgba(255, 255, 255, 0.7) !important;
+    background: rgba(58, 58, 58, 0.9) !important;
     backdrop-filter: blur(5px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(5px) saturate(180%) !important;
     border: 1px solid rgba(0, 0, 0, 0.1) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* Chat message styles - dark text for classic theme */
@@ -6652,7 +6768,7 @@ body.theme-classic #ai-chat-messages > div[style*="background: rgba(168, 85, 247
     backdrop-filter: blur(5px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(5px) saturate(180%) !important;
     border-left: 3px solid rgba(168, 85, 247, 0.6) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-chat-messages > div[style*="background:rgba(59, 130, 246"],
@@ -6661,7 +6777,7 @@ body.theme-classic #ai-chat-messages > div[style*="background: rgba(59, 130, 246
     backdrop-filter: blur(5px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(5px) saturate(180%) !important;
     border-left: 3px solid rgba(59, 130, 246, 0.6) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* Override ALL inline style colors in AI panel to black (not white) */
@@ -6671,7 +6787,7 @@ body.theme-classic #ai-insights-panel [style*="color:#ffffff"],
 body.theme-classic #ai-insights-panel [style*="color: #ffffff"],
 body.theme-classic #ai-insights-panel [style*="color:rgba(255, 255, 255"],
 body.theme-classic #ai-insights-panel [style*="color: rgba(255, 255, 255"] {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* Ensure summary stats divs get proper styling with black text */
@@ -6679,37 +6795,37 @@ body.theme-classic #ai-summary-stats div[style*="background:rgba(255,255,255,0.0
 body.theme-classic #ai-summary-stats div[style*="background: rgba(255,255,255,0.05)"],
 body.theme-classic #ai-summary-stats div[style*="background"],
 body.theme-classic #ai-summary-stats div {
-    background: rgba(255, 255, 255, 0.7) !important;
+    background: rgba(58, 58, 58, 0.9) !important;
     backdrop-filter: blur(8px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(8px) saturate(180%) !important;
     border: 1px solid rgba(0, 0, 0, 0.1) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-summary-stats div div {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-summary-stats div[style*="color:rgba(255,255,255"],
 body.theme-classic #ai-summary-stats div[style*="color: rgba(255,255,255"],
 body.theme-classic #ai-summary-stats div[style*="color:#ffffff"],
 body.theme-classic #ai-summary-stats div[style*="color: #ffffff"] {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* Ensure top products divs get proper styling with black text */
 body.theme-classic #ai-top-products div[style*="background"],
 body.theme-classic #ai-top-products div {
-    background: rgba(255, 255, 255, 0.7) !important;
+    background: rgba(58, 58, 58, 0.9) !important;
     backdrop-filter: blur(8px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(8px) saturate(180%) !important;
     border: 1px solid rgba(0, 0, 0, 0.1) !important;
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 body.theme-classic #ai-top-products div strong,
 body.theme-classic #ai-top-products div span {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* Override all white text colors in AI panel - catch any remaining inline styles */
@@ -6730,7 +6846,7 @@ body.theme-classic #ai-insights-text,
 body.theme-classic #ai-insights-text[style*="color"],
 body.theme-classic #ai-top-products,
 body.theme-classic #ai-top-products[style*="color"] {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* Direct element selectors for elements that have inline white colors */
@@ -6738,7 +6854,7 @@ body.theme-classic #ai-loading div:nth-child(1),
 body.theme-classic #ai-loading div:nth-child(2),
 body.theme-classic #ai-loading div:nth-child(3),
 body.theme-classic #ai-insights-text {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* Override all inline style colors that might be white */
@@ -6750,7 +6866,7 @@ body.theme-classic #ai-insights-panel [style*="color:#ffffff"],
 body.theme-classic #ai-insights-panel [style*="color: #ffffff"],
 body.theme-classic #ai-insights-panel [style*="color:white"],
 body.theme-classic #ai-insights-panel [style*="color: white"] {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* Override white colors in nested elements and dynamically created content */
@@ -6764,7 +6880,7 @@ body.theme-classic #ai-top-products [style*="color:rgba(255"],
 body.theme-classic #ai-top-products [style*="color: rgba(255"],
 body.theme-classic #ai-chat-messages [style*="color:rgba(255"],
 body.theme-classic #ai-chat-messages [style*="color: rgba(255"] {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* Maximum specificity - override all possible white text variations in AI panel */
@@ -6773,7 +6889,7 @@ body.theme-classic #ai-insights-panel span[style*="color"],
 body.theme-classic #ai-insights-panel p[style*="color"],
 body.theme-classic #ai-insights-panel h3[style*="color"],
 body.theme-classic #ai-insights-panel strong[style*="color"] {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* Catch-all for any element with white color in AI panel */
@@ -6781,7 +6897,7 @@ body.theme-classic #ai-insights-panel *[style*="255,255,255"],
 body.theme-classic #ai-insights-panel *[style*="#ffffff"],
 body.theme-classic #ai-insights-panel *[style*="ffffff"],
 body.theme-classic #ai-insights-panel *[style*="white"] {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* WhatsApp Page - Ensure layout stays side by side and all text is black for all themes */
@@ -6795,7 +6911,7 @@ body.theme-classic #ai-insights-panel *[style*="white"] {
 #app.screen.active .whatsapp-status,
 #app.screen.active .whatsapp-status strong,
 #app.screen.active .whatsapp-status div {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* Chat list elements - Recent Chats (left column) - white text on black background */
@@ -6809,7 +6925,7 @@ body.theme-classic #ai-insights-panel *[style*="white"] {
 #app.screen.active .pos-layout .left #chats-list,
 #app.screen.active .pos-layout .left #chats-list div,
 #app.screen.active .pos-layout .left #chats-container {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* Message elements - Recent Chats section (left column) */
@@ -6818,19 +6934,19 @@ body.theme-classic #ai-insights-panel *[style*="white"] {
 #app.screen.active .pos-layout .left .message-bubble.received .message-bubble-content,
 #app.screen.active .pos-layout .left .message-bubble.sent .message-time,
 #app.screen.active .pos-layout .left .message-bubble.received .message-time {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* Ensure sent message bubbles have black background */
 #app.screen.active .pos-layout .left .message-bubble.sent .message-bubble-content {
     background-color: rgba(0, 0, 0, 0.9) !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* Ensure received message bubbles have lighter background for contrast */
 #app.screen.active .pos-layout .left .message-bubble.received .message-bubble-content {
     background-color: rgba(255, 255, 255, 0.2) !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* Ensure WhatsApp page cards have proper background and text color for all themes */
@@ -6838,12 +6954,12 @@ body.theme-classic #ai-insights-panel *[style*="white"] {
 #app.screen.active .pos-layout .left .card,
 #app.screen.active .pos-layout .left #chats-view {
     background: rgba(0, 0, 0, 0.9) !important;
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 /* Configuration panel cards (right column) - white background */
 #app.screen.active .pos-layout .right .card {
-    background: rgba(255, 255, 255, 0.9) !important;
-    color: #1a1a2e !important;
+    background: rgba(20, 20, 20, 0.95) !important;
+    color: #ffffff !important;
 }
 
 /* Ensure WhatsApp page headings and text - white for left column (Recent Chats on black), black for right column */
@@ -6853,7 +6969,7 @@ body.theme-classic #ai-insights-panel *[style*="white"] {
 #app.screen.active .pos-layout .left p,
 #app.screen.active .pos-layout .left label,
 #app.screen.active .pos-layout .left strong {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 /* Right column (Configuration Panel) - All text black */
 #app.screen.active .pos-layout .right h2,
@@ -6868,7 +6984,7 @@ body.theme-classic #ai-insights-panel *[style*="white"] {
 #app.screen.active .pos-layout .right input,
 #app.screen.active .pos-layout .right textarea,
 #app.screen.active .pos-layout .right select {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* Recent Chats section - ensure all text including dynamically generated content is white on black background */
@@ -6878,7 +6994,7 @@ body.theme-classic #ai-insights-panel *[style*="white"] {
 #app.screen.active .pos-layout .left #chats-container,
 #app.screen.active .pos-layout .left #chats-container div,
 #app.screen.active .pos-layout .left #chats-container span {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* Conversation header - freeze back button when scrolling */
@@ -6895,7 +7011,7 @@ body.theme-classic #ai-insights-panel *[style*="white"] {
 #app.screen.active .pos-layout .left #conversation-header button,
 #app.screen.active .pos-layout .left #conversation-header #conversation-phone,
 #app.screen.active .pos-layout .left #conversation-header .chat-avatar {
-    color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 /* Price Input Formatter - RTL direction for all price inputs */
@@ -6925,8 +7041,8 @@ input.money-input {
 /* For Recent Chats (left column) - handled by rules above */
 /* For other contexts (right column message history), keep light background */
 #app.screen.active .pos-layout .right .message-bubble.received .message-bubble-content {
-    background-color: #1a1a1a !important;
-    color: #1a1a2e !important;
+    background-color: #ffffff !important;
+    color: #ffffff !important;
 }
 
 #app.screen.active .pos-layout .right .message-bubble.received .message-time {
@@ -7070,7 +7186,7 @@ html.theme-light body.theme-light:not(.pos-android-app) #login-screen #login-but
 
 html.theme-light body.theme-light:not(.pos-android-app) #login-screen #login-button:hover {
     background: #1a1a1a !important;
-    border-color: #1a1a1a !important;
+    border-color: #ffffff !important;
     color: #ffffff !important;
 }
 
@@ -7085,7 +7201,7 @@ html.theme-light body.theme-light:not(.pos-android-app) #login-screen #register-
 html.theme-light body.theme-light:not(.pos-android-app) #login-screen #register-button:hover,
 html.theme-light body.theme-light:not(.pos-android-app) #login-screen #register-form-card button:hover {
     background: #1a1a1a !important;
-    border-color: #1a1a1a !important;
+    border-color: #ffffff !important;
     color: #ffffff !important;
 }
 
@@ -7309,6 +7425,61 @@ html.theme-light body.theme-light #payment-panel .primary.big {
 
 html.theme-light body.theme-light #payment-panel #layby-toggle-icon {
     text-shadow: var(--payment-text-shadow) !important;
+}
+
+/* ========== Classic theme: final white-text enforcement ========== */
+html body.theme-classic,
+html body.theme-classic #app,
+html body.theme-classic label,
+html body.theme-classic h1,
+html body.theme-classic h2,
+html body.theme-classic h3,
+html body.theme-classic h4,
+html body.theme-classic p,
+html body.theme-classic span,
+html body.theme-classic a,
+html body.theme-classic li,
+html body.theme-classic td,
+html body.theme-classic th,
+html body.theme-classic div,
+html body.theme-classic button,
+html body.theme-classic strong,
+html body.theme-classic em,
+html body.theme-classic small,
+html body.theme-classic input,
+html body.theme-classic select,
+html body.theme-classic textarea,
+html body.theme-classic .shop-name,
+html body.theme-classic .top-bar,
+html body.theme-classic .top-bar *,
+html body.theme-classic .card,
+html body.theme-classic .card *,
+html body.theme-classic .floating-panel,
+html body.theme-classic .floating-panel *,
+html body.theme-classic #settings-panel,
+html body.theme-classic #settings-panel *,
+html body.theme-classic #payment-panel,
+html body.theme-classic #payment-panel *,
+html body.theme-classic #pos-action-bar,
+html body.theme-classic #pos-action-bar *,
+html body.theme-classic #cart-panel,
+html body.theme-classic #cart-panel *,
+html body.theme-classic #search-results,
+html body.theme-classic #search-results *,
+html body.theme-classic .totals,
+html body.theme-classic .totals *,
+html body.theme-classic #ai-insights-panel,
+html body.theme-classic #ai-insights-panel *,
+html body.theme-classic .analytics-container,
+html body.theme-classic .analytics-container *,
+html body.theme-classic #pending-collection-list,
+html body.theme-classic #pending-collection-list * {
+    color: #ffffff !important;
+}
+
+html body.theme-classic input::placeholder,
+html body.theme-classic textarea::placeholder {
+    color: rgba(255, 255, 255, 0.45) !important;
 }
 
 

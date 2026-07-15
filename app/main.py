@@ -772,19 +772,20 @@ async def delete_product(
     db: Session = Depends(get_db),
     current_admin: User = Depends(auth.get_current_admin_user),
 ):
-    product = tenant_scope.require_product(db, product_id, current_admin)
-    db.delete(product)
-    db.commit()
+    from .inventory_clear import remove_product_from_stock
 
-    # Sync deletion to Google Sheets backup
-    try:
-        backup_service = get_backup_service()
-        if backup_service.is_enabled():
-            backup_service.sync_product_delete(db, product_id)
-    except Exception as e:
-        logging.error(f"Error syncing product deletion to backup: {e}")
-    
-    return {"ok": True}
+    result = remove_product_from_stock(db, current_admin, product_id)
+
+    # Sync deletion to Google Sheets backup (hard-delete only)
+    if result.get("deleted"):
+        try:
+            backup_service = get_backup_service()
+            if backup_service.is_enabled():
+                backup_service.sync_product_delete(db, product_id)
+        except Exception as e:
+            logging.error(f"Error syncing product deletion to backup: {e}")
+
+    return result
 
 
 class ClearAllStockRequest(BaseModel):

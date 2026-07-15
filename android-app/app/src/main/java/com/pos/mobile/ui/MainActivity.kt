@@ -746,7 +746,6 @@ class MainActivity : AppCompatActivity() {
         val btnLayby = posContainer.findViewById<android.widget.Button>(R.id.btn_layby)
         val btnLogout = posContainer.findViewById<android.widget.Button>(R.id.btn_logout)
         val iconSync = posContainer.findViewById<android.widget.Button>(R.id.icon_sync)
-        val iconPayment = posContainer.findViewById<android.widget.Button>(R.id.icon_payment)
         val iconQuotation = posContainer.findViewById<android.widget.Button>(R.id.icon_quotation)
         val iconQuotationHistory = posContainer.findViewById<android.widget.Button>(R.id.icon_quotation_history)
         val iconTheme = posContainer.findViewById<android.widget.Button>(R.id.icon_theme)
@@ -929,7 +928,6 @@ class MainActivity : AppCompatActivity() {
             })
         }
         iconSync.setOnClickListener { runManualSync(prefs, iconSync) }
-        iconPayment.setOnClickListener { openCheckout() }
         iconQuotation.setOnClickListener {
             currentFocus?.clearFocus()
             cartAdapter.commitVisibleEdits(cartList)
@@ -947,6 +945,7 @@ class MainActivity : AppCompatActivity() {
             true
         }
         iconTheme.setOnClickListener { showThemeDialog(prefs) }
+        iconSettings.isVisible = WebPosRules.roleCanAccessStoreSettings(role)
         iconSettings.setOnClickListener {
             startActivity(Intent(this, WebViewActivity::class.java).apply {
                 putExtra(WebViewActivity.EXTRA_PATH, "/store-settings")
@@ -977,6 +976,7 @@ class MainActivity : AppCompatActivity() {
                 REQ_NOTIFICATIONS,
             )
         }
+        iconStats.isVisible = WebPosRules.roleCanViewReports(role)
         iconStats.setOnClickListener {
             startActivity(Intent(this, StatsActivity::class.java))
         }

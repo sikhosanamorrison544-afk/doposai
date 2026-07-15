@@ -42,16 +42,16 @@ body.theme-light.page-refunds textarea {
 
 body.theme-classic.page-refunds .refund-card,
 body.theme-classic.page-refunds .refund-stat {
-    background: rgba(255, 255, 255, 0.92) !important;
-    border: 1px solid rgba(0, 0, 0, 0.12) !important;
-    color: #1a1a2e !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+    background: rgba(58, 58, 58, 0.95) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25) !important;
 }
 
 body.theme-classic.page-refunds table th,
 body.theme-classic.page-refunds table td {
-    color: #1a1a2e !important;
-    border-color: rgba(0, 0, 0, 0.1) !important;
+    color: #ffffff !important;
+    border-color: rgba(255, 255, 255, 0.15) !important;
 }
 
 /* ── Enterprise ───────────────────────────────────────────────────────── */
@@ -94,14 +94,14 @@ body.theme-light.page-enterprise .enterprise-actions select {
 }
 
 body.theme-classic.page-enterprise .enterprise-card {
-    background: rgba(255, 255, 255, 0.95) !important;
-    color: #1a1a2e !important;
-    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    background: rgba(58, 58, 58, 0.95) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
 }
 
 body.theme-classic.page-enterprise table.enterprise-table th,
 body.theme-classic.page-enterprise table.enterprise-table td {
-    color: #1a1a2e !important;
+    color: #ffffff !important;
 }
 
 /* ── Billing ─────────────────────────────────────────────────────────── */
@@ -140,7 +140,7 @@ body.theme-light.page-reset-password .reset-card {
 }
 
 body.theme-classic.page-reset-password .reset-card {
-    background: rgba(255, 255, 255, 0.96) !important;
-    color: #1a1a2e !important;
-    border: 1px solid rgba(0, 0, 0, 0.12) !important;
+    background: rgba(58, 58, 58, 0.96) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
 }

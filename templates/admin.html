@@ -42,9 +42,9 @@
     </script>
     <!-- Preload 3D model for faster loading -->
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=32">
     <link rel="stylesheet" href="/static/css/pos-android.css?v=4">
-    <link rel="stylesheet" href="/static/css/admin-android.css?v=8">
+    <link rel="stylesheet" href="/static/css/admin-android.css?v=9">
 </head>
 <body class="page-admin">
 <!-- 3D Background Canvas for Default Theme -->
@@ -92,8 +92,10 @@
     <!-- Fullscreen Toggle Button - outside top-bar so it stays visible -->
     <button id="btn-toggle-fullscreen" class="floating-icon fullscreen-toggle" title="Toggle Fullscreen" onclick="toggleFullscreen(); return false;" style="z-index:10000;background:rgba(59,130,246,0.9);color:#1a1a1a;font-size:clamp(14px,2vw,20px);width:clamp(32px,4vw,48px);height:clamp(32px,4vw,48px);min-width:32px;min-height:32px;max-width:48px;max-height:48px;border-radius:50%;border:1px solid rgba(0,0,0,0.1);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:all 0.3s ease;flex-shrink:0;">⛶</button>
     <header class="top-bar">
+        <div class="top-bar-brand">
+            <div class="shop-name">{{ store_name }}</div>
+        </div>
         <span id="admin-user-info"></span>
-        <div class="shop-name">{{ store_name }}</div>
         <div class="top-bar-right" style="position: relative;">
             <button id="btn-admin-pos" class="small" style="margin-right: 60px;">Back to POS</button>
             <!-- Floating Icons -->
@@ -226,7 +228,7 @@
                         <th>Cost</th>
                         <th>Price</th>
                         <th>Expiry Date</th>
-                        <th></th>
+                        <th>Actions</th>
                     </tr>
                     </thead>
                     <tbody id="products-body"></tbody>
@@ -466,8 +468,8 @@
     <script src="/static/js/pos-android.js?v=3"></script>
     <script src="/static/js/plan-features.js?v=2"></script>
     <script src="/static/js/list-fetch.js?v=2"></script>
-    <script src="/static/js/admin.js?v=31"></script>
-    <script src="/static/js/admin-android.js?v=7"></script>
+    <script src="/static/js/admin.js?v=32"></script>
+    <script src="/static/js/admin-android.js?v=8"></script>
     <script>
         // Disable 3D background on admin page for better performance
         // The admin page doesn't need the 3D background animation

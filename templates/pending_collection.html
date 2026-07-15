@@ -132,9 +132,11 @@
 <script src="/static/js/light-theme-video.js?v=3"></script>
 <div id="app" class="screen active" style="height: 100vh; overflow: hidden; display: flex; flex-direction: column;">
     <header class="top-bar" style="flex-shrink: 0; position: relative; z-index: 100; color: #1a1a1a !important;">
-        <div style="flex: 0 0 auto; color: #1a1a1a !important; font-weight: 600;">Pending Collection</div>
-        <div class="shop-name" style="color: #1a1a1a !important; font-weight: bold; flex: 1; text-align: center; margin: 0 auto;">{{ store_name }}</div>
-        <div class="top-bar-right" style="flex: 0 0 auto; display: flex; gap: 8px; align-items: center; color: #1a1a1a !important;">
+        <div class="top-bar-brand">
+            <div class="shop-name" style="color: #1a1a1a !important; font-weight: bold;">{{ store_name }}</div>
+        </div>
+        <div class="top-bar-page-title" style="color: #1a1a1a !important;">Pending Collection</div>
+        <div class="top-bar-right" style="display: flex; gap: 8px; align-items: center; color: #1a1a1a !important;">
             <button id="btn-refresh" class="small primary">Refresh</button>
             <button id="btn-back-pos" class="small" style="color: #1a1a1a !important; background: rgba(59, 130, 246, 0.8) !important;">Back to POS</button>
             <button id="btn-logout" class="danger small">Logout</button>
@@ -266,7 +268,7 @@ async function loadPendingCollection() {
     const isClassicTheme = document.body.classList.contains('theme-classic');
     const isLightTheme = document.body.classList.contains('theme-light');
     const loadingBg = isClassicTheme ? 'rgba(255, 255, 255, 0.85)' : 'rgba(17, 24, 39, 0.6)';
-    const loadingTextColor = isClassicTheme ? '#1a1a2e' : 'rgba(255,255,255,0.9)';
+    const loadingTextColor = isClassicTheme ? '#ffffff' : 'rgba(255,255,255,0.9)';
     const loadingBorder = isClassicTheme ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255,255,255,0.1)';
     const isAndroid = typeof window.isPosAndroidApp === 'function' && window.isPosAndroidApp();
     
@@ -291,7 +293,7 @@ async function loadPendingCollection() {
                 container.innerHTML = '<div class="pa-empty-state">No items pending collection</div>';
             } else {
                 const emptyBg = isClassicTheme ? 'rgba(255, 255, 255, 0.85)' : 'rgba(17, 24, 39, 0.6)';
-                const emptyTextColor = isClassicTheme ? '#1a1a2e' : 'rgba(255,255,255,0.9)';
+                const emptyTextColor = isClassicTheme ? '#ffffff' : 'rgba(255,255,255,0.9)';
                 const emptyBorder = isClassicTheme ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255,255,255,0.1)';
                 container.innerHTML = `
                 <div style="text-align: center; padding: 60px; background: ${emptyBg}; border-radius: 12px; backdrop-filter: blur(20px); border: 1px solid ${emptyBorder}; width: 100%; box-sizing: border-box;">
@@ -308,14 +310,14 @@ async function loadPendingCollection() {
         }
         
         // Determine vibrant colors based on theme
-        const saleColor = isClassicTheme ? '#2596be' : (isLightTheme ? '#2563eb' : '#3b82f6'); // Theme-appropriate blue
-        const totalColor = isClassicTheme ? '#48bb78' : (isLightTheme ? '#059669' : '#10b981'); // Theme-appropriate green
+        const saleColor = isClassicTheme ? '#ffffff' : (isLightTheme ? '#2563eb' : '#3b82f6');
+        const totalColor = isClassicTheme ? '#ffffff' : (isLightTheme ? '#059669' : '#10b981');
         
         // Determine background and text colors for cards
         const cardBg = isClassicTheme ? 'rgba(255, 255, 255, 0.85)' : 'rgba(17, 24, 39, 0.6)';
         const cardBorder = isClassicTheme ? 'rgba(37, 150, 190, 0.3)' : 'rgba(59, 130, 246, 0.3)';
-        const textColor = isClassicTheme ? '#1a1a2e' : 'rgba(255,255,255,0.8)';
-        const textColorStrong = isClassicTheme ? '#1a1a2e' : 'rgba(255,255,255,0.95)';
+        const textColor = isClassicTheme ? '#ffffff' : 'rgba(255,255,255,0.8)';
+        const textColorStrong = isClassicTheme ? '#ffffff' : 'rgba(255,255,255,0.95)';
         const borderColor = isClassicTheme ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255,255,255,0.1)';
         
         container.innerHTML = sales.map(sale => `

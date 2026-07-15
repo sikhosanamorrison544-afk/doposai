@@ -71,9 +71,31 @@ object WebPosRules {
 
     fun roleCanAccessAdmin(role: String): Boolean = role == "admin"
 
+    fun roleCanAccessStoreSettings(role: String): Boolean = role == "admin"
+
+    fun roleCanViewReports(role: String): Boolean =
+        role == "admin" || role == "supervisor"
+
     fun roleCanAccessPendingCollection(role: String): Boolean =
         role == "admin" || role == "supervisor"
 
     fun roleCanAccessWithdrawal(role: String): Boolean =
         role == "admin" || role == "supervisor"
+
+    /** Role gate for WebView deep-links / overflow menu destinations. */
+    fun roleCanAccessPath(role: String, path: String): Boolean {
+        val p = path.substringBefore('?').trimEnd('/').lowercase().ifEmpty { "/" }
+        return when {
+            p == "/admin" || p.startsWith("/admin/") -> roleCanAccessAdmin(role)
+            p == "/store-settings" || p.startsWith("/store-settings/") ->
+                roleCanAccessStoreSettings(role)
+            p == "/analytics" || p.startsWith("/analytics/") -> roleCanViewReports(role)
+            p == "/accounting" || p.startsWith("/accounting/") -> roleCanViewReports(role)
+            p == "/pending-collection" || p.startsWith("/pending-collection/") ->
+                roleCanAccessPendingCollection(role)
+            p == "/withdrawals/history" || p.startsWith("/withdrawals/") ->
+                roleCanAccessWithdrawal(role)
+            else -> true
+        }
+    }
 }

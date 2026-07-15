@@ -125,3 +125,61 @@ def clear_all_stock_for_tenant(db: Session, admin: User) -> Dict[str, Any]:
         "deactivated": deactivated,
         "message": message,
     }
+
+
+def remove_product_from_stock(db: Session, admin: User, product_id: int) -> Dict[str, Any]:
+    """Hard-delete a product if unused; otherwise deactivate and zero stock."""
+    product = tenant_scope.require_product(db, product_id, admin)
+
+    active_layby = (
+        db.query(LaybyTransaction.id)
+        .filter(
+            LaybyTransaction.product_id == product_id,
+            LaybyTransaction.status == "active",
+        )
+        .limit(1)
+        .first()
+    )
+    if active_layby:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete this product while it has an active layby. Complete or cancel it first.",
+        )
+
+    protected = False
+    for model, col in (
+        (SaleItem, SaleItem.product_id),
+        (LaybyTransaction, LaybyTransaction.product_id),
+        (RefundItem, RefundItem.product_id),
+        (QuotationItem, QuotationItem.product_id),
+    ):
+        if db.query(col).filter(col == product_id).limit(1).first():
+            protected = True
+            break
+
+    if protected:
+        product.is_active = False
+        product.stock_qty = 0.0
+        product.reserved_qty = 0.0
+        db.commit()
+        return {
+            "ok": True,
+            "deleted": False,
+            "deactivated": True,
+            "message": "Product removed from stock (kept inactive for sales history).",
+        }
+
+    db.execute(delete(InventoryMovement).where(InventoryMovement.product_id == product_id))
+    db.execute(delete(BranchProductStock).where(BranchProductStock.product_id == product_id))
+    db.query(Notification).filter(Notification.product_id == product_id).update(
+        {Notification.product_id: None},
+        synchronize_session=False,
+    )
+    db.delete(product)
+    db.commit()
+    return {
+        "ok": True,
+        "deleted": True,
+        "deactivated": False,
+        "message": "Product deleted.",
+    }

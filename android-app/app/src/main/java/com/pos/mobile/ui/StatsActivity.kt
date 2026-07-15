@@ -22,6 +22,15 @@ class StatsActivity : BaseNativeActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!WebPosRules.roleCanViewReports(PosAuth.role(this))) {
+            android.widget.Toast.makeText(
+                this,
+                getString(R.string.role_access_denied),
+                android.widget.Toast.LENGTH_LONG,
+            ).show()
+            finish()
+            return
+        }
         attachNativeScreen(getString(R.string.stats_title), R.layout.activity_stats)
         refresh = findViewById(R.id.stats_refresh)
         messageTv = findViewById(R.id.stats_message)

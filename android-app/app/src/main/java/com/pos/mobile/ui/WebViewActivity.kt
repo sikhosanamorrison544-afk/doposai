@@ -116,6 +116,15 @@ class WebViewActivity : AppCompatActivity() {
         val token = SessionStore(this).getAccessToken() ?: prefs.getString("token", null)
         val username = prefs.getString("username", "") ?: ""
         val role = prefs.getString("role", "cashier") ?: "cashier"
+        if (!WebPosRules.roleCanAccessPath(role, path)) {
+            android.widget.Toast.makeText(
+                this,
+                getString(R.string.role_access_denied),
+                android.widget.Toast.LENGTH_LONG,
+            ).show()
+            finish()
+            return
+        }
 
         webView = findViewById<WebView>(R.id.webview)
         importBridge = PosAndroidImportBridge(this)
@@ -253,8 +262,15 @@ class WebViewActivity : AppCompatActivity() {
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.pos_pages_menu, menu)
         menuInflater.inflate(R.menu.webview_menu, menu)
+        val role = getSharedPreferences("pos", MODE_PRIVATE)
+            .getString("role", "cashier") ?: "cashier"
         for (i in 0 until menu.size()) {
             val item = menu.getItem(i)
+            val path = menuItemPath(item.itemId)
+            if (path != null && !WebPosRules.roleCanAccessPath(role, path)) {
+                item.isVisible = false
+                continue
+            }
             val feat = PlanFeatures.menuFeatureForItemId(item.itemId) ?: continue
             item.isVisible = PlanFeatures.has(this, feat)
         }
@@ -283,6 +299,18 @@ class WebViewActivity : AppCompatActivity() {
                 return true
             }
         }
+        val role = getSharedPreferences("pos", MODE_PRIVATE)
+            .getString("role", "cashier") ?: "cashier"
+        menuItemPath(item.itemId)?.let { path ->
+            if (!WebPosRules.roleCanAccessPath(role, path)) {
+                android.widget.Toast.makeText(
+                    this,
+                    getString(R.string.role_access_denied),
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
+                return true
+            }
+        }
         when (item.itemId) {
             R.id.page_store -> {
                 startActivity(Intent(this, MainActivity::class.java).apply {
@@ -306,13 +334,31 @@ class WebViewActivity : AppCompatActivity() {
         return super.onOptionsItemSelected(item)
     }
 
+    private fun menuItemPath(itemId: Int): String? = when (itemId) {
+        R.id.page_admin -> "/admin"
+        R.id.page_store_settings -> "/store-settings"
+        R.id.page_analytics -> "/analytics"
+        R.id.page_pending_collection -> "/pending-collection"
+        R.id.page_withdrawals -> "/withdrawals/history"
+        else -> null
+    }
+
     private fun loadPage(path: String, title: String) {
-        supportActionBar?.title = title
-        val url = baseUrl.trimEnd('/') + path
         val prefs = getSharedPreferences("pos", MODE_PRIVATE)
+        val role = prefs.getString("role", "cashier") ?: "cashier"
+        if (!WebPosRules.roleCanAccessPath(role, path)) {
+            android.widget.Toast.makeText(
+                this,
+                getString(R.string.role_access_denied),
+                android.widget.Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
+        supportActionBar?.title = title
+        pagePath = path
+        val url = baseUrl.trimEnd('/') + path
         val token = prefs.getString("token", null)
         val username = prefs.getString("username", "") ?: ""
-        val role = prefs.getString("role", "cashier") ?: "cashier"
         if (!token.isNullOrBlank()) {
             injectAuthThenNavigate(webView, url, token, username, role)
         } else {

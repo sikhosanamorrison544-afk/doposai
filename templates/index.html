@@ -73,7 +73,7 @@
     </script>
     <!-- Preload 3D model for faster loading -->
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
-    <link rel="stylesheet" href="/static/css/style.css?v=20260608c">
+    <link rel="stylesheet" href="/static/css/style.css?v=20260608e">
     <script>
         // Immediately prevent password saving before page fully loads
         (function() {
@@ -202,11 +202,11 @@
 
     <div id="pos-screen" class="screen">
         <header class="top-bar">
-            <span id="user-info" style="color: #1a1a1a !important;"></span>
             <div class="top-bar-brand">
                 <div class="shop-name" style="color: #1a1a1a !important;">{{ store_name }}</div>
                 <span class="platform-motto">{{ platform_motto or 'Pecunia Non Olet' }}</span>
             </div>
+            <span id="user-info" style="color: #1a1a1a !important;"></span>
             <div class="top-bar-right" style="position: relative;">
                 <button id="btn-admin" class="small" style="display:none; color: #1a1a1a !important;">Admin</button>
                 <button id="btn-billing" class="small" style="display:none; background: rgba(16, 185, 129, 0.85); color: #1a1a1a !important;" type="button">Billing</button>

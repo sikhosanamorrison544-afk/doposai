@@ -279,7 +279,10 @@
                 '<div><strong>Price</strong> $<span class="price"></span></div>' +
                 '<div><strong>Cost</strong> $<span class="cost"></span></div>' +
                 '</div>' +
-                '<div class="row-actions"><button type="button" class="edit-btn">Edit</button></div>';
+                '<div class="row-actions">' +
+                '<button type="button" class="edit-btn product-action-btn product-edit-btn" title="Edit product" aria-label="Edit product">✏️</button>' +
+                '<button type="button" class="delete-btn product-action-btn product-delete-btn" title="Delete product" aria-label="Delete product">🗑️</button>' +
+                '</div>';
 
             card.querySelector('.name').textContent = p.name;
             card.querySelector('.stock').textContent = p.stock_qty;
@@ -287,7 +290,9 @@
             card.querySelector('.cost').textContent = parseFloat(p.cost_price).toFixed(2);
 
             const editBtn = card.querySelector('.edit-btn');
+            const deleteBtn = card.querySelector('.delete-btn');
             editBtn.setAttribute('data-product-id', String(p.id));
+            deleteBtn.setAttribute('data-product-id', String(p.id));
             function openProductForEdit(e) {
                 if (e) {
                     e.preventDefault();
@@ -310,6 +315,17 @@
                 e.stopPropagation();
             });
             editBtn.addEventListener('click', openProductForEdit);
+            deleteBtn.addEventListener('pointerdown', function (e) {
+                e.stopPropagation();
+            });
+            deleteBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const pid = parseInt(deleteBtn.getAttribute('data-product-id'), 10);
+                if (typeof window.deleteAdminProduct === 'function') {
+                    window.deleteAdminProduct(pid);
+                }
+            });
 
             list.appendChild(card);
         });

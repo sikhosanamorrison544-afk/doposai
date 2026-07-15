@@ -198,7 +198,8 @@ body.page-admin.pos-android-app #products-mobile-list.admin-search-active .admin
     opacity: 0.92;
 }
 
-body.page-admin.pos-android-app #products-mobile-list.admin-search-active .admin-product-card .edit-btn {
+body.page-admin.pos-android-app #products-mobile-list.admin-search-active .admin-product-card .edit-btn,
+body.page-admin.pos-android-app #products-mobile-list.admin-search-active .admin-product-card .delete-btn {
     pointer-events: auto;
 }
 
@@ -301,19 +302,33 @@ body.page-admin.pos-android-app .pos-layout .left {
 .admin-product-card .row-actions {
     margin-top: 10px;
     display: flex;
-    justify-content: flex-end;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
 }
 
 .admin-product-card .row-actions button {
     min-height: 40px;
-    min-width: 88px;
-    padding: 8px 16px;
+    min-width: 40px;
+    width: 40px;
+    padding: 0;
     border-radius: 8px;
-    font-size: 14px;
+    font-size: 18px;
     font-weight: 600;
-    background: #667eea;
-    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border: none;
+}
+
+.admin-product-card .row-actions .edit-btn {
+    background: rgba(102, 126, 234, 0.15);
+    color: #4338ca;
+}
+
+.admin-product-card .row-actions .delete-btn {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
 }
 
 .admin-product-card.low-stock {
