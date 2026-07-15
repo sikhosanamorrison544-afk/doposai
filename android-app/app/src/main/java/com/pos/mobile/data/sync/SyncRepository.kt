@@ -12,10 +12,12 @@ import com.pos.mobile.data.remote.PaymentInputDto
 import com.pos.mobile.sync.MasterSyncEndpoints
 import com.pos.mobile.sync.MasterSyncResult
 import com.pos.mobile.sync.OfflineCacheKeys
+import com.pos.mobile.sync.SyncPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.UUID
 
 /**
  * Single source of truth: UI always reads from local DB.
@@ -172,6 +174,13 @@ class SyncRepository(
         }
     }
 
+    data class PushDrainResult(
+        val pushed: Int,
+        val remaining: Int,
+        val oldestPendingAgeMs: Long,
+        val hadRetryableFailures: Boolean,
+    )
+
     /**
      * Push one unsynced sale to the API. Called by SyncWorker for each pending row in sync_queue.
      */
@@ -181,6 +190,11 @@ class SyncRepository(
                 syncQueueDao.updateStatus(queueItem.id, SyncQueueEntity.STATUS_FAILED, "Sale not found")
                 return@withContext Result.failure(Exception("Sale not found"))
             }
+            var clientUuid = queueItem.clientSaleUuid
+            if (clientUuid.isNullOrBlank()) {
+                clientUuid = UUID.randomUUID().toString()
+                syncQueueDao.setClientSaleUuid(queueItem.id, clientUuid)
+            }
             val items = saleItemDao.getBySaleLocalId(queueItem.saleLocalId)
             val payments = paymentDao.getBySaleLocalId(queueItem.saleLocalId)
             val dto = SaleCreateDto(
@@ -188,12 +202,30 @@ class SyncRepository(
                 items = items.map { SaleItemInputDto(it.productId, it.quantity, it.unitPrice, it.discount) },
                 payments = payments.map { PaymentInputDto(it.method, it.amount) },
                 notes = sale.notes,
-                collection_status = sale.collectionStatus
+                collection_status = sale.collectionStatus,
+                client_sale_id = clientUuid,
             )
+            syncQueueDao.updateStatus(queueItem.id, SyncQueueEntity.STATUS_SYNCING, null)
             val response = api.createSale("Bearer $token", dto)
             if (!response.isSuccessful) {
-                val err = response.errorBody()?.string() ?: "HTTP ${response.code()}"
+                val code = response.code()
+                val err = response.errorBody()?.string() ?: "HTTP $code"
                 syncQueueDao.incrementRetry(queueItem.id, err)
+                val attempts = queueItem.retryCount + 1
+                val retryable = SyncPolicy.isRetryableHttp(code) || SyncPolicy.isRetryableErrorMessage(err)
+                if (!retryable || attempts >= SyncPolicy.MAX_PUSH_ATTEMPTS) {
+                    syncQueueDao.updateStatus(
+                        queueItem.id,
+                        SyncQueueEntity.STATUS_FAILED,
+                        err.take(500),
+                    )
+                } else {
+                    syncQueueDao.updateStatus(
+                        queueItem.id,
+                        SyncQueueEntity.STATUS_PENDING,
+                        err.take(500),
+                    )
+                }
                 return@withContext Result.failure(Exception(err))
             }
             val serverId = response.body()!!.id
@@ -210,29 +242,62 @@ class SyncRepository(
             Result.success(serverId)
         } catch (e: Exception) {
             syncQueueDao.incrementRetry(queueItem.id, e.message)
+            val attempts = queueItem.retryCount + 1
+            if (attempts >= SyncPolicy.MAX_PUSH_ATTEMPTS &&
+                !SyncPolicy.isRetryableErrorMessage(e.message)
+            ) {
+                syncQueueDao.updateStatus(
+                    queueItem.id,
+                    SyncQueueEntity.STATUS_FAILED,
+                    e.message?.take(500),
+                )
+            } else {
+                syncQueueDao.updateStatus(
+                    queueItem.id,
+                    SyncQueueEntity.STATUS_PENDING,
+                    e.message?.take(500),
+                )
+            }
             Result.failure(e)
         }
     }
 
     suspend fun getPendingSyncCount(): Int = withContext(Dispatchers.IO) {
-        syncQueueDao.getByStatus(SyncQueueEntity.STATUS_PENDING).size
+        syncQueueDao.countByStatus(SyncQueueEntity.STATUS_PENDING)
     }
 
     /** Upload queued sales before pulling catalog (avoids stale stock overwriting local deductions). */
     suspend fun pushPendingSales(token: String): Int = withContext(Dispatchers.IO) {
+        drainPendingSales(token).pushed
+    }
+
+    suspend fun drainPendingSales(token: String): PushDrainResult = withContext(Dispatchers.IO) {
+        syncQueueDao.requeueRetriableFailed(SyncPolicy.MAX_PUSH_ATTEMPTS)
         var pushed = 0
+        var hadRetryableFailures = false
         for (item in syncQueueDao.getByStatus(SyncQueueEntity.STATUS_PENDING)) {
+            if (SyncPolicy.isPastDeadline(item.createdAt)) {
+                Log.w(
+                    TAG,
+                    "Sale queue id=${item.id} older than 3-day deadline — still attempting upload",
+                )
+            }
             pushSale(token, item).onSuccess {
                 pushed++
                 Log.i(TAG, "Uploaded sale localId=${item.saleLocalId} -> server id=$it")
             }.onFailure {
+                hadRetryableFailures = true
                 Log.w(TAG, "Push failed for queue id ${item.id}: $it")
             }
         }
+        val remaining = syncQueueDao.countByStatus(SyncQueueEntity.STATUS_PENDING)
+        val oldest = syncQueueDao.oldestCreatedAt(SyncQueueEntity.STATUS_PENDING)
+        val age = if (oldest != null) SyncPolicy.ageMs(oldest) else 0L
         if (pushed > 0) {
-            Log.i(TAG, "pushPendingSales: uploaded $pushed sale(s)")
+            Log.i(TAG, "drainPendingSales: uploaded $pushed sale(s), remaining=$remaining")
         }
-        pushed
+        syncQueueDao.pruneSyncedOlderThan(System.currentTimeMillis() - SyncPolicy.SYNC_DEADLINE_MS)
+        PushDrainResult(pushed, remaining, age, hadRetryableFailures || remaining > 0)
     }
 
     suspend fun getLastSyncedAt(key: String): Long? = withContext(Dispatchers.IO) {
@@ -411,32 +476,57 @@ class SyncRepository(
         }
 
     suspend fun pushOfflineMutations(token: String): Int = withContext(Dispatchers.IO) {
+        drainOfflineMutations(token).pushed
+    }
+
+    suspend fun drainOfflineMutations(token: String): PushDrainResult = withContext(Dispatchers.IO) {
+        offlineMutationDao.requeueRetriableFailed(SyncPolicy.MAX_PUSH_ATTEMPTS)
         val bearer = "Bearer $token"
         val base = baseUrl.trimEnd('/')
         var pushed = 0
+        var hadRetryableFailures = false
         val pending = offlineMutationDao.getByStatus(OfflineMutationEntity.STATUS_PENDING)
         for (m in pending) {
-            val url = base + m.path
-            val mediaType = (m.contentType ?: "application/json").substringBefore(';').toMediaType()
-            val body = (m.requestBody ?: "{}").toRequestBody(mediaType)
-            val res = when (m.method.uppercase()) {
-                "POST" -> api.postUrl(url, bearer, body)
-                "PUT" -> api.putUrl(url, bearer, body)
-                "PATCH" -> api.postUrl(url, bearer, body)
-                "DELETE" -> api.deleteUrl(url, bearer)
-                else -> continue
-            }
-            if (res.isSuccessful) {
-                offlineMutationDao.updateStatus(m.id, OfflineMutationEntity.STATUS_SYNCED, null)
-                pushed++
-            } else {
-                offlineMutationDao.updateStatus(
+            try {
+                val url = base + m.path
+                val mediaType = (m.contentType ?: "application/json").substringBefore(';').toMediaType()
+                val body = (m.requestBody ?: "{}").toRequestBody(mediaType)
+                val res = when (m.method.uppercase()) {
+                    "POST" -> api.postUrl(url, bearer, body)
+                    "PUT" -> api.putUrl(url, bearer, body)
+                    "PATCH" -> api.postUrl(url, bearer, body)
+                    "DELETE" -> api.deleteUrl(url, bearer)
+                    else -> continue
+                }
+                if (res.isSuccessful) {
+                    offlineMutationDao.updateStatus(m.id, OfflineMutationEntity.STATUS_SYNCED, null)
+                    pushed++
+                } else {
+                    val code = res.code()
+                    val err = res.errorBody()?.string() ?: "HTTP $code"
+                    val attempts = m.retryCount + 1
+                    val retryable = SyncPolicy.isRetryableHttp(code) ||
+                        SyncPolicy.isRetryableErrorMessage(err)
+                    val status = if (!retryable || attempts >= SyncPolicy.MAX_PUSH_ATTEMPTS) {
+                        OfflineMutationEntity.STATUS_FAILED
+                    } else {
+                        hadRetryableFailures = true
+                        OfflineMutationEntity.STATUS_PENDING
+                    }
+                    offlineMutationDao.updateStatusIncrementRetry(m.id, status, err.take(500))
+                }
+            } catch (e: Exception) {
+                hadRetryableFailures = true
+                offlineMutationDao.updateStatusIncrementRetry(
                     m.id,
-                    OfflineMutationEntity.STATUS_FAILED,
-                    res.errorBody()?.string() ?: "HTTP ${res.code()}",
+                    OfflineMutationEntity.STATUS_PENDING,
+                    e.message?.take(500),
                 )
             }
         }
-        pushed
+        val remaining = offlineMutationDao.countByStatus(OfflineMutationEntity.STATUS_PENDING)
+        val oldest = offlineMutationDao.oldestCreatedAt(OfflineMutationEntity.STATUS_PENDING)
+        val age = if (oldest != null) SyncPolicy.ageMs(oldest) else 0L
+        PushDrainResult(pushed, remaining, age, hadRetryableFailures || remaining > 0)
     }
 }

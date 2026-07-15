@@ -99,6 +99,33 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
+def _ensure_sales_client_sale_id_column() -> None:
+    """Add offline idempotency column on existing DBs (create_all won't ALTER)."""
+    from sqlalchemy import inspect, text
+
+    try:
+        insp = inspect(engine)
+        if "sales" not in insp.get_table_names():
+            return
+        cols = {c["name"] for c in insp.get_columns("sales")}
+        with engine.begin() as conn:
+            if "client_sale_id" not in cols:
+                conn.execute(
+                    text("ALTER TABLE sales ADD COLUMN client_sale_id VARCHAR(64)")
+                )
+                logging.info("Added sales.client_sale_id for offline sync idempotency")
+            # Partial unique index: multiple NULLs allowed; same id cannot double-post.
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_sales_tenant_client_sale_id_nn "
+                    "ON sales (tenant_id, client_sale_id) "
+                    "WHERE client_sale_id IS NOT NULL"
+                )
+            )
+    except Exception as e:
+        logging.warning("Could not ensure sales.client_sale_id: %s", e)
+
+
 def _deferred_db_bootstrap() -> None:
     """Run after bind so Render sees an open PORT before slow Postgres work."""
     try:
@@ -108,6 +135,10 @@ def _deferred_db_bootstrap() -> None:
             "Could not run create_all on startup: %s. DB will retry on first use.",
             e,
         )
+    try:
+        _ensure_sales_client_sale_id_column()
+    except Exception as e:
+        logging.warning("client_sale_id bootstrap failed: %s", e)
     try:
         ImportJob.__table__.create(bind=engine, checkfirst=True)
     except Exception as e:
@@ -1419,6 +1450,8 @@ class SaleCreate(BaseModel):
     notes: Optional[str] = None
     collection_status: str = "collected"  # "collected" or "to_collect"
     branch_id: Optional[int] = None  # admin override; cashiers use assigned branch
+    # Offline APK: stable UUID so retries do not create duplicate sales.
+    client_sale_id: Optional[str] = Field(default=None, max_length=64)
 
 
 class SaleRead(BaseModel):
@@ -1427,6 +1460,7 @@ class SaleRead(BaseModel):
     subtotal: Decimal
     discount_total: Decimal
     total: Decimal
+    client_sale_id: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -1441,6 +1475,16 @@ async def create_sale(
 ):
     if not sale_data.items:
         raise HTTPException(status_code=400, detail="No items in sale")
+
+    client_sale_id = (sale_data.client_sale_id or "").strip() or None
+    if client_sale_id:
+        existing = (
+            tenant_scope.filter_sales(db, current_user)
+            .filter(Sale.client_sale_id == client_sale_id)
+            .first()
+        )
+        if existing:
+            return existing
 
     # Ensure all values are Decimal for consistent calculations
     subtotal = sum(
@@ -1495,9 +1539,24 @@ async def create_sale(
         total=total,
         notes=sale_data.notes,
         collection_status=sale_data.collection_status,
+        client_sale_id=client_sale_id,
     )
     db.add(sale)
-    db.flush()  # get sale.id
+    try:
+        db.flush()  # get sale.id
+    except Exception as flush_err:
+        # Concurrent retry with same client_sale_id — return the winner.
+        logging.warning("Sale flush conflict (client_sale_id=%s): %s", client_sale_id, flush_err)
+        db.rollback()
+        if client_sale_id:
+            existing = (
+                tenant_scope.filter_sales(db, current_user)
+                .filter(Sale.client_sale_id == client_sale_id)
+                .first()
+            )
+            if existing:
+                return existing
+        raise HTTPException(status_code=409, detail="Could not create sale")
 
     # Create sale items and update stock
     for item in sale_data.items:

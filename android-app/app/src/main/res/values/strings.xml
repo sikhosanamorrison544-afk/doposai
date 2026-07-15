@@ -89,6 +89,7 @@
     <string name="sync_requires_login">Sign in to sync</string>
     <string name="sync_complete">Sync complete: %1$d products, %2$d sale(s) uploaded, %3$d pending</string>
     <string name="sync_partial">Sync finished with issues: %1$d sale(s) uploaded, %2$d still pending</string>
+    <string name="sync_pending_deadline">Queued sales sync automatically when online — must complete within 3 days.</string>
     <string name="sync_master_failed">Could not refresh products from server</string>
     <string name="sync_products_failed_hint">Sales may have uploaded; check Server URL and try again.</string>
     <string name="sync_check_server_url">Check Server URL matches your web login (e.g. https://api.doposai.com/).</string>

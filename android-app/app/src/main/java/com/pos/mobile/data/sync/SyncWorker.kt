@@ -9,15 +9,18 @@ import com.pos.mobile.auth.SessionStore
 import com.pos.mobile.data.local.AppDatabase
 import com.pos.mobile.data.remote.ApiService
 import com.pos.mobile.sync.NetworkUtils
+import com.pos.mobile.sync.SyncPolicy
+import com.pos.mobile.sync.SyncScheduler
+import com.pos.mobile.ui.BearerResult
+import com.pos.mobile.ui.PosAuth
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
- * Background sync: when internet becomes available, push unsynced transactions to the cloud API.
- * Schedule with Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).
- * Run every 15–30 min or after network state change.
+ * Background sync: push unsynced transactions to the cloud API, then refresh catalog.
+ * Schedules sticky drain retries until the queue is empty (target: within 3 days).
  */
 class SyncWorker(
     context: Context,
@@ -27,42 +30,85 @@ class SyncWorker(
     override suspend fun doWork(): Result {
         val baseUrl = inputData.getString(KEY_BASE_URL)
             ?: applicationContext.getSharedPreferences("pos", Context.MODE_PRIVATE).getString("base_url", null)
-            ?: return Result.failure()
+            ?: return Result.retry()
         val prefs = applicationContext.getSharedPreferences("pos", Context.MODE_PRIVATE)
-        val token = inputData.getString(KEY_TOKEN)
-            ?: SessionStore(applicationContext).getAccessToken()
-            ?: prefs.getString("token", null)
-            ?: return Result.failure()
-
-        val db = AppDatabase.getInstance(applicationContext)
-        val api = createApi(baseUrl)
-        val repo = createRepository(applicationContext, baseUrl, api, db)
+        val drainMode = inputData.getBoolean(KEY_DRAIN_MODE, false)
+        val pushOnly = inputData.getBoolean(KEY_PUSH_ONLY, false) || drainMode
         val forceFull = inputData.getBoolean(KEY_FULL_CACHE, false)
-        val pushOnly = inputData.getBoolean(KEY_PUSH_ONLY, false)
         val fullCache = forceFull || (!pushOnly && shouldPrefetchApiCache(prefs))
 
         if (!NetworkUtils.hasValidatedInternet(applicationContext)) {
             Log.i(TAG, "Skip sync — network not validated yet")
+            SyncScheduler.enqueueStickyDrain(applicationContext)
             return Result.retry()
         }
 
-        return try {
-            var pushed = 0
-            if (NetworkUtils.canSyncPendingSales(applicationContext)) {
-                pushed = repo.pushPendingSales(token)
-                val pendingMutations = repo.pushOfflineMutations(token)
-                if (pendingMutations > 0) {
-                    Log.i(TAG, "Pushed $pendingMutations offline mutation(s)")
+        val bearerResult = PosAuth.ensureBearer(applicationContext)
+        val token = when (bearerResult) {
+            is BearerResult.Ok -> bearerResult.bearer.removePrefix("Bearer ").trim()
+            BearerResult.Offline -> {
+                SyncScheduler.enqueueStickyDrain(applicationContext)
+                return Result.retry()
+            }
+            BearerResult.Missing, BearerResult.Expired -> {
+                // Keep sticky work for when the user logs in / refreshes session.
+                val fallback = inputData.getString(KEY_TOKEN)
+                    ?: SessionStore(applicationContext).getAccessToken()
+                    ?: prefs.getString("token", null)
+                if (fallback.isNullOrBlank()) {
+                    Log.w(TAG, "No valid auth for sync — will retry later")
+                    SyncScheduler.enqueueStickyDrain(applicationContext)
+                    return Result.retry()
                 }
+                fallback.removePrefix("Bearer ").trim()
+            }
+        }
+
+        val db = AppDatabase.getInstance(applicationContext)
+        val api = createApi(baseUrl)
+        val repo = createRepository(applicationContext, baseUrl, api, db)
+
+        return try {
+            var salesPushed = 0
+            var mutationsPushed = 0
+            var salesRemaining = 0
+            var mutationsRemaining = 0
+            var oldestAgeMs = 0L
+            var needsRetry = false
+
+            if (NetworkUtils.canSyncPendingSales(applicationContext)) {
+                val salesDrain = repo.drainPendingSales(token)
+                salesPushed = salesDrain.pushed
+                salesRemaining = salesDrain.remaining
+                oldestAgeMs = maxOf(oldestAgeMs, salesDrain.oldestPendingAgeMs)
+                needsRetry = needsRetry || salesDrain.hadRetryableFailures
+
+                val mutDrain = repo.drainOfflineMutations(token)
+                mutationsPushed = mutDrain.pushed
+                mutationsRemaining = mutDrain.remaining
+                oldestAgeMs = maxOf(oldestAgeMs, mutDrain.oldestPendingAgeMs)
+                needsRetry = needsRetry || mutDrain.hadRetryableFailures
+
+                if (mutationsPushed > 0) {
+                    Log.i(TAG, "Pushed $mutationsPushed offline mutation(s)")
+                }
+                if (oldestAgeMs >= SyncPolicy.SYNC_WARN_AGE_MS) {
+                    Log.w(
+                        TAG,
+                        "Pending sync aging: oldest=${oldestAgeMs / 3600000}h " +
+                            "(deadline=${SyncPolicy.SYNC_DEADLINE_MS / 3600000}h)",
+                    )
+                }
+            } else {
+                needsRetry = true
             }
 
-            // Always refresh local product/stock from server on any validated internet
-            // (mobile data included). POS search and checkout read from Room only.
             if (!pushOnly) {
                 try {
                     val essentials = repo.syncEssentials(applicationContext, token)
                     if (essentials.isSuccess) {
                         Log.i(TAG, "Local stock/catalog updated from server")
+                        SessionStore(applicationContext).recordOfflineAnchor()
                     } else {
                         Log.w(
                             TAG,
@@ -89,9 +135,26 @@ class SyncWorker(
                 }
             }
 
-            Result.success(workDataOf(KEY_PUSHED to pushed))
+            val remaining = salesRemaining + mutationsRemaining
+            if (remaining > 0 || needsRetry) {
+                val expedite = oldestAgeMs >= SyncPolicy.SYNC_WARN_AGE_MS
+                SyncScheduler.enqueueStickyDrain(applicationContext, expedite = expedite)
+                Log.i(
+                    TAG,
+                    "Queue not empty (sales=$salesRemaining mut=$mutationsRemaining) — retry scheduled",
+                )
+                return Result.retry()
+            }
+
+            Result.success(
+                workDataOf(
+                    KEY_PUSHED to (salesPushed + mutationsPushed),
+                    KEY_REMAINING to remaining,
+                ),
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Sync failed", e)
+            SyncScheduler.enqueueStickyDrain(applicationContext)
             Result.retry()
         }
     }
@@ -101,10 +164,13 @@ class SyncWorker(
         const val KEY_BASE_URL = "base_url"
         const val KEY_TOKEN = "token"
         const val KEY_PUSHED = "pushed"
+        const val KEY_REMAINING = "remaining"
         /** When true, prefetch optional offline API cache (admin pages are never bulk-fetched). */
         const val KEY_FULL_CACHE = "full_cache"
         /** When true, only upload pending sales/mutations — no catalog pull. */
         const val KEY_PUSH_ONLY = "push_only"
+        /** Sticky drain mode — keep retrying until queue is empty. */
+        const val KEY_DRAIN_MODE = "drain_mode"
         private const val KEY_LAST_FULL_CACHE_MS = "last_full_cache_sync_ms"
         private const val FULL_CACHE_INTERVAL_MS = 10L * 60 * 1000
 

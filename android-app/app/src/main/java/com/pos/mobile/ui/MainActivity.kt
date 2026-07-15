@@ -1285,26 +1285,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     private suspend fun performManualSync(token: String): ManualSyncOutcome {
-        val bearer = token.trim().let { if (it.startsWith("Bearer ")) it else "Bearer $it" }
-        val rawToken = bearer.removePrefix("Bearer ").trim()
+        val auth = when (val b = PosAuth.ensureBearer(this)) {
+            is BearerResult.Ok -> b.bearer.removePrefix("Bearer ").trim()
+            else -> token.trim().removePrefix("Bearer ").trim()
+        }
         val repo = createSyncRepository(readTimeoutSec = 60)
         val db = AppDatabase.getInstance(this)
-        var pushed = 0
-        for (item in db.syncQueueDao().getByStatus(SyncQueueEntity.STATUS_PENDING)) {
-            repo.pushSale(rawToken, item).onSuccess { pushed++ }
-        }
-        repo.pushOfflineMutations(rawToken)
-        val productsOk = repo.pullProductsAndCustomers(rawToken).isSuccess
+        val salesDrain = repo.drainPendingSales(auth)
+        repo.drainOfflineMutations(auth)
+        val productsOk = repo.pullProductsAndCustomers(auth).isSuccess
         if (productsOk) {
-            repo.persistStoreSettings(this@MainActivity, rawToken)
+            repo.persistStoreSettings(this@MainActivity, auth)
             SessionStore(this).recordOfflineAnchor()
         }
-        val stillPending = db.syncQueueDao().getByStatus(SyncQueueEntity.STATUS_PENDING).size
+        val stillPending = db.syncQueueDao().countByStatus(SyncQueueEntity.STATUS_PENDING) +
+            db.offlineMutationDao().countByStatus(
+                com.pos.mobile.data.local.entity.OfflineMutationEntity.STATUS_PENDING,
+            )
         val productCount = db.productDao().countActive()
         return ManualSyncOutcome(
             masterOk = productsOk,
             productCount = productCount,
-            salesPushed = pushed,
+            salesPushed = salesDrain.pushed,
             salesPending = stillPending,
         )
     }

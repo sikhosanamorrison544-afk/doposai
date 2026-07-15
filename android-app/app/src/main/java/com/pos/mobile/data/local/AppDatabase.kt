@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.pos.mobile.data.local.dao.*
 import com.pos.mobile.data.local.entity.*
 
@@ -23,7 +25,7 @@ import com.pos.mobile.data.local.entity.*
         BranchEntity::class,
         EnterpriseCacheEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -43,6 +45,16 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         private const val DB_NAME = "pos_offline.db"
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE sync_queue ADD COLUMN clientSaleUuid TEXT")
+                db.execSQL(
+                    "ALTER TABLE offline_mutations ADD COLUMN retryCount INTEGER NOT NULL DEFAULT 0",
+                )
+            }
+        }
+
         @Volatile private var instance: AppDatabase? = null
         fun getInstance(context: Context): AppDatabase {
             return instance ?: synchronized(this) {
@@ -50,7 +62,11 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).fallbackToDestructiveMigration().build().also { instance = it }
+                )
+                    .addMigrations(MIGRATION_4_5)
+                    .fallbackToDestructiveMigration()
+                    .build()
+                    .also { instance = it }
             }
         }
     }

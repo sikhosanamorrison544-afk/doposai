@@ -14,6 +14,7 @@ data class OfflineMutationEntity(
     val createdAt: Long,
     val status: String = STATUS_PENDING,
     val error: String? = null,
+    val retryCount: Int = 0,
 ) {
     companion object {
         const val STATUS_PENDING = "pending"

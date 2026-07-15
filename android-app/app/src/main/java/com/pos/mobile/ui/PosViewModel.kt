@@ -229,6 +229,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                             saleLocalId = saleLocalId,
                             createdAt = now,
                             status = SyncQueueEntity.STATUS_PENDING,
+                            clientSaleUuid = java.util.UUID.randomUUID().toString(),
                         ),
                     )
                     for (line in cartList) {
@@ -264,7 +265,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 emitFailed(msg)
             } finally {
                 _isCompletingSale.value = false
-                SyncScheduler.enqueueCatalogSync(getApplication())
+                SyncScheduler.enqueueAfterSaleOrReconnect(getApplication())
             }
         }
     }

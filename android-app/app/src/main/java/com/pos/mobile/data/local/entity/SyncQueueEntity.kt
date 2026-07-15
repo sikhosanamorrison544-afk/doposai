@@ -15,7 +15,9 @@ data class SyncQueueEntity(
     val createdAt: Long,
     val retryCount: Int = 0,
     val lastError: String? = null,
-    val status: String = STATUS_PENDING
+    val status: String = STATUS_PENDING,
+    /** Stable UUID sent as client_sale_id so server retries are idempotent. */
+    val clientSaleUuid: String? = null,
 ) {
     companion object {
         const val STATUS_PENDING = "pending"

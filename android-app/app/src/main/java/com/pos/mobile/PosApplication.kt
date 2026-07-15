@@ -1,21 +1,16 @@
 package com.pos.mobile
 
 import android.app.Application
-import androidx.work.Constraints
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.NetworkType
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.workDataOf
-import com.pos.mobile.data.sync.SyncWorker
-import java.util.concurrent.TimeUnit
+import com.pos.mobile.sync.ConnectivitySyncMonitor
+import com.pos.mobile.sync.SyncScheduler
 
 class PosApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
         setDefaultServerUrlIfNeeded()
-        scheduleSync()
+        SyncScheduler.schedulePeriodic(this)
+        ConnectivitySyncMonitor.register(this)
     }
 
     /**
@@ -28,28 +23,5 @@ class PosApplication : Application() {
         if (current.isNullOrBlank()) {
             prefs.edit().putString("base_url", BuildConfig.DEFAULT_API_BASE_URL).apply()
         }
-    }
-
-    /**
-     * Schedule background sync when network is available.
-     * Runs at most every 15 minutes; constraint requires network.
-     * In a full implementation, base URL and token would come from SharedPreferences or secure storage.
-     */
-    private fun scheduleSync() {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-        val request = PeriodicWorkRequestBuilder<SyncWorker>(15, TimeUnit.MINUTES)
-            .setConstraints(constraints)
-            .setInputData(
-                workDataOf(SyncWorker.KEY_FULL_CACHE to false),
-            )
-            .addTag("pos_sync")
-            .build()
-        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-            "pos_sync_work",
-            ExistingPeriodicWorkPolicy.KEEP,
-            request
-        )
     }
 }

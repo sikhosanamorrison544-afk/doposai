@@ -104,6 +104,13 @@ class Customer(Base):
 
 class Sale(Base):
     __tablename__ = "sales"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "client_sale_id",
+            name="uq_sales_tenant_client_sale_id",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -121,6 +128,8 @@ class Sale(Base):
     discount_total: Mapped[Numeric] = mapped_column(Numeric(10, 2), default=0)
     total: Mapped[Numeric] = mapped_column(Numeric(10, 2))
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Offline APK idempotency key — retries with the same id must not create duplicates.
+    client_sale_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
 
     shift_id: Mapped[Optional[int]] = mapped_column(ForeignKey("cashier_shifts.id"), nullable=True, index=True)
     collection_status: Mapped[str] = mapped_column(String(20), default="collected")  # "collected" or "to_collect"

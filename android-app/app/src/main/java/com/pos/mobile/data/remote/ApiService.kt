@@ -341,10 +341,18 @@ data class SaleCreateDto(
     val items: List<SaleItemInputDto>,
     val payments: List<PaymentInputDto>,
     val notes: String? = null,
-    val collection_status: String = "collected"
+    val collection_status: String = "collected",
+    val client_sale_id: String? = null,
 )
 
-data class SaleReadDto(val id: Int, val created_at: String, val subtotal: Double, val discount_total: Double, val total: Double)
+data class SaleReadDto(
+    val id: Int,
+    val created_at: String,
+    val subtotal: Double,
+    val discount_total: Double,
+    val total: Double,
+    val client_sale_id: String? = null,
+)
 
 data class QuotationItemInputDto(
     val product_id: Int,

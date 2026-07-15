@@ -16,6 +16,26 @@ interface OfflineMutationDao {
     @Query("UPDATE offline_mutations SET status = :status, error = :error WHERE id = :id")
     suspend fun updateStatus(id: Long, status: String, error: String?)
 
+    @Query(
+        """
+        UPDATE offline_mutations
+        SET status = :status, error = :error, retryCount = retryCount + 1
+        WHERE id = :id
+        """,
+    )
+    suspend fun updateStatusIncrementRetry(id: Long, status: String, error: String?)
+
     @Query("SELECT COUNT(*) FROM offline_mutations WHERE status = :status")
     suspend fun countByStatus(status: String): Int
+
+    @Query("SELECT MIN(createdAt) FROM offline_mutations WHERE status = :status")
+    suspend fun oldestCreatedAt(status: String): Long?
+
+    @Query(
+        """
+        UPDATE offline_mutations SET status = 'pending', error = NULL
+        WHERE status = 'failed' AND retryCount < :maxRetries
+        """,
+    )
+    suspend fun requeueRetriableFailed(maxRetries: Int): Int
 }
