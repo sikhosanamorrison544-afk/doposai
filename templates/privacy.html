@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Privacy Policy · {{ brand_name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Privacy policy for the {{ brand_name }} point-of-sale platform and mobile app.">
+    <style>
+        :root {
+            color-scheme: light dark;
+        }
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+            line-height: 1.6;
+            color: #1e293b;
+            background: #f8fafc;
+        }
+        .wrap {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 32px 20px 48px;
+        }
+        h1 {
+            font-size: 1.75rem;
+            margin: 0 0 8px;
+            color: #0f172a;
+        }
+        .updated {
+            color: #64748b;
+            font-size: 0.9rem;
+            margin-bottom: 28px;
+        }
+        h2 {
+            font-size: 1.15rem;
+            margin: 28px 0 10px;
+            color: #0f172a;
+        }
+        p, li {
+            font-size: 0.98rem;
+        }
+        ul {
+            padding-left: 1.25rem;
+        }
+        a {
+            color: #2563eb;
+        }
+        .card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+        }
+        footer {
+            margin-top: 32px;
+            font-size: 0.9rem;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="card">
+        <h1>Privacy Policy</h1>
+        <p class="updated">Last updated: {{ updated_date }}</p>
+        <p>
+            This policy describes how <strong>{{ brand_name }}</strong> (“we”, “our”, “the platform”)
+            collects, uses, and protects information when you use our website at
+            <a href="{{ web_url }}">{{ web_url }}</a>, our cloud API, and the
+            <strong>POS Mobile</strong> Android application (together, the “Services”).
+        </p>
+
+        <h2>1. Who we are</h2>
+        <p>
+            {{ brand_name }} provides point-of-sale software for retail and small businesses.
+            Each business (“tenant”) operates its own store data within the platform.
+            Contact: <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.
+        </p>
+
+        <h2>2. Information we collect</h2>
+        <ul>
+            <li><strong>Account data:</strong> business name, owner name, username, email, phone, and password (stored hashed).</li>
+            <li><strong>Sales &amp; operations:</strong> products, prices, stock, sales, payments, layby, quotations, withdrawals, and shift data entered in the POS.</li>
+            <li><strong>Device &amp; app data:</strong> app version, sync timestamps, and locally cached catalog/sales needed for offline operation.</li>
+            <li><strong>Bluetooth:</strong> the mobile app may pair with receipt printers you choose; we do not collect Bluetooth device identifiers on our servers.</li>
+            <li><strong>Payments &amp; subscriptions:</strong> if you pay for a subscription, payment references may be processed by our payment partner; we do not store full card numbers.</li>
+        </ul>
+
+        <h2>3. How we use information</h2>
+        <ul>
+            <li>Provide POS, inventory, reporting, and sync between devices and the cloud.</li>
+            <li>Authenticate users and enforce role-based access (admin, supervisor, cashier).</li>
+            <li>Print receipts and generate quotations or reports you request.</li>
+            <li>Process subscription billing and send service-related notices.</li>
+            <li>Improve reliability, security, and support.</li>
+        </ul>
+
+        <h2>4. Offline mobile app &amp; sync</h2>
+        <p>
+            The Android app can record sales while offline. Queued transactions are stored on your device
+            and uploaded to our servers when internet is available, typically within three days.
+            Data is transmitted over HTTPS. You should keep devices secure with a screen lock.
+        </p>
+
+        <h2>5. Sharing</h2>
+        <p>
+            We do not sell your personal information. We share data only:
+        </p>
+        <ul>
+            <li>With service providers that host our infrastructure (e.g. cloud hosting), under contract.</li>
+            <li>With payment processors when you pay a subscription.</li>
+            <li>When required by law or to protect rights, safety, and security.</li>
+        </ul>
+        <p>Store data is isolated per tenant; other businesses on the platform cannot access your data.</p>
+
+        <h2>6. Retention</h2>
+        <p>
+            We retain account and transaction data while your subscription or account is active and as needed
+            for legal, tax, and reporting obligations. You may request deletion of your tenant account by
+            contacting us; some records may be retained where required by law.
+        </p>
+
+        <h2>7. Security</h2>
+        <p>
+            Passwords are hashed. Traffic uses TLS (HTTPS). Access is controlled by authentication and roles.
+            No method of transmission or storage is 100% secure; use strong passwords and protect devices.
+        </p>
+
+        <h2>8. Your choices</h2>
+        <ul>
+            <li>Update business and store settings in the admin area.</li>
+            <li>Request access, correction, or deletion via {{ contact_email }}.</li>
+            <li>Uninstall the mobile app to remove local cached data from that device.</li>
+        </ul>
+
+        <h2>9. Children</h2>
+        <p>
+            The Services are intended for businesses and are not directed at children under 13 (or 16 where applicable).
+        </p>
+
+        <h2>10. Changes</h2>
+        <p>
+            We may update this policy. The “Last updated” date will change when we do.
+            Continued use of the Services after changes means you accept the updated policy.
+        </p>
+
+        <h2>11. Contact</h2>
+        <p>
+            Questions about this policy or your data:
+            <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.
+        </p>
+    </div>
+    <footer>
+        <a href="/">← Back to {{ brand_name }}</a>
+    </footer>
+</div>
+</body>
+</html>

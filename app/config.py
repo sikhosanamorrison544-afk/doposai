@@ -92,6 +92,9 @@ PLATFORM_MOTTO = (
 STORE_NAME = (os.environ.get("STORE_NAME", "").strip() or PLATFORM_BRAND_NAME)
 STORE_PHONE = os.environ.get("STORE_PHONE", "").strip()
 STORE_LOCATION = os.environ.get("STORE_LOCATION", "").strip()
+SUPPORT_EMAIL = (
+    os.environ.get("SUPPORT_EMAIL", "").strip() or "support@doposai.com"
+)
 
 
 def _parse_platform_owner_usernames() -> frozenset[str]:

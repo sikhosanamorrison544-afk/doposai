@@ -41,6 +41,8 @@ from .config import (
     STORE_NAME,
     STORE_PHONE,
     STORE_LOCATION,
+    SUPPORT_EMAIL,
+    WEB_PUBLIC_URL,
     get_cors_origins_and_credentials,
 )
 from .database import Base, engine, get_db, SessionLocal
@@ -460,6 +462,23 @@ async def reset_password_page(request: Request):
     submits the form. We just render the page; bad tokens get a clear error.
     """
     return _shell_page(request, "reset-password.html")
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+async def privacy_policy_page(request: Request):
+    """Public privacy policy (required for Google Play and account-based services)."""
+    from datetime import date
+
+    return templates.TemplateResponse(
+        "privacy.html",
+        _page_ctx(
+            request,
+            brand_name=PLATFORM_BRAND_NAME,
+            web_url=WEB_PUBLIC_URL,
+            contact_email=SUPPORT_EMAIL,
+            updated_date=date.today().strftime("%d %B %Y"),
+        ),
+    )
 
 
 class Token(BaseModel):
