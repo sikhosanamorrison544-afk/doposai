@@ -7563,6 +7563,20 @@ html body.theme-classic #pending-collection-list * {
     color: #ffffff !important;
 }
 
+/* Pending Collection page: force white text in classic (top bar + headings) */
+html body.theme-classic.page-pending-collection .page-pending-top-bar,
+html body.theme-classic.page-pending-collection .page-pending-top-bar *,
+html body.theme-classic.page-pending-collection .page-pending-heading,
+html body.theme-classic.page-pending-collection #app main,
+html body.theme-classic.page-pending-collection #app main h1,
+html body.theme-classic.page-pending-collection #app main p,
+html body.theme-classic.page-pending-collection #app main button,
+html body.theme-classic.page-pending-collection #btn-refresh,
+html body.theme-classic.page-pending-collection #btn-back-pos,
+html body.theme-classic.page-pending-collection #btn-logout {
+    color: #ffffff !important;
+}
+
 html body.theme-classic input::placeholder,
 html body.theme-classic textarea::placeholder {
     color: rgba(255, 255, 255, 0.45) !important;
