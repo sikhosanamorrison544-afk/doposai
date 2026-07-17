@@ -2508,6 +2508,11 @@ class ReportSummary(BaseModel):
     profit: Decimal
     total_stock_value: Decimal
     expected_profit: Decimal
+    # Till cash for the selected date range (defaults to today in admin UI)
+    cash_payments: Decimal = Decimal("0.00")
+    withdrawals_total: Decimal = Decimal("0.00")
+    cash_refunds: Decimal = Decimal("0.00")
+    cash_on_hand: Decimal = Decimal("0.00")
 
 
 @app.get("/api/reports/summary", response_model=ReportSummary)
@@ -2517,14 +2522,17 @@ async def report_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(dep_perm(Perm.VIEW_REPORTS)),
 ):
+    range_start = datetime.combine(from_date, datetime.min.time())
+    range_end = datetime.combine(to_date, datetime.max.time())
+
     sales_q = db.query(
         func.count(Sale.id),
         func.coalesce(func.sum(Sale.subtotal), 0),
         func.coalesce(func.sum(Sale.discount_total), 0),
         func.coalesce(func.sum(Sale.total), 0),
     ).filter(
-        Sale.created_at >= datetime.combine(from_date, datetime.min.time()),
-        Sale.created_at <= datetime.combine(to_date, datetime.max.time()),
+        Sale.created_at >= range_start,
+        Sale.created_at <= range_end,
     )
     if current_user.tenant_id is None:
         sales_q = sales_q.filter(Sale.tenant_id.is_(None))
@@ -2546,8 +2554,8 @@ async def report_summary(
         .join(Sale, SaleItem.sale_id == Sale.id)
         .join(Product, SaleItem.product_id == Product.id)
         .filter(
-            Sale.created_at >= datetime.combine(from_date, datetime.min.time()),
-            Sale.created_at <= datetime.combine(to_date, datetime.max.time()),
+            Sale.created_at >= range_start,
+            Sale.created_at <= range_end,
         )
     )
     if current_user.tenant_id is None:
@@ -2584,13 +2592,55 @@ async def report_summary(
         # Add to expected profit (selling_price - cost_price) * stock_qty
         expected_profit += stock_qty * (selling_price - cost_price)
     
-    # Deduct total withdrawals (daily expenses + company assets) from expected profit
-    total_withdrawals = Decimal("0.00")
+    # Deduct all-time withdrawals from expected profit (stock projection, not till cash)
+    lifetime_withdrawals = Decimal("0.00")
     for withdrawal in tenant_scope.filter_withdrawals(db, current_user).all():
-        total_withdrawals += Decimal(str(withdrawal.amount))
-    
-    # Subtract withdrawals from expected profit
-    expected_profit -= total_withdrawals
+        lifetime_withdrawals += Decimal(str(withdrawal.amount))
+    expected_profit -= lifetime_withdrawals
+
+    # Cash on hand for the selected period:
+    # cash payments − withdrawals − approved cash refunds
+    cash_pay_q = (
+        db.query(func.coalesce(func.sum(Payment.amount), 0))
+        .join(Sale, Payment.sale_id == Sale.id)
+        .filter(
+            Payment.method == "cash",
+            Sale.created_at >= range_start,
+            Sale.created_at <= range_end,
+        )
+    )
+    if current_user.tenant_id is None:
+        cash_pay_q = cash_pay_q.filter(Sale.tenant_id.is_(None))
+    else:
+        cash_pay_q = cash_pay_q.filter(Sale.tenant_id == current_user.tenant_id)
+    cash_payments = Decimal(str(cash_pay_q.scalar() or 0))
+
+    wd_q = (
+        tenant_scope.filter_withdrawals(db, current_user)
+        .filter(
+            Withdrawal.created_at >= range_start,
+            Withdrawal.created_at <= range_end,
+        )
+        .with_entities(func.coalesce(func.sum(Withdrawal.amount), 0))
+    )
+    withdrawals_total = Decimal(str(wd_q.scalar() or 0))
+
+    refund_q = (
+        db.query(func.coalesce(func.sum(Refund.amount), 0))
+        .filter(
+            Refund.status == "approved",
+            Refund.refund_method == "cash",
+            Refund.created_at >= range_start,
+            Refund.created_at <= range_end,
+        )
+    )
+    if current_user.tenant_id is None:
+        refund_q = refund_q.filter(Refund.tenant_id.is_(None))
+    else:
+        refund_q = refund_q.filter(Refund.tenant_id == current_user.tenant_id)
+    cash_refunds = Decimal(str(refund_q.scalar() or 0))
+
+    cash_on_hand = cash_payments - withdrawals_total - cash_refunds
     
     return ReportSummary(
         from_date=from_date,
@@ -2602,6 +2652,10 @@ async def report_summary(
         profit=profit,
         total_stock_value=total_stock_value,
         expected_profit=expected_profit,
+        cash_payments=cash_payments,
+        withdrawals_total=withdrawals_total,
+        cash_refunds=cash_refunds,
+        cash_on_hand=cash_on_hand,
     )
 
 

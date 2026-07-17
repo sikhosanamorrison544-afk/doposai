@@ -312,7 +312,13 @@
         <button id="btn-load-report" class="primary small">Load Summary</button>
         <div id="rep-message" class="info"></div>
         <div id="rep-summary" class="totals" style="margin-top:8px;">
-            <div><span>Sales Count</span><span id="rep-sales-count">0</span></div>
+            <div class="grand" style="background:rgba(16,185,129,0.18);border-radius:8px;padding:10px 8px;margin-bottom:8px;">
+                <span>Cash on Hand</span><span id="rep-cash-on-hand">0.00</span>
+            </div>
+            <div><span>Cash Sales (in)</span><span id="rep-cash-payments">0.00</span></div>
+            <div><span>Withdrawals (out)</span><span id="rep-withdrawals">0.00</span></div>
+            <div><span>Cash Refunds (out)</span><span id="rep-cash-refunds">0.00</span></div>
+            <div style="border-top:1px solid rgba(255,255,255,0.2);padding-top:8px;margin-top:8px;"><span>Sales Count</span><span id="rep-sales-count">0</span></div>
             <div><span>Gross Sales</span><span id="rep-gross">0.00</span></div>
             <div><span>Discounts</span><span id="rep-discounts">0.00</span></div>
             <div><span>Net Sales</span><span id="rep-net">0.00</span></div>
@@ -468,7 +474,7 @@
     <script src="/static/js/pos-android.js?v=3"></script>
     <script src="/static/js/plan-features.js?v=2"></script>
     <script src="/static/js/list-fetch.js?v=2"></script>
-    <script src="/static/js/admin.js?v=33"></script>
+    <script src="/static/js/admin.js?v=34"></script>
     <script src="/static/js/admin-android.js?v=8"></script>
     <script>
         // Disable 3D background on admin page for better performance

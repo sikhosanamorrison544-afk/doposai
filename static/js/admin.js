@@ -960,6 +960,22 @@ async function loadReport() {
         document.getElementById('rep-discounts').textContent = parseFloat(rep.discounts).toFixed(2);
         document.getElementById('rep-net').textContent = parseFloat(rep.net_sales).toFixed(2);
         document.getElementById('rep-profit').textContent = parseFloat(rep.profit).toFixed(2);
+
+        const cashOnHand = rep.cash_on_hand != null ? parseFloat(rep.cash_on_hand) : 0;
+        const cashPayments = rep.cash_payments != null ? parseFloat(rep.cash_payments) : 0;
+        const withdrawalsTotal = rep.withdrawals_total != null ? parseFloat(rep.withdrawals_total) : 0;
+        const cashRefunds = rep.cash_refunds != null ? parseFloat(rep.cash_refunds) : 0;
+        const cashOnHandEl = document.getElementById('rep-cash-on-hand');
+        if (cashOnHandEl) {
+            cashOnHandEl.textContent = cashOnHand.toFixed(2);
+            cashOnHandEl.style.color = cashOnHand < 0 ? '#ef4444' : '';
+        }
+        const cashPayEl = document.getElementById('rep-cash-payments');
+        if (cashPayEl) cashPayEl.textContent = cashPayments.toFixed(2);
+        const wdEl = document.getElementById('rep-withdrawals');
+        if (wdEl) wdEl.textContent = withdrawalsTotal.toFixed(2);
+        const refundEl = document.getElementById('rep-cash-refunds');
+        if (refundEl) refundEl.textContent = cashRefunds.toFixed(2);
         
         const stockValue = rep.total_stock_value !== undefined && rep.total_stock_value !== null ? parseFloat(rep.total_stock_value) : 0;
         const expectedProfit = rep.expected_profit !== undefined && rep.expected_profit !== null ? parseFloat(rep.expected_profit) : 0;
@@ -2207,6 +2223,9 @@ window.toggleReportPanel = function() {
         backdrop.style.setProperty('display', 'block', 'important');
         backdrop.style.setProperty('visibility', 'visible', 'important');
         console.log('Report panel shown');
+        // Default dates are today — load cash on hand for the day immediately
+        if (typeof initDates === 'function') initDates();
+        if (typeof loadReport === 'function') loadReport();
     }
 }
 
