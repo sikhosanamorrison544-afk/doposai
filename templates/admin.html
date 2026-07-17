@@ -10,10 +10,10 @@
         (function() {
             'use strict';
             try {
-                const savedTheme = localStorage.getItem('pos-theme') || 'default';
-                const validTheme = ['default', 'light', 'classic'].includes(savedTheme) ? savedTheme : 'default';
-                const themeBackgrounds = { 'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)', 'light': 'transparent', 'classic': '#e8e8e8' };
-                const themeClass = validTheme !== 'default' ? 'theme-' + validTheme : '';
+                const savedTheme = localStorage.getItem('pos-theme') || 'classic';
+                const validTheme = ['default', 'light', 'classic'].includes(savedTheme) ? savedTheme : 'classic';
+                const themeBackgrounds = { 'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)', 'light': 'transparent', 'classic': '#2a2a2a' };
+                const themeClass = 'theme-' + validTheme;
                 if (themeClass) document.documentElement.className = (document.documentElement.className.replace(/\btheme-\w+/g, '').trim() + ' ' + themeClass).trim();
                 else document.documentElement.className = document.documentElement.className.replace(/\btheme-\w+/g, '').trim();
                 if (document.body) {
@@ -475,7 +475,7 @@
     <script src="/static/js/pos-android.js?v=3"></script>
     <script src="/static/js/plan-features.js?v=2"></script>
     <script src="/static/js/list-fetch.js?v=2"></script>
-    <script src="/static/js/admin.js?v=35"></script>
+    <script src="/static/js/admin.js?v=36"></script>
     <script src="/static/js/admin-android.js?v=8"></script>
     <script>
         // Disable 3D background on admin page for better performance

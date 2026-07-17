@@ -1202,10 +1202,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyThemeToRoot(prefs: android.content.SharedPreferences) {
         val root = findViewById<View>(R.id.root_container) ?: return
-        val theme = prefs.getString("theme", "default") ?: "default"
+        val theme = prefs.getString("theme", "classic") ?: "classic"
         when (theme) {
             "light" -> root.setBackgroundResource(R.drawable.bg_theme_light)
-            "classic" -> root.setBackgroundColor(Color.parseColor("#e8e8e8"))
+            "classic" -> root.setBackgroundColor(Color.parseColor("#2a2a2a"))
             else -> root.setBackgroundResource(R.drawable.bg_gradient)
         }
     }
@@ -1217,7 +1217,7 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.theme_classic)
         )
         val values = arrayOf("default", "light", "classic")
-        val current = prefs.getString("theme", "default") ?: "default"
+        val current = prefs.getString("theme", "classic") ?: "classic"
         val index = values.indexOf(current).coerceAtLeast(0)
         AlertDialog.Builder(this)
             .setTitle(R.string.theme_dialog_title)

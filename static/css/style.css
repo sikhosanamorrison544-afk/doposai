@@ -6590,8 +6590,40 @@ body.theme-classic .error {
 /* Override inline styles for dynamically generated content — white text */
 body.theme-classic [style*="color: #1a1a2e"],
 body.theme-classic [style*="color:#1a1a2e"],
+body.theme-classic [style*="color: #1a1a1a"],
+body.theme-classic [style*="color:#1a1a1a"],
 body.theme-classic [style*="color: rgba(26, 26, 46"],
 body.theme-classic [style*="color:rgba(26, 26, 46"] {
+    color: #ffffff !important;
+}
+
+/* Main POS: force white headings + button labels in classic */
+html body.theme-classic #pos-screen h1,
+html body.theme-classic #pos-screen h2,
+html body.theme-classic #pos-screen h3,
+html body.theme-classic #pos-screen h4,
+html body.theme-classic #pos-screen label,
+html body.theme-classic #pos-screen th,
+html body.theme-classic #pos-screen .shop-name,
+html body.theme-classic #pos-screen .platform-motto,
+html body.theme-classic #pos-screen #user-info,
+html body.theme-classic #pos-screen button,
+html body.theme-classic #pos-screen button.small,
+html body.theme-classic #pos-screen button.primary,
+html body.theme-classic #pos-screen button.danger,
+html body.theme-classic #pos-screen #btn-admin,
+html body.theme-classic #pos-screen #btn-billing,
+html body.theme-classic #pos-screen #btn-layby,
+html body.theme-classic #pos-screen #btn-refunds,
+html body.theme-classic #pos-screen #btn-pending-collection,
+html body.theme-classic #pos-screen #btn-logout,
+html body.theme-classic #pos-screen #btn-complete-sale,
+html body.theme-classic #payment-panel button,
+html body.theme-classic #payment-panel label,
+html body.theme-classic #payment-panel h2,
+html body.theme-classic #payment-panel h3,
+html body.theme-classic #payment-panel .totals,
+html body.theme-classic #payment-panel .totals * {
     color: #ffffff !important;
 }
 

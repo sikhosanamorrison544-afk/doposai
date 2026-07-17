@@ -5,7 +5,8 @@
     'use strict';
 
     function applyTheme(themeName) {
-        const theme = themeName || 'default';
+        const allowed = ['default', 'light', 'classic'];
+        const theme = allowed.includes(themeName) ? themeName : 'classic';
         const themeClasses = ['theme-default', 'theme-light', 'theme-classic'];
         document.body.classList.remove(...themeClasses);
         document.documentElement.classList.remove(...themeClasses);
@@ -23,8 +24,8 @@
     }
 
     function loadTheme() {
-        const saved = localStorage.getItem('pos-theme') || 'default';
-        const valid = ['default', 'light', 'classic'].includes(saved) ? saved : 'default';
+        const saved = localStorage.getItem('pos-theme') || 'classic';
+        const valid = ['default', 'light', 'classic'].includes(saved) ? saved : 'classic';
         applyTheme(valid);
     }
 
@@ -38,12 +39,12 @@
     }
 
     window.addEventListener('storage', function (e) {
-        if (e.key === 'pos-theme') applyTheme(e.newValue || 'default');
+        if (e.key === 'pos-theme') applyTheme(e.newValue || 'classic');
     });
 
-    let lastTheme = localStorage.getItem('pos-theme') || 'default';
+    let lastTheme = localStorage.getItem('pos-theme') || 'classic';
     setInterval(function () {
-        const current = localStorage.getItem('pos-theme') || 'default';
+        const current = localStorage.getItem('pos-theme') || 'classic';
         if (current !== lastTheme) {
             lastTheme = current;
             applyTheme(current);

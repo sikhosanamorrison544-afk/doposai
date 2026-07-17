@@ -366,7 +366,7 @@ async function processWithdrawal() {
 // Theme management (only 3 themes: default, light, classic)
 function applyTheme(themeName) {
     const allowed = ['default', 'light', 'classic'];
-    const theme = allowed.includes(themeName) ? themeName : 'default';
+    const theme = allowed.includes(themeName) ? themeName : 'classic';
     const themeClasses = ['theme-default', 'theme-light', 'theme-classic'];
     document.body.classList.remove(...themeClasses);
     document.documentElement.classList.remove(...themeClasses);
@@ -398,8 +398,8 @@ function applyTheme(themeName) {
 }
 
 function loadTheme() {
-    const saved = localStorage.getItem('pos-theme') || 'default';
-    const theme = ['default', 'light', 'classic'].includes(saved) ? saved : 'default';
+    const saved = localStorage.getItem('pos-theme') || 'classic';
+    const theme = ['default', 'light', 'classic'].includes(saved) ? saved : 'classic';
     applyTheme(theme);
     
     if (theme === 'light') {

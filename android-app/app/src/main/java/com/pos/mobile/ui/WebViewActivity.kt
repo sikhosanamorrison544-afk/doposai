@@ -235,7 +235,7 @@ class WebViewActivity : AppCompatActivity() {
 
     private fun injectAuthThenReload(webView: WebView, targetUrl: String, token: String?, username: String, role: String) {
         val prefs = getSharedPreferences("pos", MODE_PRIVATE)
-        val theme = prefs.getString("theme", "default") ?: "default"
+        val theme = prefs.getString("theme", "classic") ?: "classic"
         if (token.isNullOrBlank()) {
             val themeOnlyScript = "(function(){try{localStorage.setItem('pos-theme',${JSONObject.quote(theme)});}catch(e){}})();"
             webView.evaluateJavascript(themeOnlyScript) { }
@@ -369,7 +369,7 @@ class WebViewActivity : AppCompatActivity() {
     /** Inject auth into current page (same origin as target) then navigate to targetUrl. Use when already on a POS page (e.g. menu). */
     private fun injectAuthThenNavigate(webView: WebView, targetUrl: String, token: String?, username: String, role: String) {
         val prefs = getSharedPreferences("pos", MODE_PRIVATE)
-        val theme = prefs.getString("theme", "default") ?: "default"
+        val theme = prefs.getString("theme", "classic") ?: "classic"
         if (token.isNullOrBlank()) {
             webView.loadUrl(targetUrl)
             return

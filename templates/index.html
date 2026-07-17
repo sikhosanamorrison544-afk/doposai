@@ -12,18 +12,18 @@
         (function() {
             'use strict';
             try {
-                const savedTheme = localStorage.getItem('pos-theme') || 'default';
+                const savedTheme = localStorage.getItem('pos-theme') || 'classic';
                 const themeBackgrounds = {
                     'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)',
                     'light': 'transparent',
-                    'classic': '#e8e8e8'
+                    'classic': '#2a2a2a'
                 };
-                const validTheme = ['default', 'light', 'classic'].includes(savedTheme) ? savedTheme : 'default';
+                const validTheme = ['default', 'light', 'classic'].includes(savedTheme) ? savedTheme : 'classic';
                 if (validTheme !== savedTheme) {
                     try { localStorage.setItem('pos-theme', validTheme); } catch (e) {}
                 }
                 
-                const themeClass = validTheme !== 'default' ? 'theme-' + validTheme : '';
+                const themeClass = 'theme-' + validTheme;
                 function applyThemeClasses(el) {
                     if (!el) return;
                     el.className = el.className.replace(/\btheme-\w+/g, '').trim();
@@ -73,7 +73,7 @@
     </script>
     <!-- Preload 3D model for faster loading -->
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
-    <link rel="stylesheet" href="/static/css/style.css?v=20260608e">
+    <link rel="stylesheet" href="/static/css/style.css?v=20260608f">
     <script>
         // Immediately prevent password saving before page fully loads
         (function() {
@@ -203,16 +203,16 @@
     <div id="pos-screen" class="screen">
         <header class="top-bar">
             <div class="top-bar-brand">
-                <div class="shop-name" style="color: #1a1a1a !important;">{{ store_name }}</div>
+                <div class="shop-name">{{ store_name }}</div>
                 <span class="platform-motto">{{ platform_motto or 'Pecunia Non Olet' }}</span>
             </div>
-            <span id="user-info" style="color: #1a1a1a !important;"></span>
+            <span id="user-info"></span>
             <div class="top-bar-right" style="position: relative;">
-                <button id="btn-admin" class="small" style="display:none; color: #1a1a1a !important;">Admin</button>
-                <button id="btn-billing" class="small" style="display:none; background: rgba(16, 185, 129, 0.85); color: #1a1a1a !important;" type="button">Billing</button>
-                <button id="btn-pending-collection" class="small" style="background: rgba(251, 191, 36, 0.8); display:none; color: #1a1a1a !important;" onclick="window.location.href='/pending-collection'; return false;">Pending Collection</button>
-                <button id="btn-refunds" class="small" style="display:none; color: #1a1a1a !important;" onclick="window.location.href='/refunds'; return false;">Refunds</button>
-                <button id="btn-layby" class="small" style="background: rgba(59, 130, 246, 0.8); color: #1a1a1a !important;">Layby</button>
+                <button id="btn-admin" class="small" style="display:none;">Admin</button>
+                <button id="btn-billing" class="small" style="display:none; background: rgba(16, 185, 129, 0.85);" type="button">Billing</button>
+                <button id="btn-pending-collection" class="small" style="background: rgba(251, 191, 36, 0.8); display:none;" onclick="window.location.href='/pending-collection'; return false;">Pending Collection</button>
+                <button id="btn-refunds" class="small" style="display:none;" onclick="window.location.href='/refunds'; return false;">Refunds</button>
+                <button id="btn-layby" class="small" style="background: rgba(59, 130, 246, 0.8);">Layby</button>
                 <button id="btn-logout" class="danger small">Logout</button>
                 <!-- Floating Icons -->
                 <div class="pos-floating-icons">
@@ -521,7 +521,7 @@
 <script src="/static/js/plan-features.js?v=1"></script>
 <script src="/static/js/role-permissions.js?v=1"></script>
 <script src="/static/js/list-fetch.js?v=1"></script>
-<script src="/static/js/app.js?v=18"></script>
+<script src="/static/js/app.js?v=19"></script>
 <script src="/static/js/background3d.js?v=5"></script>
 <script src="/static/js/store-branding.js?v=4"></script>
 </body>
