@@ -1282,42 +1282,41 @@ function setupLaybyEvents() {
 
 // Theme management
 function applyTheme(themeName) {
-    // Remove all theme classes from both body and html elements
     const themeClasses = ['theme-default', 'theme-light', 'theme-classic'];
     document.body.classList.remove(...themeClasses);
     document.documentElement.classList.remove(...themeClasses);
     
-    const theme = ['default', 'light', 'classic'].includes(themeName) ? themeName : 'default';
+    const theme = ['default', 'light', 'classic'].includes(themeName) ? themeName : 'classic';
     const themeClass = 'theme-' + theme;
     document.body.classList.add(themeClass);
     document.documentElement.classList.add(themeClass);
     
-    if (themeName === 'light') {
+    if (theme === 'light') {
         if (typeof window.playLightThemeVideo === 'function') window.playLightThemeVideo();
     } else if (typeof window.hideLightThemeVideo === 'function') {
         window.hideLightThemeVideo();
     }
     
-    // Save to localStorage
-    localStorage.setItem('pos-theme', themeName || 'default');
+    localStorage.setItem('pos-theme', theme);
 }
 
 function loadTheme() {
-    const savedTheme = localStorage.getItem('pos-theme') || 'default';
-    applyTheme(savedTheme);
+    const savedTheme = localStorage.getItem('pos-theme') || 'classic';
+    const theme = ['default', 'light', 'classic'].includes(savedTheme) ? savedTheme : 'classic';
+    applyTheme(theme);
 }
 
 // Listen for theme changes from other pages
 window.addEventListener('storage', function(e) {
     if (e.key === 'pos-theme') {
-        applyTheme(e.newValue || 'default');
+        applyTheme(e.newValue || 'classic');
     }
 });
 
 // Also check for theme changes periodically (in case same-tab changes)
-let lastTheme = localStorage.getItem('pos-theme') || 'default';
+let lastTheme = localStorage.getItem('pos-theme') || 'classic';
 setInterval(() => {
-    const currentTheme = localStorage.getItem('pos-theme') || 'default';
+    const currentTheme = localStorage.getItem('pos-theme') || 'classic';
     if (currentTheme !== lastTheme) {
         lastTheme = currentTheme;
         applyTheme(currentTheme);

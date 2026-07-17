@@ -7577,6 +7577,32 @@ html body.theme-classic.page-pending-collection #btn-logout {
     color: #ffffff !important;
 }
 
+/* Layby page: force white text in classic */
+html body.theme-classic.page-layby .top-bar,
+html body.theme-classic.page-layby .top-bar *,
+html body.theme-classic.page-layby main,
+html body.theme-classic.page-layby main h2,
+html body.theme-classic.page-layby main h3,
+html body.theme-classic.page-layby main label,
+html body.theme-classic.page-layby main span,
+html body.theme-classic.page-layby main td,
+html body.theme-classic.page-layby main th,
+html body.theme-classic.page-layby main button,
+html body.theme-classic.page-layby #customers-table,
+html body.theme-classic.page-layby #customers-table *,
+html body.theme-classic.page-layby #transactions-table,
+html body.theme-classic.page-layby #transactions-table *,
+html body.theme-classic.page-layby #customer-form-container,
+html body.theme-classic.page-layby #customer-form-container label,
+html body.theme-classic.page-layby #customer-form-container h3,
+html body.theme-classic.page-layby #payment-panel,
+html body.theme-classic.page-layby #payment-panel h2,
+html body.theme-classic.page-layby #payment-panel label,
+html body.theme-classic.page-layby #payment-panel .totals,
+html body.theme-classic.page-layby #payment-panel .totals * {
+    color: #ffffff !important;
+}
+
 html body.theme-classic input::placeholder,
 html body.theme-classic textarea::placeholder {
     color: rgba(255, 255, 255, 0.45) !important;

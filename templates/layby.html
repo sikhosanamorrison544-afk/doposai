@@ -10,17 +10,17 @@
         (function() {
             'use strict';
             try {
-                const savedTheme = localStorage.getItem('pos-theme') || 'default';
-                const validTheme = ['default', 'light', 'classic'].includes(savedTheme) ? savedTheme : 'default';
+                const savedTheme = localStorage.getItem('pos-theme') || 'classic';
+                const validTheme = ['default', 'light', 'classic'].includes(savedTheme) ? savedTheme : 'classic';
                 if (validTheme !== savedTheme) { try { localStorage.setItem('pos-theme', validTheme); } catch (e) {} }
-                const themeClass = validTheme !== 'default' ? 'theme-' + validTheme : '';
-                const themeBackgrounds = { 'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)', 'light': 'transparent', 'classic': '#e8e8e8' };
+                const themeClass = 'theme-' + validTheme;
+                const themeBackgrounds = { 'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)', 'light': 'transparent', 'classic': '#2a2a2a' };
                 
-                if (themeClass) document.documentElement.className = (document.documentElement.className + ' ' + themeClass).trim();
+                document.documentElement.className = (document.documentElement.className.replace(/\btheme-\w+/g, '').trim() + ' ' + themeClass).trim();
                 function applyBodyTheme() {
                     if (document.body) {
                         document.body.classList.remove('theme-default', 'theme-light', 'theme-classic');
-                        if (themeClass) document.body.classList.add(themeClass);
+                        document.body.classList.add(themeClass);
                     }
                 }
                 if (document.body) applyBodyTheme(); else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyBodyTheme); else setTimeout(applyBodyTheme, 0);
@@ -51,10 +51,63 @@
     </script>
     <!-- Preload 3D model for faster loading -->
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=20260608h">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        /* Default/light: dark headings (replaces old inline #1a1a1a) */
+        body:not(.theme-classic).page-layby .top-bar,
+        body:not(.theme-classic).page-layby .top-bar .shop-name,
+        body:not(.theme-classic).page-layby #layby-user-info,
+        body:not(.theme-classic).page-layby #btn-back-pos,
+        body:not(.theme-classic).page-layby #customers-view h2,
+        body:not(.theme-classic).page-layby #customer-count,
+        body:not(.theme-classic).page-layby #btn-view-outstanding-debts,
+        body:not(.theme-classic).page-layby #btn-toggle-customer-form,
+        body:not(.theme-classic).page-layby #form-toggle-text,
+        body:not(.theme-classic).page-layby #customers-table thead th,
+        body:not(.theme-classic).page-layby #selected-customer-name {
+            color: #1a1a1a !important;
+        }
+
+        /* Classic: all layby page text white */
+        body.theme-classic.page-layby,
+        body.theme-classic.page-layby #app,
+        body.theme-classic.page-layby .top-bar,
+        body.theme-classic.page-layby .top-bar *,
+        body.theme-classic.page-layby main,
+        body.theme-classic.page-layby main h2,
+        body.theme-classic.page-layby main h3,
+        body.theme-classic.page-layby main label,
+        body.theme-classic.page-layby main p,
+        body.theme-classic.page-layby main span,
+        body.theme-classic.page-layby main strong,
+        body.theme-classic.page-layby main td,
+        body.theme-classic.page-layby main th,
+        body.theme-classic.page-layby main button,
+        body.theme-classic.page-layby #customers-table,
+        body.theme-classic.page-layby #customers-table *,
+        body.theme-classic.page-layby #transactions-table,
+        body.theme-classic.page-layby #transactions-table *,
+        body.theme-classic.page-layby #customer-form-container,
+        body.theme-classic.page-layby #customer-form-container *,
+        body.theme-classic.page-layby #payment-panel,
+        body.theme-classic.page-layby #payment-panel *:not(option) {
+            color: #ffffff !important;
+        }
+
+        body.theme-classic.page-layby [style*="color: #1a1a1a"],
+        body.theme-classic.page-layby [style*="color:#1a1a1a"],
+        body.theme-classic.page-layby [style*="color: #1a1a2e"],
+        body.theme-classic.page-layby [style*="color:#1a1a2e"],
+        body.theme-classic.page-layby [style*="color: #000"],
+        body.theme-classic.page-layby [style*="color:#000"],
+        body.theme-classic.page-layby [style*="color: black"],
+        body.theme-classic.page-layby [style*="color:black"] {
+            color: #ffffff !important;
+        }
+    </style>
 </head>
-<body>
+<body class="page-layby layby-page">
 <!-- 3D Background Canvas for Default Theme -->
 <canvas id="bg3d-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none; background: transparent;"></canvas>
 <!-- Video Background for Light Theme -->
@@ -64,10 +117,10 @@
 <script src="/static/js/light-theme-video.js?v=3"></script>
 <div id="app" class="screen active">
     <header class="top-bar">
-        <span id="layby-user-info" style="color: #1a1a1a !important;"></span>
-        <div class="shop-name" style="color: #1a1a1a !important;">{{ store_name }}</div>
+        <span id="layby-user-info"></span>
+        <div class="shop-name">{{ store_name }}</div>
         <div class="top-bar-right">
-            <button id="btn-back-pos" class="small" style="color: #1a1a1a !important;">Back to POS</button>
+            <button id="btn-back-pos" class="small">Back to POS</button>
             <button id="btn-layby-logout" class="danger small">Logout</button>
         </div>
     </header>
@@ -76,15 +129,15 @@
         <section id="customers-view" class="left" style="flex: 1; width: 100%;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                 <div>
-                    <h2 style="margin: 0; display: inline-block; color: #1a1a1a !important;">Layby Customers</h2>
-                    <span id="customer-count" style="margin-left: 12px; color: #1a1a1a !important; font-size: 14px;">(0 customers)</span>
+                    <h2 style="margin: 0; display: inline-block;">Layby Customers</h2>
+                    <span id="customer-count" style="margin-left: 12px; font-size: 14px;">(0 customers)</span>
                 </div>
                 <div style="display: flex; gap: 8px;">
-                    <button id="btn-view-outstanding-debts" type="button" class="small" style="background: rgba(239, 68, 68, 0.8); color: #1a1a1a !important;" onclick="window.location.href='/debts/outstanding'; return false;">
+                    <button id="btn-view-outstanding-debts" type="button" class="small" style="background: rgba(239, 68, 68, 0.8);" onclick="window.location.href='/debts/outstanding'; return false;">
                         View Outstanding Debts
                     </button>
-                    <button id="btn-toggle-customer-form" class="small" style="background: rgba(59, 130, 246, 0.8); color: #1a1a1a !important;">
-                        <span id="form-toggle-text" style="color: #1a1a1a !important;">Show Add Customer Form</span>
+                    <button id="btn-toggle-customer-form" class="small" style="background: rgba(59, 130, 246, 0.8);">
+                        <span id="form-toggle-text">Show Add Customer Form</span>
                     </button>
                 </div>
             </div>
@@ -122,11 +175,11 @@
                 <table style="width:100%;border-collapse:collapse;">
                     <thead style="position:sticky;top:0;background:rgba(17,24,39,0.9);z-index:10;">
                         <tr>
-                            <th style="text-align:center;padding:12px;border-bottom:2px solid rgba(255,255,255,0.2);color:#1a1a1a !important;font-weight:bold !important;">ID</th>
-                            <th style="padding:12px;border-bottom:2px solid rgba(255,255,255,0.2);color:#1a1a1a !important;font-weight:bold !important;">Name</th>
-                            <th style="padding:12px;border-bottom:2px solid rgba(255,255,255,0.2);color:#1a1a1a !important;font-weight:bold !important;">Phone</th>
-                            <th style="padding:12px;border-bottom:2px solid rgba(255,255,255,0.2);color:#1a1a1a !important;font-weight:bold !important;">Address</th>
-                            <th style="text-align:center;padding:12px;border-bottom:2px solid rgba(255,255,255,0.2);color:#1a1a1a !important;font-weight:bold !important;">Actions</th>
+                            <th style="text-align:center;padding:12px;border-bottom:2px solid rgba(255,255,255,0.2);font-weight:bold !important;">ID</th>
+                            <th style="padding:12px;border-bottom:2px solid rgba(255,255,255,0.2);font-weight:bold !important;">Name</th>
+                            <th style="padding:12px;border-bottom:2px solid rgba(255,255,255,0.2);font-weight:bold !important;">Phone</th>
+                            <th style="padding:12px;border-bottom:2px solid rgba(255,255,255,0.2);font-weight:bold !important;">Address</th>
+                            <th style="text-align:center;padding:12px;border-bottom:2px solid rgba(255,255,255,0.2);font-weight:bold !important;">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="customers-body"></tbody>
@@ -139,7 +192,7 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <div>
                     <h2 style="margin: 0; display: inline-block;">Customer History</h2>
-                    <span id="selected-customer-name" style="margin-left: 12px; color: #1a1a1a; font-size: 16px; font-weight: bold;"></span>
+                    <span id="selected-customer-name" style="margin-left: 12px; font-size: 16px; font-weight: bold;"></span>
                 </div>
                 <button id="btn-back-to-customers" class="small" style="background: rgba(59, 130, 246, 0.8);">Back to Customers</button>
             </div>
@@ -197,7 +250,7 @@
 
 <script src="/static/js/price-input-formatter.js?v=7"></script>
 <script src="/static/js/list-fetch.js?v=1"></script>
-<script src="/static/js/layby.js?v=3"></script>
+<script src="/static/js/layby.js?v=4"></script>
 <!-- Three.js for 3D Background -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
