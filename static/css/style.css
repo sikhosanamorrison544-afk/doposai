@@ -2060,16 +2060,20 @@ td:nth-child(5) {
         max-height: 28px !important;
         font-size: 14px !important;
     }
+    body.page-admin .admin-products-toolbar {
+        margin-bottom: 6px !important;
+        gap: 6px !important;
+    }
+    body.page-admin .admin-products-title {
+        font-size: 18px !important;
+    }
+    body.page-admin .admin-desktop-search {
+        height: 28px !important;
+        font-size: 12px !important;
+        min-width: 140px !important;
+    }
     body.page-admin .pos-layout .left {
         padding: 4px 6px !important;
-    }
-    body.page-admin .pos-layout .left > div[style*="position:relative"] > h2,
-    body.page-admin .pos-layout .left h2[style*="Products"] {
-        font-size: 14px !important;
-    }
-    body.page-admin .pos-layout .left > div[style*="position:relative"] {
-        margin-bottom: 4px !important;
-        gap: 4px !important;
     }
     body.page-admin button.small,
     body.page-admin .primary.small,
@@ -2106,6 +2110,18 @@ body.page-admin .admin-product-count-badge {
     white-space: nowrap;
     color: #2563eb;
 }
+body.page-admin .admin-products-toolbar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+}
+body.page-admin .admin-products-heading {
+    text-align: left;
+    pointer-events: auto;
+}
 body.page-admin .admin-products-heading h2,
 body.page-admin .admin-products-title {
     line-height: 1.2;
@@ -2116,7 +2132,39 @@ body.page-admin .admin-products-list-hint {
     font-weight: 500;
     line-height: 1.35;
     opacity: 0.85;
-    max-width: 420px;
+    max-width: 520px;
+}
+body.page-admin .admin-products-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+body.page-admin .admin-desktop-search,
+body.page-admin input.admin-product-search.admin-desktop-search {
+    flex: 1 1 220px;
+    min-width: 180px;
+    max-width: 360px;
+    height: 34px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.12);
+    color: inherit;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+body.page-admin .admin-desktop-search::placeholder {
+    color: rgba(255, 255, 255, 0.55);
+}
+html body.theme-light.page-admin .admin-desktop-search,
+html body.theme-light.page-admin input.admin-product-search.admin-desktop-search {
+    background: #fff;
+    border: 1px solid rgba(15, 23, 42, 0.18);
+    color: #0f172a;
+}
+html body.theme-light.page-admin .admin-desktop-search::placeholder {
+    color: #94a3b8;
 }
 body.page-admin #products-table .product-row-actions,
 body.page-admin .product-row-actions {

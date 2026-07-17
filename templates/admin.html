@@ -42,7 +42,7 @@
     </script>
     <!-- Preload 3D model for faster loading -->
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
-    <link rel="stylesheet" href="/static/css/style.css?v=32">
+    <link rel="stylesheet" href="/static/css/style.css?v=33">
     <link rel="stylesheet" href="/static/css/pos-android.css?v=4">
     <link rel="stylesheet" href="/static/css/admin-android.css?v=9">
 </head>
@@ -85,7 +85,7 @@
         <p id="admin-products-list-hint-mobile" class="admin-products-list-hint" hidden></p>
     </div>
     <div class="admin-mobile-search-wrap">
-        <input type="text" id="admin-product-search" class="admin-mobile-search" placeholder="Search products…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" inputmode="search">
+        <input type="text" id="admin-product-search" class="admin-product-search admin-mobile-search" placeholder="Search products…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" inputmode="search">
     </div>
 </div>
 <div id="app" class="screen active">
@@ -139,8 +139,15 @@
     </div>
     <main class="pos-layout">
         <section class="left" style="display:flex;flex-direction:column;height:100%;">
-            <div style="display:flex;flex-wrap:wrap;justify-content:flex-start;align-items:center;margin-bottom:8px;gap:8px;flex-shrink:0;position:relative;">
-                <div style="display:flex;gap:8px;align-items:center;">
+            <div class="admin-products-toolbar">
+                <div class="admin-products-heading">
+                    <h2 class="admin-products-title" style="margin:0;font-size:26px;">
+                        Products
+                        <span id="admin-product-count-badge" class="admin-product-count-badge" aria-live="polite">(—)</span>
+                    </h2>
+                    <p id="admin-products-list-hint" class="admin-products-list-hint" hidden></p>
+                </div>
+                <div class="admin-products-actions">
                     <button id="btn-show-product-form" class="primary small">➕ Add Product</button>
                     <button id="btn-import-inventory" class="primary small" onclick="
                     console.log('Import button clicked (inline)');
@@ -172,15 +179,9 @@
                     return false;
                 ">📥 Import Inventory</button>
                     <button type="button" id="btn-price-list-pdf" class="primary small">📄 Price List</button>
+                    <input type="text" id="admin-product-search-desktop" class="admin-product-search admin-desktop-search" placeholder="Search products…" autocomplete="off" spellcheck="false" enterkeyhint="search" inputmode="search" aria-label="Search products">
                 </div>
                 <div id="price-list-download-status" class="price-list-download-status" role="status" aria-live="polite" hidden></div>
-                <div class="admin-products-heading" style="position:absolute;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;">
-                    <h2 class="admin-products-title" style="margin:0;font-size:26px;">
-                        Products
-                        <span id="admin-product-count-badge" class="admin-product-count-badge" aria-live="polite">(—)</span>
-                    </h2>
-                    <p id="admin-products-list-hint" class="admin-products-list-hint" hidden></p>
-                </div>
             </div>
             <div class="card product-form-card" id="product-form-card" style="max-width:none;margin:4px 0;padding:8px 12px;display:none;flex-shrink:0;">
                 <h3 style="margin:0 0 6px 0;font-size:14px;">Add / Update Product</h3>
@@ -474,7 +475,7 @@
     <script src="/static/js/pos-android.js?v=3"></script>
     <script src="/static/js/plan-features.js?v=2"></script>
     <script src="/static/js/list-fetch.js?v=2"></script>
-    <script src="/static/js/admin.js?v=34"></script>
+    <script src="/static/js/admin.js?v=35"></script>
     <script src="/static/js/admin-android.js?v=8"></script>
     <script>
         // Disable 3D background on admin page for better performance

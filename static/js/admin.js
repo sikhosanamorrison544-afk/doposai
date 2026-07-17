@@ -471,23 +471,36 @@ function paintAdminProductsTable(products) {
 let adminProductSearchTimer = null;
 
 function setupAdminProductSearch() {
-    const input = document.getElementById('admin-product-search');
-    if (!input || input.dataset.posAdminSearchBound === '1') return;
-    input.dataset.posAdminSearchBound = '1';
+    const inputs = document.querySelectorAll('.admin-product-search');
+    if (!inputs.length) return;
 
-    input.addEventListener('input', function () {
-        const q = input.value.trim();
-        if (adminProductSearchTimer) clearTimeout(adminProductSearchTimer);
-        adminProductSearchTimer = setTimeout(function () {
-            loadAdminProducts({ search: q });
-        }, 280);
-    });
+    function syncSearchInputs(source) {
+        const value = source.value;
+        inputs.forEach(function (el) {
+            if (el !== source && el.value !== value) el.value = value;
+        });
+    }
 
-    input.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') {
-            input.value = '';
-            loadAdminProducts({ search: '' });
-        }
+    inputs.forEach(function (input) {
+        if (input.dataset.posAdminSearchBound === '1') return;
+        input.dataset.posAdminSearchBound = '1';
+
+        input.addEventListener('input', function () {
+            syncSearchInputs(input);
+            const q = input.value.trim();
+            if (adminProductSearchTimer) clearTimeout(adminProductSearchTimer);
+            adminProductSearchTimer = setTimeout(function () {
+                loadAdminProducts({ search: q });
+            }, 280);
+        });
+
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                input.value = '';
+                syncSearchInputs(input);
+                loadAdminProducts({ search: '' });
+            }
+        });
     });
 }
 
@@ -628,10 +641,12 @@ window.deleteAdminProduct = async function deleteAdminProduct(id) {
 // Make startEditProduct globally accessible  
 window.startEditProduct = async function startEditProduct(id) {
     console.log('=== startEditProduct called with id:', id, '===');
-    const adminSearch = document.getElementById('admin-product-search');
+    const adminSearchFocused =
+        document.activeElement &&
+        document.activeElement.classList &&
+        document.activeElement.classList.contains('admin-product-search');
     if (
-        adminSearch &&
-        document.activeElement === adminSearch &&
+        adminSearchFocused &&
         typeof window.isPosAndroidApp === 'function' &&
         window.isPosAndroidApp()
     ) {
