@@ -2136,15 +2136,21 @@ body.page-admin .admin-products-list-hint {
 }
 body.page-admin .admin-products-actions {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 8px;
+    width: 100%;
+}
+body.page-admin .admin-products-actions > button {
+    flex: 0 0 auto;
+    white-space: nowrap;
 }
 body.page-admin .admin-desktop-search,
 body.page-admin input.admin-product-search.admin-desktop-search {
-    flex: 1 1 220px;
-    min-width: 180px;
-    max-width: 360px;
+    flex: 1 1 auto;
+    min-width: 140px;
+    max-width: none;
+    width: auto;
     height: 34px;
     padding: 6px 12px;
     border-radius: 8px;
