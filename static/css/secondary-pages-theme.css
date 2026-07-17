@@ -189,7 +189,27 @@ body.theme-classic.page-billing #sub-days-remaining {
 body.theme-classic.page-billing table.billing-table th,
 body.theme-classic.page-billing table.billing-table td {
     border-bottom-color: rgba(255, 255, 255, 0.15) !important;
-    color: #ffffff !important;
+}
+
+body.theme-classic.page-billing table.billing-table thead th {
+    background: #2a2a2a !important;
+    color: #a5b4fc !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.02em !important;
+    border-bottom: 2px solid rgba(165, 180, 252, 0.45) !important;
+}
+
+body.theme-classic.page-billing table.billing-table tbody td {
+    color: rgba(255, 255, 255, 0.88) !important;
+    background: transparent !important;
+}
+
+body.theme-classic.page-billing .billing-card > h2 {
+    color: #c7d2fe !important;
+    font-weight: 700 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    padding-bottom: 8px;
+    margin-bottom: 12px;
 }
 
 body.theme-classic.page-billing .billing-msg.error {

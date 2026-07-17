@@ -8,7 +8,7 @@
     <script src="/static/js/theme-instant.js?v=2"></script>
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
     <link rel="stylesheet" href="/static/css/style.css?v=20260608i">
-    <link rel="stylesheet" href="/static/css/secondary-pages-theme.css?v=2">
+    <link rel="stylesheet" href="/static/css/secondary-pages-theme.css?v=3">
     <style>
         .billing-wrap { max-width: 960px; margin: 0 auto; padding: 16px; }
         .billing-card { background: rgba(255,255,255,0.95); border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
@@ -60,6 +60,22 @@
         body.theme-classic #sub-plan-detail { color: #ffffff !important; }
         body.theme-classic #sub-days-remaining { color: #93c5fd !important; }
         body.theme-classic #sub-dates { color: rgba(255, 255, 255, 0.75) !important; }
+        body.theme-classic .billing-card > h2 {
+            color: #c7d2fe !important;
+            font-weight: 700 !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+        body.theme-classic table.billing-table thead th {
+            background: #2a2a2a !important;
+            color: #a5b4fc !important;
+            font-weight: 700 !important;
+            border-bottom: 2px solid rgba(165, 180, 252, 0.45) !important;
+        }
+        body.theme-classic table.billing-table tbody td {
+            color: rgba(255, 255, 255, 0.88) !important;
+        }
     </style>
 </head>
 <body class="page-billing">
