@@ -6,7 +6,7 @@
 |-------|--------|
 | Package ID | `com.pos.mobile` |
 | App name | POS Mobile (change in Play Console listing if desired) |
-| Default API | `https://api.doposai.com/` |
+| Default API | `https://doposai.onrender.com/` |
 | Privacy policy | `https://doposai.com/privacy` |
 | Play icon (512×512) | `static/img/playstore-icon.png` in web repo |
 
@@ -58,7 +58,7 @@ Each new release must increase `versionCode` in `app/build.gradle.kts`.
 
 Provide in Play Console → App access:
 
-- Server: `https://api.doposai.com/` (pre-filled in app)
+- Server: `https://doposai.onrender.com/` (pre-filled in app)
 - Test username / password for a demo tenant
 - Note: Bluetooth printer optional; core POS works without it
 
