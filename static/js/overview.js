@@ -113,7 +113,8 @@
         const box = $('ov-chart-trend');
         if (!box) return;
         if (!rows || !rows.length) {
-            box.innerHTML = '<div class="chart-empty">No sales in this period</div>';
+            box.innerHTML =
+                '<div class="chart-empty">No sales in this period yet. Try another date range or open POS to record a sale.</div>';
             return;
         }
         const w = 400;
@@ -138,13 +139,13 @@
             ' ' +
             h +
             '" preserveAspectRatio="none" role="img">' +
-            '<polyline fill="none" stroke="#3b82f6" stroke-width="2" points="' +
+            '<polyline fill="none" stroke="#2563eb" stroke-width="2.5" points="' +
             pts +
             '" />' +
             '</svg>' +
-            '<div style="font-size:0.8rem;opacity:0.75;margin-top:6px;">' +
+            '<div class="chart-caption">' +
             rows.length +
-            ' day(s) · peak ' +
+            ' point(s) · peak ' +
             money(max) +
             '</div>';
     }
@@ -153,7 +154,8 @@
         const box = $(boxId);
         if (!box) return;
         if (!items || !items.length) {
-            box.innerHTML = '<div class="chart-empty">No data</div>';
+            box.innerHTML =
+                '<div class="chart-empty">No data for this period. Charts appear after completed sales are recorded.</div>';
             return;
         }
         const max = Math.max.apply(
@@ -184,7 +186,8 @@
         const box = $('ov-chart-inventory');
         if (!box) return;
         if (!items || !items.length) {
-            box.innerHTML = '<div class="chart-empty">No products</div>';
+            box.innerHTML =
+                '<div class="chart-empty">No active products yet. Add stock from Inventory.</div>';
             return;
         }
         const total =

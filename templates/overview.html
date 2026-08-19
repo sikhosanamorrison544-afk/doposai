@@ -7,35 +7,34 @@
     <meta name="platform-motto" content="{{ platform_motto or 'Pecunia Non Olet' }}">
     <script src="/static/js/theme-instant.js"></script>
     <link rel="stylesheet" href="/static/css/style.css">
-    <link rel="stylesheet" href="/static/css/pos-android.css?v=4">
     <link rel="stylesheet" href="/static/css/secondary-pages-theme.css">
-    <link rel="stylesheet" href="/static/css/overview.css">
+    <link rel="stylesheet" href="/static/css/overview.css?v=6">
 </head>
-<body class="page-overview">
-<div id="app">
+<body class="page-overview overview-page">
+<div id="app" class="overview-app">
     <header class="overview-header">
         <div class="overview-header-main">
-            <div>
+            <div class="overview-title-block">
                 <p class="overview-kicker">Business Overview</p>
                 <h1 id="ov-business-name">{{ store_name }}</h1>
                 <p id="ov-branch-line" class="overview-sub">Loading…</p>
             </div>
-            <div class="overview-header-actions">
+            <nav class="overview-header-actions" aria-label="Overview actions">
                 <a class="btn" href="/?pos=1">Open POS</a>
                 <a class="btn" href="/admin">Inventory</a>
                 <button type="button" class="btn" id="ov-refresh">Refresh</button>
                 <button type="button" class="btn danger" id="ov-logout">Log out</button>
-            </div>
+            </nav>
         </div>
         <div class="overview-filters" role="group" aria-label="Dashboard filters">
-            <label>From
-                <input type="date" id="ov-from" />
+            <label for="ov-from">From
+                <input type="date" id="ov-from" name="ov-from" />
             </label>
-            <label>To
-                <input type="date" id="ov-to" />
+            <label for="ov-to">To
+                <input type="date" id="ov-to" name="ov-to" />
             </label>
-            <label id="ov-branch-wrap" style="display:none;">Branch
-                <select id="ov-branch"></select>
+            <label id="ov-branch-wrap" for="ov-branch" style="display:none;">Branch
+                <select id="ov-branch" name="ov-branch"></select>
             </label>
             <div class="overview-presets">
                 <button type="button" class="btn subtle" data-preset="today">Today</button>
@@ -53,7 +52,7 @@
             <button type="button" class="btn" id="ov-retry">Retry</button>
         </div>
         <div id="ov-empty" class="overview-state" hidden>
-            No sales in this period yet. Open POS to ring up your first sale.
+            <p>No sales in this period yet. Open POS to ring up your first sale.</p>
             <a class="btn" href="/?pos=1">Open POS</a>
         </div>
 
@@ -61,7 +60,7 @@
 
         <section id="ov-cards" class="overview-cards" aria-label="Summary statistics"></section>
 
-        <section class="overview-charts">
+        <section class="overview-charts" aria-label="Charts">
             <article class="overview-panel">
                 <h2>Sales trend</h2>
                 <div id="ov-chart-trend" class="chart-box" role="img" aria-label="Sales revenue trend"></div>
@@ -100,6 +99,6 @@
 <script src="/static/js/theme-sync.js"></script>
 <script src="/static/js/role-permissions.js"></script>
 <script src="/static/js/store-branding.js"></script>
-<script src="/static/js/overview.js"></script>
+<script src="/static/js/overview.js?v=6"></script>
 </body>
 </html>
