@@ -106,8 +106,8 @@ html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app {
     color: var(--ov-text) !important;
 }
 
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app *:not(svg):not(path):not(circle):not(rect):not(line):not(polygon):not(polyline):not(ellipse):not(use):not(g):not(iframe):not(img):not(video):not(canvas):not(#light-theme-video):not(#light-theme-video *),
-html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app *:not(svg):not(path):not(circle):not(rect):not(line):not(polygon):not(polyline):not(ellipse):not(use):not(g):not(iframe):not(img):not(video):not(canvas):not(#light-theme-video):not(#light-theme-video *) {
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app *:not(svg):not(path):not(circle):not(rect):not(line):not(polygon):not(polyline):not(ellipse):not(use):not(g):not(iframe):not(img):not(video):not(canvas):not(#light-theme-video):not(#light-theme-video *):not(.overview-button),
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app *:not(svg):not(path):not(circle):not(rect):not(line):not(polygon):not(polyline):not(ellipse):not(use):not(g):not(iframe):not(img):not(video):not(canvas):not(#light-theme-video):not(#light-theme-video *):not(.overview-button) {
     color: var(--ov-text) !important;
 }
 
@@ -241,20 +241,13 @@ body.overview-page .overview-updated {
     width: 100%;
 }
 
-/* ── Buttons / links as buttons ─────────────────────────────────────────── */
-body.page-overview .btn,
-body.overview-page .btn,
-body.page-overview a.btn,
-body.overview-page a.btn,
-body.page-overview button.btn,
-body.overview-page button.btn,
-body.page-overview .overview-header-actions a,
-body.page-overview .overview-header-actions button,
-body.page-overview .overview-presets button,
-body.page-overview .overview-state a.btn,
-body.page-overview .overview-state button,
-html.theme-light body.theme-light.page-overview button,
-html.theme-light body.theme-light.page-overview a.btn {
+/* ── Action buttons (semantic classes beat #app * dark text) ────────────── */
+body.page-overview .overview-button,
+body.overview-page .overview-button,
+body.page-overview a.overview-button,
+body.overview-page a.overview-button,
+body.page-overview button.overview-button,
+body.overview-page button.overview-button {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -262,9 +255,7 @@ html.theme-light body.theme-light.page-overview a.btn {
     padding: 8px 14px !important;
     margin: 0 !important;
     border-radius: 8px !important;
-    border: 1px solid var(--ov-btn-border) !important;
-    background: var(--ov-btn-bg) !important;
-    color: var(--ov-btn-text) !important;
+    border: 1px solid transparent !important;
     text-decoration: none !important;
     font-size: 0.9rem !important;
     font-weight: 600 !important;
@@ -276,31 +267,100 @@ html.theme-light body.theme-light.page-overview a.btn {
     transform: none !important;
     opacity: 1 !important;
     visibility: visible !important;
+    text-indent: 0 !important;
+    white-space: nowrap;
 }
 
-body.page-overview .btn.subtle,
-body.overview-page .btn.subtle,
-body.page-overview .overview-presets button,
-html.theme-light body.theme-light.page-overview .overview-presets button {
-    background: var(--ov-surface-2) !important;
-    color: var(--ov-text) !important;
-    border-color: var(--ov-border) !important;
+body.page-overview .overview-button:focus-visible,
+body.overview-page .overview-button:focus-visible {
+    outline: 3px solid #2563eb !important;
+    outline-offset: 2px !important;
 }
 
-body.page-overview .btn.danger,
-body.overview-page .btn.danger,
-html.theme-light body.theme-light.page-overview button.danger {
-    background: #dc2626 !important;
-    border-color: #b91c1c !important;
+body.page-overview .overview-button:disabled,
+body.page-overview .overview-button[aria-disabled="true"],
+body.overview-page .overview-button:disabled,
+body.overview-page .overview-button[aria-disabled="true"] {
+    opacity: 0.65 !important;
+    cursor: not-allowed;
+}
+
+body.page-overview .overview-button-primary,
+body.overview-page .overview-button-primary,
+body.page-overview a.overview-button-primary,
+body.overview-page a.overview-button-primary,
+body.page-overview button.overview-button-primary,
+body.overview-page button.overview-button-primary,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app a.overview-button-primary,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app button.overview-button-primary,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app a.overview-button-primary,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app button.overview-button-primary {
+    background: #101828 !important;
+    border-color: #101828 !important;
     color: #ffffff !important;
 }
 
-body.page-overview .btn:hover,
-body.page-overview a.btn:hover,
-body.page-overview button.btn:hover,
-html.theme-light body.theme-light.page-overview button:hover {
-    filter: brightness(1.08);
+body.page-overview .overview-button-primary:hover,
+body.page-overview .overview-button-primary:focus-visible,
+body.overview-page .overview-button-primary:hover,
+body.overview-page .overview-button-primary:focus-visible,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app a.overview-button-primary:hover,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app button.overview-button-primary:hover,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app a.overview-button-primary:focus-visible,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app button.overview-button-primary:focus-visible {
+    background: #1d2939 !important;
+    border-color: #1d2939 !important;
+    color: #ffffff !important;
+    filter: none;
     transform: none !important;
+}
+
+body.page-overview .overview-button-danger,
+body.overview-page .overview-button-danger,
+body.page-overview button.overview-button-danger,
+body.overview-page button.overview-button-danger,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app button.overview-button-danger,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app button.overview-button-danger {
+    background: #dc2626 !important;
+    border-color: #dc2626 !important;
+    color: #ffffff !important;
+}
+
+body.page-overview .overview-button-danger:hover,
+body.page-overview .overview-button-danger:focus-visible,
+body.overview-page .overview-button-danger:hover,
+body.overview-page .overview-button-danger:focus-visible,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app button.overview-button-danger:hover,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app button.overview-button-danger:focus-visible {
+    background: #b91c1c !important;
+    border-color: #b91c1c !important;
+    color: #ffffff !important;
+    filter: none;
+    transform: none !important;
+}
+
+body.page-overview .overview-button-secondary,
+body.overview-page .overview-button-secondary,
+body.page-overview .overview-presets .overview-button,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-presets .overview-button,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .overview-presets .overview-button {
+    background: var(--ov-surface-2) !important;
+    border-color: var(--ov-border) !important;
+    color: var(--ov-text) !important;
+}
+
+body.page-overview .overview-button-secondary:hover,
+body.page-overview .overview-button-secondary:focus-visible,
+body.overview-page .overview-button-secondary:hover,
+body.overview-page .overview-button-secondary:focus-visible {
+    background: #e5e7eb !important;
+    color: var(--ov-text) !important;
+    filter: none;
+}
+
+body.page-overview .overview-button > *,
+body.overview-page .overview-button > * {
+    color: inherit !important;
 }
 
 /* ── Main column ────────────────────────────────────────────────────────── */
@@ -628,27 +688,25 @@ html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .char
     color: var(--ov-muted) !important;
 }
 
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .btn,
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app a.btn,
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app button.btn,
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-header-actions a,
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-header-actions button,
-html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .btn,
-html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app a.btn,
-html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app button.btn {
-    color: var(--ov-btn-text) !important;
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app a.overview-button-primary,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app button.overview-button-primary,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app a.overview-button-primary,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app button.overview-button-primary {
+    color: #ffffff !important;
+    background: #101828 !important;
 }
 
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .btn.subtle,
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-presets button,
-html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .btn.subtle,
-html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .overview-presets button {
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-button-secondary,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-presets .overview-button,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .overview-button-secondary,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .overview-presets .overview-button {
     color: var(--ov-text) !important;
 }
 
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .btn.danger,
-html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .btn.danger {
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app button.overview-button-danger,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app button.overview-button-danger {
     color: #ffffff !important;
+    background: #dc2626 !important;
 }
 
 html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .ov-alert,

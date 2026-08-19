@@ -17,15 +17,23 @@
         return document.getElementById(id);
     }
 
+    function pad2(n) {
+        return String(n).padStart(2, '0');
+    }
+
+    /** Local calendar YYYY-MM-DD (avoid UTC day-shift from toISOString). */
+    function localDateISO(d) {
+        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+    }
+
     function todayISO() {
-        const d = new Date();
-        return d.toISOString().slice(0, 10);
+        return localDateISO(new Date());
     }
 
     function daysAgoISO(n) {
         const d = new Date();
         d.setDate(d.getDate() - n);
-        return d.toISOString().slice(0, 10);
+        return localDateISO(d);
     }
 
     function money(n) {

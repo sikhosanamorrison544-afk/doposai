@@ -8,7 +8,7 @@
     <script src="/static/js/theme-instant.js"></script>
     <link rel="stylesheet" href="/static/css/style.css?v=overview7">
     <link rel="stylesheet" href="/static/css/secondary-pages-theme.css">
-    <link rel="stylesheet" href="/static/css/overview.css?v=7">
+    <link rel="stylesheet" href="/static/css/overview.css?v=8">
 </head>
 <body class="page-overview overview-page">
 <div id="app" class="overview-app">
@@ -20,10 +20,10 @@
                 <p id="ov-branch-line" class="overview-sub">Loading…</p>
             </div>
             <nav class="overview-header-actions" aria-label="Overview actions">
-                <a class="btn" href="/?pos=1">Open POS</a>
-                <a class="btn" href="/admin">Inventory</a>
-                <button type="button" class="btn" id="ov-refresh">Refresh</button>
-                <button type="button" class="btn danger" id="ov-logout">Log out</button>
+                <a class="overview-button overview-button-primary" href="/?pos=1">Open POS</a>
+                <a class="overview-button overview-button-primary" href="/admin">Inventory</a>
+                <button type="button" class="overview-button overview-button-primary" id="ov-refresh">Refresh</button>
+                <button type="button" class="overview-button overview-button-danger" id="ov-logout">Log out</button>
             </nav>
         </div>
         <div class="overview-filters" role="group" aria-label="Dashboard filters">
@@ -37,9 +37,9 @@
                 <select id="ov-branch" name="ov-branch"></select>
             </label>
             <div class="overview-presets">
-                <button type="button" class="btn subtle" data-preset="today">Today</button>
-                <button type="button" class="btn subtle" data-preset="7">7 days</button>
-                <button type="button" class="btn subtle" data-preset="30">30 days</button>
+                <button type="button" class="overview-button overview-button-secondary" data-preset="today">Today</button>
+                <button type="button" class="overview-button overview-button-secondary" data-preset="7">7 days</button>
+                <button type="button" class="overview-button overview-button-secondary" data-preset="30">30 days</button>
             </div>
             <p id="ov-updated" class="overview-updated" aria-live="polite"></p>
         </div>
@@ -49,11 +49,11 @@
         <div id="ov-loading" class="overview-state" hidden>Loading dashboard…</div>
         <div id="ov-error" class="overview-state error" hidden>
             <p id="ov-error-text">Could not load dashboard.</p>
-            <button type="button" class="btn" id="ov-retry">Retry</button>
+            <button type="button" class="overview-button overview-button-primary" id="ov-retry">Retry</button>
         </div>
         <div id="ov-empty" class="overview-state" hidden>
             <p>No sales in this period yet. Open POS to ring up your first sale.</p>
-            <a class="btn" href="/?pos=1">Open POS</a>
+            <a class="overview-button overview-button-primary" href="/?pos=1">Open POS</a>
         </div>
 
         <section id="ov-alerts" class="overview-alerts" aria-label="Action required" hidden></section>
@@ -99,6 +99,6 @@
 <script src="/static/js/theme-sync.js"></script>
 <script src="/static/js/role-permissions.js"></script>
 <script src="/static/js/store-branding.js"></script>
-<script src="/static/js/overview.js?v=7"></script>
+<script src="/static/js/overview.js?v=8"></script>
 </body>
 </html>

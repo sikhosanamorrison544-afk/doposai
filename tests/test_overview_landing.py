@@ -245,7 +245,7 @@ def test_overview_sales_and_payments(client, db_session):
     )
     db_session.add(product)
     db_session.flush()
-    today = datetime.utcnow()
+    today = datetime.now()
     sale = Sale(
         created_at=today,
         cashier_id=cashier.id,
@@ -304,7 +304,7 @@ def test_overview_approved_refunds_reduce_revenue(client, db_session):
     db_session.add(product)
     db_session.flush()
     sale = Sale(
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         cashier_id=cashier.id,
         subtotal=Decimal("5.00"),
         discount_total=Decimal("0"),
@@ -331,7 +331,7 @@ def test_overview_approved_refunds_reduce_revenue(client, db_session):
             reason="return",
             refund_type="full",
             refund_method="cash",
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(),
             requested_by_id=cashier.id,
         )
     )
@@ -412,7 +412,7 @@ def test_overview_tenant_isolation(client, db_session):
     db_session.add_all([p_a, p_b])
     db_session.flush()
     sale_b = Sale(
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
         cashier_id=admin_b.id,
         subtotal=Decimal("10"),
         discount_total=Decimal("0"),
@@ -470,7 +470,7 @@ def test_overview_branch_filter(client, db_session):
     db_session.flush()
     for branch, total in ((b1, Decimal("8")), (b2, Decimal("16"))):
         sale = Sale(
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(),
             cashier_id=admin.id,
             subtotal=total,
             discount_total=Decimal("0"),
@@ -560,3 +560,51 @@ def test_cashier_pos_route_unchanged_markers(client, db_session):
     html = client.get("/").text
     assert "pos-screen" in html or "id=\"pos-screen\"" in html or "login-screen" in html
     assert "overview.js" not in html
+    assert "overview.css" not in html
+
+
+def test_overview_action_button_labels_and_classes(client, db_session):
+    """Dark action controls must keep visible text labels + semantic classes."""
+    html = client.get("/overview").text
+    assert "overview-button-primary" in html
+    assert "overview-button-danger" in html
+    assert "Open POS" in html
+    assert "Inventory" in html
+    assert "Refresh" in html
+    assert "Log out" in html
+    assert html.count('href="/?pos=1"') >= 2
+    assert 'id="ov-refresh"' in html
+    assert 'id="ov-logout"' in html
+    assert "overview.css?v=8" in html
+
+
+def test_overview_css_primary_button_contrast():
+    path = os.path.join(
+        os.path.dirname(__file__), "..", "static", "css", "overview.css"
+    )
+    css = open(path, encoding="utf-8").read()
+    assert "overview-button-primary" in css
+    assert "overview-button-danger" in css
+    assert "color: #ffffff !important" in css
+    assert "background: #101828 !important" in css
+    assert "background: #dc2626 !important" in css
+    # Nuclear dark-text reset must not paint action buttons
+    assert ":not(.overview-button)" in css
+
+
+def test_overview_js_refresh_and_local_today():
+    path = os.path.join(
+        os.path.dirname(__file__), "..", "static", "js", "overview.js"
+    )
+    src = open(path, encoding="utf-8").read()
+    assert "ov-refresh" in src
+    assert "addEventListener('click', loadDashboard)" in src
+    assert "localDateISO" in src
+    assert "getFullYear()" in src
+    assert "getMonth()" in src
+    assert "getDate()" in src
+    # Today preset must not rely on UTC toISOString day slice
+    assert "function todayISO()" in src
+    today_fn = src.split("function todayISO()")[1].split("function ")[0]
+    assert "toISOString()" not in today_fn
+    assert "localDateISO" in today_fn
