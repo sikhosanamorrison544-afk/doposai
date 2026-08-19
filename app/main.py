@@ -248,12 +248,8 @@ async def startup_event():
 
     asyncio.create_task(asyncio.to_thread(_deferred_db_bootstrap))
 
-    if APP_ENV == "production" and (
-        "change" in (auth.SECRET_KEY or "").lower() or len(auth.SECRET_KEY or "") < 32
-    ):
-        logging.warning(
-            "JWT_SECRET_KEY looks weak or default. Set a strong JWT_SECRET_KEY in the host environment."
-        )
+    # JWT secret is validated at import (app.security_config / app.auth). No fallback.
+    logging.info("JWT configuration loaded from %s (secret not logged).", "JWT_SECRET_KEY")
 
     # Start backup queue processor in background
     asyncio.create_task(process_backup_queue_periodically())
@@ -2319,57 +2315,8 @@ async def delete_user(
 
 class FactoryResetRequest(BaseModel):
     admin_password: str
-
-
-@app.post("/api/repair-admin")
-async def repair_admin_user(db: Session = Depends(get_db)):
-    """
-    Repair/create default admin user if missing.
-    This endpoint works without authentication to allow recovery.
-    """
-    try:
-        # Check if admin user exists
-        admin = db.query(User).filter(User.username == "admin").first()
-        
-        if admin:
-            # Admin exists, verify password works
-            if auth.verify_password("admin", admin.password_hash):
-                logging.info("Admin user exists and password is correct")
-                return {"ok": True, "message": "Admin user already exists with correct password", "username": "admin"}
-            else:
-                # Reset password
-                admin.password_hash = auth.get_password_hash("admin")
-                admin.is_active = True
-                db.commit()
-                logging.info("Admin user password reset to 'admin'")
-                return {"ok": True, "message": "Admin user password reset to 'admin'", "username": "admin"}
-        else:
-            # Create admin user
-            admin_password_hash = auth.get_password_hash("admin")
-            new_admin = User(
-                username="admin",
-                full_name="Administrator",
-                role="admin",
-                password_hash=admin_password_hash,
-                is_active=True,
-            )
-            db.add(new_admin)
-            db.commit()
-            db.refresh(new_admin)
-            
-            # Verify creation
-            if auth.verify_password("admin", new_admin.password_hash):
-                logging.info("Created admin user with password 'admin'")
-                return {"ok": True, "message": "Admin user created successfully", "username": "admin"}
-            else:
-                logging.error("Failed to verify password for newly created admin user")
-                return {"ok": False, "message": "Admin user created but password verification failed"}
-    except Exception as e:
-        logging.error(f"Error repairing admin user: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to repair admin user: {str(e)}"
-        )
+    # Password for the recreated administrator (never use a hard-coded default).
+    new_admin_password: str = Field(min_length=12, max_length=128)
 
 
 @app.post("/api/factory-reset")
@@ -2380,15 +2327,22 @@ async def factory_reset(
 ):
     """
     Factory reset: Delete all data and reset database to factory defaults.
-    Requires admin authentication and password confirmation.
+    Requires admin authentication, password confirmation, and a strong new admin password.
     """
+    from .security_config import WeakPasswordError, validate_bootstrap_password
+
     # Verify admin password
     if not auth.verify_password(request.admin_password, current_user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid admin password"
         )
-    
+
+    try:
+        new_admin_password = validate_bootstrap_password(request.new_admin_password)
+    except WeakPasswordError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
     try:
         # Declare global engine at the start of the function
         global engine
@@ -2430,20 +2384,16 @@ async def factory_reset(
         Base.metadata.create_all(bind=new_engine)
         logging.info("Recreated database tables")
         
-        # Initialize with default admin and store settings
-        # Note: create_admin_if_missing requires interactive input, so we'll create a default admin directly
+        # Initialize with operator-supplied admin password and store settings
         new_db = database.SessionLocal()
         try:
-            # Create default admin user (username: admin, password: admin)
-            # Since we just deleted the database, there should be no existing admin, but we check anyway
             existing_admin = new_db.query(User).filter(User.role == "admin").first()
             if existing_admin:
                 logging.warning("Admin user already exists after factory reset (should not happen), deleting it")
                 new_db.delete(existing_admin)
                 new_db.flush()
             
-            # Create the default admin user
-            admin_password_hash = auth.get_password_hash("admin")
+            admin_password_hash = auth.get_password_hash(new_admin_password)
             default_admin = User(
                 username="admin",
                 full_name="Administrator",
@@ -2452,17 +2402,15 @@ async def factory_reset(
                 is_active=True,
             )
             new_db.add(default_admin)
-            new_db.flush()  # Flush to ensure the user is in the database
+            new_db.flush()
             
-            # Verify the admin was created
             created_admin = new_db.query(User).filter(User.username == "admin").first()
             if created_admin:
-                logging.info(f"Successfully created default admin user: username=admin, is_active={created_admin.is_active}, role={created_admin.role}")
-                # Test password verification
-                if auth.verify_password("admin", created_admin.password_hash):
-                    logging.info("Password verification test passed for default admin user")
-                else:
-                    logging.error("WARNING: Password verification test FAILED for default admin user")
+                logging.info(
+                    "Created administrator after factory reset: username=%s role=%s (password not logged)",
+                    created_admin.username,
+                    created_admin.role,
+                )
             else:
                 logging.error("ERROR: Admin user was not found after creation")
             
@@ -2482,19 +2430,22 @@ async def factory_reset(
             logging.info("Created default store settings")
             
             new_db.commit()
-            logging.info("Committed default admin user and store settings to database")
+            logging.info("Committed administrator and store settings after factory reset")
         finally:
             new_db.close()
         
         return {
             "ok": True,
-            "message": "Factory reset completed successfully. Please log in with the default admin credentials."
+            "message": (
+                "Factory reset completed successfully. "
+                "Log in as username 'admin' with the new administrator password you provided."
+            ),
         }
     except Exception as e:
         logging.error(f"Factory reset failed: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Factory reset failed: {str(e)}"
+            detail="Factory reset failed",
         )
 
 

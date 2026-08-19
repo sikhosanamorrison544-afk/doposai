@@ -12,11 +12,13 @@ from . import auth
 from .config import STORE_NAME, STORE_PHONE, STORE_LOCATION
 from .database import Base, engine, SessionLocal
 from .models import StoreSettings, User
+from .security_config import WeakPasswordError, validate_bootstrap_password
 
 
 def create_admin_if_missing(db: Session) -> None:
     admin = db.query(User).filter(User.role == "admin").first()
     if admin:
+        print(f"Admin user already exists ('{admin.username}'); not overwriting.")
         return
 
     print("No admin user found. Creating initial admin user.")
@@ -28,8 +30,10 @@ def create_admin_if_missing(db: Session) -> None:
         if password != password2:
             print("Passwords do not match, try again.")
             continue
-        if not password:
-            print("Password cannot be empty.")
+        try:
+            password = validate_bootstrap_password(password)
+        except WeakPasswordError as e:
+            print(f"{e} Try again.")
             continue
         break
 
@@ -42,7 +46,7 @@ def create_admin_if_missing(db: Session) -> None:
     )
     db.add(admin)
     db.commit()
-    print(f"Admin user '{username}' created.")
+    print(f"Admin user '{username}' created (password not shown).")
 
 
 def create_store_settings_if_missing(db: Session) -> None:
@@ -79,5 +83,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

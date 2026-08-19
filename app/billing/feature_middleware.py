@@ -10,9 +10,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from jose import JWTError, jwt
+from jose import JWTError
 
-from ..auth import ALGORITHM, SECRET_KEY, get_user_by_username
+from ..auth import decode_access_token, get_user_by_username
 from ..database import SessionLocal
 from ..models import User
 from ..quotation_models import Tenant
@@ -50,7 +50,7 @@ def _user_from_authorization(db, auth_header: Optional[str]) -> Optional[User]:
     if not token:
         return None
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = decode_access_token(token)
         username = payload.get("sub")
         if not username:
             return None

@@ -8,6 +8,21 @@ if [ -d ".venv" ]; then
     source .venv/bin/activate
 fi
 
+# Load .env into the environment when present (does not override existing exports).
+# JWT_SECRET_KEY is required — see docs/SECURITY_AUTH.md
+if [ -f .env ]; then
+    set -a
+    # shellcheck disable=SC1091
+    source .env
+    set +a
+fi
+
+if [ -z "${JWT_SECRET_KEY:-}" ]; then
+    echo "ERROR: JWT_SECRET_KEY is not set. Add it to .env or export it before starting."
+    echo "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+    exit 1
+fi
+
 # Get local IP address
 LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || ip addr show | grep -oP 'inet \K[\d.]+' | grep -v '127.0.0.1' | head -1)
 

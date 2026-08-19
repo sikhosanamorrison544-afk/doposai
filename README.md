@@ -35,10 +35,23 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Initialize the database and create an initial admin user:
+Initialize the database and create an initial admin user (interactive; strong password required):
 
 ```bash
 python3 -m app.init_db
+```
+
+Set `JWT_SECRET_KEY` in `.env` before starting the server (required; see `docs/SECURITY_AUTH.md`):
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+# add as JWT_SECRET_KEY=... in .env
+```
+
+Lost admin password? Use the **local** recovery script (not an HTTP API):
+
+```bash
+python scripts/repair_admin_account.py --username admin --reset-existing
 ```
 
 ### Desktop Application Setup

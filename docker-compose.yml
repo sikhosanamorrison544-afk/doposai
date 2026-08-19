@@ -23,7 +23,8 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql://pos:pos@db:5432/pos
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
+      # Required — no insecure default. Export JWT_SECRET_KEY before compose up.
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY to a random secret of at least 32 characters}
       APP_ENV: production
       CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:8000,https://doposai.com,https://www.doposai.com,https://api.doposai.com}
       WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-https://doposai.com}

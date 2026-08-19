@@ -92,7 +92,7 @@ Once configured, the system will:
 
 ### After Factory Reset
 
-1. After factory reset, log in with default credentials (admin/admin)
+1. After factory reset, log in with username `admin` and the **new administrator password you entered** during the reset (defaults like `admin`/`admin` are no longer created).
 2. Go to Settings > Google Sheets Backup
 3. Configure the backup settings again (if needed)
 4. Click "Import from Backup" to restore all products from Google Sheets

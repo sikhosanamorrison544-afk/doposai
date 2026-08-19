@@ -1769,12 +1769,29 @@ window.factoryReset = async function factoryReset() {
     // Second confirmation: Admin password required
     const adminPassword = prompt(
         `🔒 ADMIN PASSWORD REQUIRED\n\n` +
-        `Enter your admin password to confirm factory reset:\n` +
+        `Enter your current admin password to confirm factory reset:\n` +
         `(This action cannot be undone)`
     );
     
     if (!adminPassword || adminPassword.trim() === '') {
         msg.textContent = 'Factory reset cancelled. Admin password is required.';
+        msg.style.color = 'rgba(220, 38, 38, 1)';
+        return;
+    }
+
+    const newAdminPassword = prompt(
+        `Set a NEW administrator password for after the reset.\n\n` +
+        `Requirements: at least 12 characters, include a letter and a digit.\n` +
+        `Do not use defaults like "admin" or "password".`
+    );
+    if (!newAdminPassword || newAdminPassword.trim() === '') {
+        msg.textContent = 'Factory reset cancelled. A new administrator password is required.';
+        msg.style.color = 'rgba(220, 38, 38, 1)';
+        return;
+    }
+    const confirmNew = prompt('Confirm the NEW administrator password:');
+    if (confirmNew !== newAdminPassword) {
+        msg.textContent = 'Factory reset cancelled. New passwords did not match.';
         msg.style.color = 'rgba(220, 38, 38, 1)';
         return;
     }
@@ -1786,7 +1803,8 @@ window.factoryReset = async function factoryReset() {
         const response = await adminApi('/api/factory-reset', {
             method: 'POST',
             body: JSON.stringify({
-                admin_password: adminPassword
+                admin_password: adminPassword,
+                new_admin_password: newAdminPassword
             }),
         });
         

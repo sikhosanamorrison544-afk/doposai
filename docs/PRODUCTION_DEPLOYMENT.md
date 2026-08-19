@@ -55,7 +55,7 @@ Copy from `.env.production.example`. Critical keys:
 | Variable | Purpose |
 |----------|---------|
 | `DATABASE_URL` | Render injects from managed Postgres (`fromDatabase` in blueprint) |
-| `JWT_SECRET_KEY` | Strong random secret (blueprint can `generateValue: true`) |
+| `JWT_SECRET_KEY` | **Required.** Strong random secret, ≥32 chars; app refuses to start if missing/weak/placeholder (see `docs/SECURITY_AUTH.md`) |
 | `APP_ENV` | `production` |
 | `WEB_PUBLIC_URL` | `https://doposai.com` |
 | `API_PUBLIC_URL` | `https://api.doposai.com` |
@@ -124,10 +124,11 @@ You may migrate writes from `tenants` to `tenant_security` + `subscriptions` as 
 
 ## Smoke test after deploy
 
-1. `GET https://api.doposai.com/` (health or root).
-2. `GET https://api.doposai.com/api/billing/health` (stub).
-3. Login / token flow from web and APK against production.
+1. `GET https://api.doposai.com/health` (or `/`).
+2. Confirm `POST /api/repair-admin` returns **404** (endpoint removed; must not exist).
+3. Login / token flow from web and APK against production (`JWT_SECRET_KEY` must be set).
 4. Create test tenant + order; verify sync from offline queue.
+5. See `docs/SECURITY_AUTH.md` for administrator recovery (local CLI only).
 
 ## DNS checklist
 
