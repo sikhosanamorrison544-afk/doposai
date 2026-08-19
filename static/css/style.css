@@ -7244,63 +7244,65 @@ html body.theme-light .layby-page #customer-form-container.card {
 
 /* =============================================================================
    Light theme — web/laptop: white text on video background (not Android app)
+   Business Overview (.page-overview / .overview-page) is excluded: it uses light
+   surfaces where white text is unreadable. See static/css/overview.css.
    ============================================================================= */
-html.theme-light body.theme-light:not(.pos-android-app),
-html.theme-light body.theme-light:not(.pos-android-app) #app {
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page),
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) #app {
     color: #ffffff !important;
 }
 
-html.theme-light body.theme-light:not(.pos-android-app) #app *:not(svg):not(path):not(circle):not(rect):not(line):not(polygon):not(polyline):not(ellipse):not(use):not(g):not(iframe):not(img):not(video):not(canvas):not(#light-theme-video):not(#light-theme-video *) {
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) #app *:not(svg):not(path):not(circle):not(rect):not(line):not(polygon):not(polyline):not(ellipse):not(use):not(g):not(iframe):not(img):not(video):not(canvas):not(#light-theme-video):not(#light-theme-video *) {
     color: #ffffff !important;
 }
 
-html.theme-light body.theme-light:not(.pos-android-app) .pos-layout .left > h2,
-html.theme-light body.theme-light:not(.pos-android-app) .pos-layout .left > div:not(.card):not(.floating-panel) > h2,
-html.theme-light body.theme-light:not(.pos-android-app) .pos-layout .left > div:not(.card):not(.floating-panel) > h3,
-html.theme-light body.theme-light:not(.pos-android-app) #products-table,
-html.theme-light body.theme-light:not(.pos-android-app) #products-table *,
-html.theme-light body.theme-light:not(.pos-android-app) #products-table thead th,
-html.theme-light body.theme-light:not(.pos-android-app) .top-bar > span,
-html.theme-light body.theme-light:not(.pos-android-app) .shop-name,
-html.theme-light body.theme-light:not(.pos-android-app) .product-form-card,
-html.theme-light body.theme-light:not(.pos-android-app) .product-form-card *:not(button.primary):not(button.danger),
-html.theme-light body.theme-light:not(.pos-android-app) label,
-html.theme-light body.theme-light:not(.pos-android-app) table th,
-html.theme-light body.theme-light:not(.pos-android-app) table td,
-html.theme-light body.theme-light:not(.pos-android-app) .floating-icon,
-html.theme-light body.theme-light:not(.pos-android-app) .totals,
-html.theme-light body.theme-light:not(.pos-android-app) .totals * {
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) .pos-layout .left > h2,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) .pos-layout .left > div:not(.card):not(.floating-panel) > h2,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) .pos-layout .left > div:not(.card):not(.floating-panel) > h3,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) #products-table,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) #products-table *,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) #products-table thead th,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) .top-bar > span,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) .shop-name,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) .product-form-card,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) .product-form-card *:not(button.primary):not(button.danger),
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) label,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) table th,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) table td,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) .floating-icon,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) .totals,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) .totals * {
     color: #ffffff !important;
 }
 
-html.theme-light body.theme-light:not(.pos-android-app) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
-html.theme-light body.theme-light:not(.pos-android-app) textarea,
-html.theme-light body.theme-light:not(.pos-android-app) select,
-html.theme-light body.theme-light:not(.pos-android-app) option {
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) textarea,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) select,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) option {
     color: #ffffff !important;
     caret-color: #ffffff !important;
 }
 
-html.theme-light body.theme-light:not(.pos-android-app) input::placeholder,
-html.theme-light body.theme-light:not(.pos-android-app) textarea::placeholder {
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) input::placeholder,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) textarea::placeholder {
     color: rgba(255, 255, 255, 0.65) !important;
 }
 
-html.theme-light body.theme-light:not(.pos-android-app) [style*="color:#1a1a1a"],
-html.theme-light body.theme-light:not(.pos-android-app) [style*="color: #1a1a1a"],
-html.theme-light body.theme-light:not(.pos-android-app) [style*="color:#1a1a2e"],
-html.theme-light body.theme-light:not(.pos-android-app) [style*="color: #1a1a2e"],
-html.theme-light body.theme-light:not(.pos-android-app) [style*="color:rgba(26, 26, 46"],
-html.theme-light body.theme-light:not(.pos-android-app) [style*="color: rgba(26, 26, 46"] {
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) [style*="color:#1a1a1a"],
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) [style*="color: #1a1a1a"],
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) [style*="color:#1a1a2e"],
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) [style*="color: #1a1a2e"],
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) [style*="color:rgba(26, 26, 46"],
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) [style*="color: rgba(26, 26, 46"] {
     color: #ffffff !important;
 }
 
-html.theme-light body.theme-light:not(.pos-android-app) a {
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) a {
     color: #ffffff !important;
 }
 
-html.theme-light body.theme-light:not(.pos-android-app) button.primary,
-html.theme-light body.theme-light:not(.pos-android-app) button.danger {
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) button.primary,
+html.theme-light body.theme-light:not(.pos-android-app):not(.page-overview):not(.overview-page) button.danger {
     color: #ffffff !important;
 }
 

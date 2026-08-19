@@ -94,43 +94,21 @@ body.overview-page #app {
     background: transparent !important;
 }
 
-/* Beat global light-theme “everything white” rule inside overview. */
-html.theme-light body.page-overview #app,
-html.theme-light body.overview-page #app,
-html.theme-light body.theme-light.page-overview #app,
-html.theme-light body.theme-light.overview-page #app {
+/*
+ * Beat global light-theme “everything white” rule.
+ * That rule gains extra ID specificity from :not(#light-theme-video)…, so
+ * overrides must include the same :not() chain plus .page-overview.
+ */
+html.theme-light body.theme-light.page-overview:not(.pos-android-app),
+html.theme-light body.theme-light.overview-page:not(.pos-android-app),
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app {
     color: var(--ov-text) !important;
 }
 
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app *:not(svg):not(path):not(circle):not(rect):not(line):not(polygon):not(polyline):not(ellipse):not(use):not(g),
-html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app *:not(svg):not(path):not(circle):not(rect):not(line):not(polygon):not(polyline):not(ellipse):not(use):not(g) {
-    color: inherit !important;
-}
-
-/* Explicit surfaces — never rely on inherit alone for KPI/chart text. */
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) .ov-card,
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) .ov-card .label,
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) .ov-card .value,
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) .overview-panel,
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) .overview-panel h2,
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) .overview-filters,
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) .overview-filters label,
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) .chart-empty,
-html.theme-light body.theme-light.overview-page:not(.pos-android-app) .ov-card,
-html.theme-light body.theme-light.overview-page:not(.pos-android-app) .ov-card .label,
-html.theme-light body.theme-light.overview-page:not(.pos-android-app) .ov-card .value,
-html.theme-light body.theme-light.overview-page:not(.pos-android-app) .overview-panel,
-html.theme-light body.theme-light.overview-page:not(.pos-android-app) .overview-panel h2,
-html.theme-light body.theme-light.overview-page:not(.pos-android-app) .overview-filters label,
-html.theme-light body.theme-light.overview-page:not(.pos-android-app) .chart-empty {
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app *:not(svg):not(path):not(circle):not(rect):not(line):not(polygon):not(polyline):not(ellipse):not(use):not(g):not(iframe):not(img):not(video):not(canvas):not(#light-theme-video):not(#light-theme-video *),
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app *:not(svg):not(path):not(circle):not(rect):not(line):not(polygon):not(polyline):not(ellipse):not(use):not(g):not(iframe):not(img):not(video):not(canvas):not(#light-theme-video):not(#light-theme-video *) {
     color: var(--ov-text) !important;
-}
-
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) .ov-card .label,
-html.theme-light body.theme-light.overview-page:not(.pos-android-app) .ov-card .label,
-html.theme-light body.theme-light.page-overview:not(.pos-android-app) .chart-empty,
-html.theme-light body.theme-light.overview-page:not(.pos-android-app) .chart-empty {
-    color: var(--ov-muted) !important;
 }
 
 /* ── Header / filters ───────────────────────────────────────────────────── */
@@ -627,4 +605,84 @@ html.theme-light body.theme-light.page-overview .overview-links a {
     body.page-overview .overview-cards {
         grid-template-columns: 1fr;
     }
+}
+
+/*
+ * Final cascade (must remain last): restore intentional contrast after the
+ * light-theme #app * reset. Matches global ID-heavy specificity.
+ */
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-kicker,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-sub,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app #ov-branch-line,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-updated,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .ov-card .label,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .ov-card .delta,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .chart-empty,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .chart-caption,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-activity th,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .overview-kicker,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .overview-sub,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .ov-card .label,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .chart-empty,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .chart-caption {
+    color: var(--ov-muted) !important;
+}
+
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .btn,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app a.btn,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app button.btn,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-header-actions a,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-header-actions button,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .btn,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app a.btn,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app button.btn {
+    color: var(--ov-btn-text) !important;
+}
+
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .btn.subtle,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-presets button,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .btn.subtle,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .overview-presets button {
+    color: var(--ov-text) !important;
+}
+
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .btn.danger,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .btn.danger {
+    color: #ffffff !important;
+}
+
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .ov-alert,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app a.ov-alert,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .ov-alert,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app a.ov-alert {
+    color: var(--ov-warn) !important;
+}
+
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .ov-alert.high,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .ov-alert.high {
+    color: var(--ov-danger) !important;
+}
+
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .ov-card .delta.up,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .ov-card .delta.up {
+    color: var(--ov-ok) !important;
+}
+
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .ov-card .delta.down,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .ov-card .delta.down {
+    color: var(--ov-danger) !important;
+}
+
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-links a,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .overview-links a {
+    color: var(--ov-accent) !important;
+}
+
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-filters input,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-filters select,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .overview-filters input,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .overview-filters select {
+    color: var(--ov-input-text) !important;
+    caret-color: var(--ov-input-text) !important;
+    background: var(--ov-input-bg) !important;
 }
