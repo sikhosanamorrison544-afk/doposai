@@ -62,10 +62,9 @@
     </header>
     <nav class="admin-mobile-actions" aria-label="Admin shortcuts">
         <button type="button" class="admin-mobile-action" id="admin-action-settings"><span class="icon">⚙️</span>Settings</button>
-        <button type="button" class="admin-mobile-action" id="admin-action-report"><span class="icon">📊</span>Report</button>
+        <button type="button" class="admin-mobile-action" id="admin-action-analytics"><span class="icon">📈</span>Overview</button>
         <button type="button" class="admin-mobile-action" id="admin-action-refunds" onclick="window.location.href='/refunds'"><span class="icon">↩️</span>Refunds</button>
         <button type="button" class="admin-mobile-action" id="admin-action-withdrawals"><span class="icon">💵</span>Cash out</button>
-        <button type="button" class="admin-mobile-action" id="admin-action-analytics"><span class="icon">📈</span>Analytics</button>
         <button type="button" class="admin-mobile-action" id="admin-action-shifts"><span class="icon">🕐</span>Shifts</button>
         <button type="button" class="admin-mobile-action" id="admin-action-pending"><span class="icon">📦</span>Pending</button>
         <button type="button" class="admin-mobile-action" id="admin-action-billing"><span class="icon">💳</span>Billing</button>
@@ -106,16 +105,13 @@
                 <button type="button" id="btn-toggle-settings" class="floating-icon" title="Store Settings" onclick="window.location.href='/store-settings'; return false;" onmousedown="event.stopPropagation();">
                     ⚙️
                 </button>
-                <button type="button" id="btn-toggle-report" class="floating-icon" title="Summary Report">
-                    📊
-                </button>
                 <button type="button" id="btn-toggle-withdrawals" class="floating-icon" title="Withdrawal History" style="background: rgba(239, 68, 68, 0.8);" onclick="window.location.href='/withdrawals/history'; return false;" onmousedown="event.stopPropagation();">
                     💵
                 </button>
                 <button type="button" id="btn-refunds" class="floating-icon" title="Refund Management" style="background: rgba(234, 88, 12, 0.85);" onclick="window.location.href='/refunds'; return false;" onmousedown="event.stopPropagation();">
                     ↩️
                 </button>
-                <button type="button" id="btn-analytics" class="floating-icon" title="Sales Analytics" style="background: rgba(59, 130, 246, 0.8);" onclick="window.location.href='/analytics'; return false;" onmousedown="event.stopPropagation();">
+                <button type="button" id="btn-analytics" class="floating-icon" title="Business Overview" style="background: rgba(59, 130, 246, 0.8);" onclick="window.location.href='/overview'; return false;" onmousedown="event.stopPropagation();">
                     📈
                 </button>
                 <button type="button" id="btn-accounting" class="floating-icon" title="Accounting Reports" style="background: rgba(34, 197, 94, 0.8);" onclick="window.location.href='/accounting'; return false;" onmousedown="event.stopPropagation();">
@@ -294,42 +290,6 @@
     </div>
 </div>
 
-<div id="summary-report-panel" class="floating-panel" style="display:none;">
-    <div class="floating-panel-header">
-        <h2>Summary Report</h2>
-        <button id="btn-close-report" class="close-btn">×</button>
-    </div>
-    <div id="summary-report-content" style="padding: 16px;">
-        <div class="grid-2">
-            <div>
-                <label for="rep-from">From Date</label>
-                <input type="date" id="rep-from" name="rep-from">
-            </div>
-            <div>
-                <label for="rep-to">To Date</label>
-                <input type="date" id="rep-to" name="rep-to">
-            </div>
-        </div>
-        <button id="btn-load-report" class="primary small">Load Summary</button>
-        <div id="rep-message" class="info"></div>
-        <div id="rep-summary" class="totals" style="margin-top:8px;">
-            <div class="grand" style="background:rgba(16,185,129,0.18);border-radius:8px;padding:10px 8px;margin-bottom:8px;">
-                <span>Cash on Hand</span><span id="rep-cash-on-hand">0.00</span>
-            </div>
-            <div><span>Cash Sales (in)</span><span id="rep-cash-payments">0.00</span></div>
-            <div><span>Withdrawals (out)</span><span id="rep-withdrawals">0.00</span></div>
-            <div><span>Cash Refunds (out)</span><span id="rep-cash-refunds">0.00</span></div>
-            <div style="border-top:1px solid rgba(255,255,255,0.2);padding-top:8px;margin-top:8px;"><span>Sales Count</span><span id="rep-sales-count">0</span></div>
-            <div><span>Gross Sales</span><span id="rep-gross">0.00</span></div>
-            <div><span>Discounts</span><span id="rep-discounts">0.00</span></div>
-            <div><span>Net Sales</span><span id="rep-net">0.00</span></div>
-            <div class="grand"><span>Profit</span><span id="rep-profit">0.00</span></div>
-            <div style="border-top:1px solid rgba(255,255,255,0.2);padding-top:8px;margin-top:8px;"><span>Total Remaining Stock Value (at Cost)</span><span id="rep-stock-value">0.00</span></div>
-            <div><span>Expected Profit After Selling All Stock</span><span id="rep-expected-profit">0.00</span></div>
-        </div>
-    </div>
-</div>
-
 <!-- Backdrop Overlay - Outside #app for proper overlay -->
 <div id="panel-backdrop" class="panel-backdrop" style="display:none;"></div>
 
@@ -462,11 +422,7 @@
         // Immediately hide panels on page load to prevent flash in light theme
         (function() {
             'use strict';
-            const summaryPanel = document.getElementById('summary-report-panel');
             const settingsPanel = document.getElementById('store-settings-panel');
-            if (summaryPanel) {
-                summaryPanel.style.setProperty('display', 'none', 'important');
-            }
             if (settingsPanel) {
                 settingsPanel.style.setProperty('display', 'none', 'important');
             }
@@ -531,59 +487,6 @@
         }
     </script>
 <script src="/static/js/price-input-formatter.js?v=7"></script>
-<!-- Final override for Summary Report panel in light theme - highest priority -->
-<style id="summary-report-light-theme-fix">
-    /* This style tag comes last and will override everything */
-    html body.theme-light #summary-report-panel,
-    html body.theme-light #summary-report-panel.floating-panel {
-        width: calc(100vw - 40px) !important;
-        max-width: calc(100vw - 40px) !important;
-        min-width: calc(100vw - 40px) !important;
-        height: calc(100vh - 40px) !important;
-        max-height: calc(100vh - 40px) !important;
-        min-height: calc(100vh - 40px) !important;
-        margin: 0 !important;
-        left: 50% !important;
-        top: 50% !important;
-        transform: translate(-50%, -50%) !important;
-        position: fixed !important;
-        box-sizing: border-box !important;
-        overflow-y: auto !important;
-        overflow-x: hidden !important;
-        padding: 20px !important;
-        display: flex !important;
-        flex-direction: column !important;
-    }
-    
-    /* Remove any nested card backgrounds */
-    html body.theme-light #summary-report-panel .card,
-    html body.theme-light #summary-report-panel.floating-panel .card {
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        border-radius: 0 !important;
-        backdrop-filter: none !important;
-        -webkit-backdrop-filter: none !important;
-        position: static !important;
-        padding: 0 !important;
-        margin: 0 !important;
-    }
-    
-    /* Ensure content displays properly */
-    html body.theme-light #summary-report-panel .floating-panel-header {
-        flex-shrink: 0 !important;
-        margin-bottom: 16px !important;
-    }
-    
-    html body.theme-light #summary-report-panel #summary-report-content {
-        flex: 1 !important;
-        min-height: 0 !important;
-        overflow-y: auto !important;
-        padding: 16px !important;
-        width: 100% !important;
-        box-sizing: border-box !important;
-    }
-</style>
 <script src="/static/js/store-branding.js?v=4"></script>
 </body>
 </html>

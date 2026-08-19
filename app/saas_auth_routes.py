@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
-from jose import JWTError, jwt
+from jose import JWTError
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -87,6 +87,7 @@ class AuthResponse(BaseModel):
     subscription_status: str
     trial_ends_at: Optional[datetime] = None
     last_verified_at: Optional[datetime] = None
+    landing_path: str = "/"
 
 
 class VerifyResponse(BaseModel):
@@ -152,6 +153,8 @@ def _issue_tokens(db: Session, user: User, tenant: Optional[Tenant]) -> AuthResp
     if tenant:
         tenant.last_subscription_verified_at = datetime.utcnow()
     db.commit()
+    from .landing import post_login_path
+
     return AuthResponse(
         access_token=access,
         refresh_token=raw_refresh,
@@ -164,6 +167,7 @@ def _issue_tokens(db: Session, user: User, tenant: Optional[Tenant]) -> AuthResp
         subscription_status=sub_status,
         trial_ends_at=tenant.trial_ends_at if tenant else None,
         last_verified_at=tenant.last_subscription_verified_at if tenant else None,
+        landing_path=post_login_path(user),
     )
 
 
@@ -302,7 +306,7 @@ def auth_verify(
         raise HTTPException(status_code=401, detail="Missing bearer token")
     token = authorization.split(" ", 1)[1].strip()
     try:
-        payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        payload = auth.decode_access_token(token)
     except JWTError:
         return VerifyResponse(valid=False)
     username = payload.get("sub")

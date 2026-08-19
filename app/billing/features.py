@@ -179,6 +179,10 @@ def feature_for_api_path(path: str) -> Optional[Feature]:
     """Map API path prefix to a gated feature (None = not plan-gated)."""
     if path.startswith("/api/analytics"):
         return Feature.ANALYTICS
+    # Business Overview (/api/overview) is intentionally NOT Feature.ANALYTICS:
+    # it is the administrator post-login home (same class as /api/reports/summary),
+    # available whenever the user has VIEW_REPORTS. Paid product analytics remain
+    # under /api/analytics/* and /api/bi/*.
     if path.startswith("/api/ai/"):
         return Feature.AI_ASSISTANT
     if path.startswith("/api/bi/"):
@@ -216,6 +220,7 @@ def feature_for_api_path(path: str) -> Optional[Feature]:
 def feature_for_page_path(path: str) -> Optional[Feature]:
     if path.startswith("/analytics"):
         return Feature.ANALYTICS
+    # /overview is the admin landing page — not plan-gated (see feature_for_api_path).
     if path.startswith("/accounting"):
         return Feature.ACCOUNTING
     if path.startswith("/enterprise"):

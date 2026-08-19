@@ -948,73 +948,13 @@ async function saveProduct() {
 }
 
 async function loadReport() {
-    // Report elements only exist on /admin page, not on /store-settings page
-    const fromInput = document.getElementById('rep-from');
-    const toInput = document.getElementById('rep-to');
-    const msg = document.getElementById('rep-message');
-    
-    if (!fromInput || !toInput || !msg) {
-        // Report elements don't exist on this page - this is expected
-        return;
-    }
-    
-    msg.textContent = '';
-    const fromDate = fromInput.value;
-    const toDate = toInput.value;
-    if (!fromDate || !toDate) {
-        msg.textContent = 'Please select dates';
-        return;
-    }
-    try {
-        const rep = await adminApi(`/api/reports/summary?from_date=${fromDate}&to_date=${toDate}`);
-        console.log('Report data received:', rep);
-        console.log('total_stock_value:', rep.total_stock_value, typeof rep.total_stock_value);
-        console.log('expected_profit:', rep.expected_profit, typeof rep.expected_profit);
-        document.getElementById('rep-sales-count').textContent = rep.sales_count;
-        document.getElementById('rep-gross').textContent = parseFloat(rep.gross_sales).toFixed(2);
-        document.getElementById('rep-discounts').textContent = parseFloat(rep.discounts).toFixed(2);
-        document.getElementById('rep-net').textContent = parseFloat(rep.net_sales).toFixed(2);
-        document.getElementById('rep-profit').textContent = parseFloat(rep.profit).toFixed(2);
-
-        const cashOnHand = rep.cash_on_hand != null ? parseFloat(rep.cash_on_hand) : 0;
-        const cashPayments = rep.cash_payments != null ? parseFloat(rep.cash_payments) : 0;
-        const withdrawalsTotal = rep.withdrawals_total != null ? parseFloat(rep.withdrawals_total) : 0;
-        const cashRefunds = rep.cash_refunds != null ? parseFloat(rep.cash_refunds) : 0;
-        const cashOnHandEl = document.getElementById('rep-cash-on-hand');
-        if (cashOnHandEl) {
-            cashOnHandEl.textContent = cashOnHand.toFixed(2);
-            cashOnHandEl.style.color = cashOnHand < 0 ? '#ef4444' : '';
-        }
-        const cashPayEl = document.getElementById('rep-cash-payments');
-        if (cashPayEl) cashPayEl.textContent = cashPayments.toFixed(2);
-        const wdEl = document.getElementById('rep-withdrawals');
-        if (wdEl) wdEl.textContent = withdrawalsTotal.toFixed(2);
-        const refundEl = document.getElementById('rep-cash-refunds');
-        if (refundEl) refundEl.textContent = cashRefunds.toFixed(2);
-        
-        const stockValue = rep.total_stock_value !== undefined && rep.total_stock_value !== null ? parseFloat(rep.total_stock_value) : 0;
-        const expectedProfit = rep.expected_profit !== undefined && rep.expected_profit !== null ? parseFloat(rep.expected_profit) : 0;
-        
-        console.log('Calculated stockValue:', stockValue);
-        console.log('Calculated expectedProfit:', expectedProfit);
-        
-        document.getElementById('rep-stock-value').textContent = stockValue.toFixed(2);
-        document.getElementById('rep-expected-profit').textContent = expectedProfit.toFixed(2);
-    } catch (e) {
-        console.error('Error loading report:', e);
-        msg.textContent = 'Report load failed';
-    }
+    // Legacy summary panel removed — Business Overview is /overview.
+    // /api/reports/summary remains available for cash reconciliation clients.
+    window.location.href = '/overview';
 }
 
 function initDates() {
-    // Only set dates if elements exist (they're on /admin page, not on /store-settings page)
-    const repFromEl = document.getElementById('rep-from');
-    const repToEl = document.getElementById('rep-to');
-    if (repFromEl && repToEl) {
-        const today = new Date().toISOString().slice(0, 10);
-        repFromEl.value = today;
-        repToEl.value = today;
-    }
+    // No-op: date filters live on /overview.
 }
 
 function ensureAdmin() {
@@ -2218,48 +2158,8 @@ window.toggleWithdrawalsPanel = function() {
 }
 
 window.toggleReportPanel = function() {
-    console.log('toggleReportPanel called');
-    const panel = document.getElementById('summary-report-panel');
-    const settingsPanel = document.getElementById('store-settings-panel');
-    const backdrop = document.getElementById('panel-backdrop');
-    
-    if (!panel) {
-        console.error('summary-report-panel not found');
-        return;
-    }
-    if (!backdrop) {
-        console.error('panel-backdrop not found');
-        return;
-    }
-    
-    // Check if panel is currently visible
-    const computedStyle = window.getComputedStyle(panel);
-    const isVisible = computedStyle.display !== 'none' && computedStyle.display !== '';
-    console.log('Toggle report panel, isVisible:', isVisible, 'computed display:', computedStyle.display);
-    
-    // Close settings panel if open
-    if (settingsPanel) {
-        settingsPanel.style.setProperty('display', 'none', 'important');
-    }
-    
-    // Toggle report panel
-    if (isVisible) {
-        // Hide panel
-        panel.style.setProperty('display', 'none', 'important');
-        backdrop.style.setProperty('display', 'none', 'important');
-        console.log('Report panel hidden');
-    } else {
-        // Show panel
-        panel.style.setProperty('display', 'block', 'important');
-        panel.style.setProperty('visibility', 'visible', 'important');
-        panel.style.setProperty('opacity', '1', 'important');
-        backdrop.style.setProperty('display', 'block', 'important');
-        backdrop.style.setProperty('visibility', 'visible', 'important');
-        console.log('Report panel shown');
-        // Default dates are today — load cash on hand for the day immediately
-        if (typeof initDates === 'function') initDates();
-        if (typeof loadReport === 'function') loadReport();
-    }
+    // Consolidated: high-level KPIs live on Business Overview (not a second dashboard).
+    window.location.href = '/overview';
 }
 
 window.toggleShiftsPanel = function() {
@@ -3132,7 +3032,7 @@ function setupAdminEvents() {
     const btnAdminPos = document.getElementById('btn-admin-pos');
     if (btnAdminPos) {
         btnAdminPos.addEventListener('click', () => {
-            window.location.href = '/';
+            window.location.href = '/?pos=1';
         });
     }
     

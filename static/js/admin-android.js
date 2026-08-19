@@ -113,16 +113,8 @@
     function wireMobileActions() {
         const actions = [
             { id: 'admin-action-settings', fn: function () { navigate('/store-settings'); } },
-            {
-                id: 'admin-action-report',
-                fn: function () {
-                    if (typeof window.toggleReportPanel === 'function') {
-                        window.toggleReportPanel();
-                    }
-                },
-            },
             { id: 'admin-action-withdrawals', fn: function () { navigate('/withdrawals/history'); } },
-            { id: 'admin-action-analytics', fn: function () { navigate('/analytics'); } },
+            { id: 'admin-action-analytics', fn: function () { navigate('/overview'); } },
             { id: 'admin-action-shifts', fn: toggleAndroidShifts },
             { id: 'admin-action-pending', fn: function () { navigate('/pending-collection'); } },
             { id: 'admin-action-billing', fn: function () { navigate('/billing'); } },

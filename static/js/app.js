@@ -583,6 +583,16 @@ async function enterPosAfterAuth(data) {
         } catch (_) {}
     }
 
+    // Role-based landing (central resolver — mirrors app/landing.py)
+    const forcePos = new URLSearchParams(window.location.search).get('pos') === '1';
+    const landing =
+        data.landing_path ||
+        (window.PosRoles ? PosRoles.postLoginPath(currentUser) : '/');
+    if (!forcePos && landing && landing !== '/' && landing !== window.location.pathname) {
+        window.location.replace(landing);
+        return;
+    }
+
     document.getElementById('user-info').textContent = `${currentUser.username} (${currentUser.role})`;
     if (window.PosRoles) {
         PosRoles.applyPosRoleGates(currentUser);
@@ -1461,7 +1471,7 @@ function setupEvents() {
         });
     }
     document.getElementById('btn-admin').addEventListener('click', () => {
-        window.location.href = '/admin';
+        window.location.href = '/overview';
     });
     const btnBillingNav = document.getElementById('btn-billing');
     if (btnBillingNav) {
@@ -2656,6 +2666,15 @@ async function restoreSession() {
             role: me.role || JSON.parse(savedUser).role,
         };
         localStorage.setItem('pos_user', JSON.stringify(currentUser));
+
+        const forcePos = new URLSearchParams(window.location.search).get('pos') === '1';
+        const landing =
+            me.landing_path ||
+            (window.PosRoles ? PosRoles.postLoginPath(currentUser) : '/');
+        if (!forcePos && landing && landing !== '/' && landing !== window.location.pathname) {
+            window.location.replace(landing);
+            return true;
+        }
         
         // Update UI
         const userInfoEl = document.getElementById('user-info');

@@ -63,8 +63,7 @@
             'btn-toggle-layby': 'layby',
             'btn-pending-collection': 'pending_collection',
             'btn-withdraw': 'withdrawals',
-            'btn-analytics': 'analytics',
-            'admin-action-analytics': 'analytics',
+            // Overview is admin home (not Feature.ANALYTICS); keep visible for all plans.
             'btn-accounting': 'accounting',
             'btn-enterprise': 'enterprise',
             'admin-action-enterprise': 'enterprise',

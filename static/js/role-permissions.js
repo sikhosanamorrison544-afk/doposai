@@ -72,6 +72,12 @@
         return ROLE_DESCRIPTIONS[r] || '';
     }
 
+    /** First page after login — mirrors app/landing.py */
+    function postLoginPath(user) {
+        if (isAdmin(user)) return '/overview';
+        return '/';
+    }
+
     function applyPosRoleGates(user) {
         var adminBtn = document.getElementById('btn-admin');
         var billingBtn = document.getElementById('btn-billing');
@@ -108,6 +114,7 @@
         canRequestRefunds: canRequestRefunds,
         canApproveRefunds: canApproveRefunds,
         roleDescription: roleDescription,
+        postLoginPath: postLoginPath,
         applyPosRoleGates: applyPosRoleGates,
     };
 })(typeof window !== 'undefined' ? window : globalThis);

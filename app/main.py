@@ -426,6 +426,12 @@ async def admin_page(request: Request):
     return _shell_page(request, "admin.html")
 
 
+@app.get("/overview", response_class=HTMLResponse)
+async def business_overview_page(request: Request):
+    """Administrator Business Overview Dashboard (post-login landing for admins)."""
+    return _shell_page(request, "overview.html")
+
+
 @app.get("/platform/tenants", response_class=HTMLResponse)
 async def platform_tenants_page(request: Request):
     """Platform owner: list all businesses (tenants) on this POS deployment."""
@@ -482,6 +488,7 @@ class Token(BaseModel):
     token_type: str = "bearer"
     username: str
     role: str
+    landing_path: str = "/"
 
 
 @app.post("/api/auth/token", response_model=Token)
@@ -511,11 +518,18 @@ async def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     logging.info(f"Login successful for user: {user.username} (role: {user.role})")
+    from .landing import post_login_path
+
     payload = {"sub": user.username, "role": user.role}
     if user.tenant_id is not None:
         payload["tid"] = user.tenant_id
     access_token = auth.create_access_token(data=payload)
-    return Token(access_token=access_token, username=user.username, role=user.role)
+    return Token(
+        access_token=access_token,
+        username=user.username,
+        role=user.role,
+        landing_path=post_login_path(user),
+    )
 
 
 class UserMeRead(BaseModel):
@@ -523,6 +537,7 @@ class UserMeRead(BaseModel):
     role: str
     permissions: List[str]
     role_description: str
+    landing_path: str
 
 
 @app.get("/api/auth/me", response_model=UserMeRead)
@@ -530,6 +545,8 @@ async def read_current_user_me(
     current_user: User = Depends(auth.get_current_active_user),
 ):
     """Current user role and permission list for UI gating."""
+    from .landing import post_login_path
+
     role = (current_user.role or "cashier").strip().lower()
     if role == "owner":
         role = "admin"
@@ -538,7 +555,31 @@ async def read_current_user_me(
         role=role,
         permissions=permissions_as_strings(current_user),
         role_description=ROLE_DESCRIPTIONS.get(role, ""),
+        landing_path=post_login_path(current_user),
     )
+
+
+@app.get("/api/overview/summary")
+async def get_business_overview_summary(
+    from_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    to_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    branch_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(dep_perm(Perm.VIEW_REPORTS)),
+):
+    """Single-payload Business Overview Dashboard (tenant + branch scoped)."""
+    from .overview_service import build_business_overview
+
+    try:
+        return build_business_overview(
+            db,
+            current_user,
+            from_date=from_date,
+            to_date=to_date,
+            branch_id=branch_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 class ProductCreate(BaseModel):
@@ -3515,10 +3556,10 @@ async def enterprise_hub_page(request: Request):
     return _shell_page(request, "enterprise.html")
 
 
-@app.get("/analytics", response_class=HTMLResponse)
-async def analytics_page(request: Request):
-    """Sales Analytics dashboard page."""
-    return _shell_page(request, "analytics.html")
+@app.get("/analytics", response_class=RedirectResponse)
+async def analytics_page():
+    """Legacy Sales Analytics URL → single Business Overview Dashboard."""
+    return RedirectResponse(url="/overview", status_code=307)
 
 
 @app.get("/layby/customer/{customer_id}", response_class=HTMLResponse)
