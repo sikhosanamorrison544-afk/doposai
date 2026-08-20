@@ -13,7 +13,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from . import auth
-from .config import PLATFORM_OWNER_EMAILS, PLATFORM_OWNER_USERNAMES
+from .config import get_platform_owner_emails, get_platform_owner_usernames
 from .database import get_db
 from .http_rate_limit import rate_limit_hit as _rate_limit
 from .models import StoreSettings, User
@@ -43,27 +43,27 @@ def is_platform_owner_user(user: User) -> bool:
     """
     if not user.is_active or user.role != "admin":
         return False
-    if not PLATFORM_OWNER_USERNAMES and not PLATFORM_OWNER_EMAILS:
+    emails = get_platform_owner_emails()
+    usernames = get_platform_owner_usernames()
+    if not usernames and not emails:
         return False
     user_email = (user.email or "").strip().lower()
-    if PLATFORM_OWNER_EMAILS and user_email and user_email in PLATFORM_OWNER_EMAILS:
+    if emails and user_email and user_email in emails:
         return True
     user_username = (user.username or "").strip().lower()
-    if (
-        PLATFORM_OWNER_USERNAMES
-        and user_username
-        and user_username in PLATFORM_OWNER_USERNAMES
-    ):
+    if usernames and user_username and user_username in usernames:
         return True
     return False
 
 
 def is_platform_owner_tenant(db: Session, tenant: Tenant) -> bool:
     """True if this business is the platform operator's own tenant (complimentary Pro)."""
-    if not PLATFORM_OWNER_EMAILS and not PLATFORM_OWNER_USERNAMES:
+    emails = get_platform_owner_emails()
+    usernames = get_platform_owner_usernames()
+    if not emails and not usernames:
         return False
     tenant_email = (tenant.email or "").strip().lower()
-    if PLATFORM_OWNER_EMAILS and tenant_email and tenant_email in PLATFORM_OWNER_EMAILS:
+    if emails and tenant_email and tenant_email in emails:
         return True
     admins = (
         db.query(User)
@@ -80,7 +80,9 @@ def is_platform_owner_tenant(db: Session, tenant: Tenant) -> bool:
 def require_platform_owner(
     user: User = Depends(auth.get_current_active_user),
 ) -> User:
-    if not PLATFORM_OWNER_USERNAMES and not PLATFORM_OWNER_EMAILS:
+    emails = get_platform_owner_emails()
+    usernames = get_platform_owner_usernames()
+    if not usernames and not emails:
         raise HTTPException(
             status_code=403,
             detail=(

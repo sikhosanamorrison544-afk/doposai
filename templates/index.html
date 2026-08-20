@@ -71,6 +71,28 @@
             } catch (e) {}
         })();
     </script>
+    <script>
+        // Block POS chrome for signed-in users without sales (incl. /?pos=1) before paint.
+        (function () {
+            'use strict';
+            try {
+                var raw = localStorage.getItem('pos_user');
+                if (!raw) return;
+                var user = JSON.parse(raw);
+                if (!user) return;
+                var perms = user.permissions || [];
+                var canSell =
+                    user.can_access_pos === true ||
+                    (Array.isArray(perms) && perms.indexOf('sales') !== -1);
+                if (canSell) return;
+                var landing = '/overview';
+                if (user.landing_path && user.landing_path !== '/') {
+                    landing = user.landing_path;
+                }
+                window.location.replace(landing);
+            } catch (e) {}
+        })();
+    </script>
     <!-- Preload 3D model for faster loading -->
     <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
     <link rel="stylesheet" href="/static/css/style.css?v=20260608j">

@@ -95,24 +95,38 @@
             const el = document.createElement(c.href ? 'a' : 'div');
             if (c.href) el.href = c.href;
             el.className = 'ov-card';
-            const val = c.money ? money(c.value) : fmtNum(c.value);
-            let delta = '';
+            if (c.key) el.setAttribute('data-card-key', c.key);
+            if (c.key === 'cash_on_hand') el.id = 'ov-card-cash-on-hand';
+            let val;
+            if (c.available === false) {
+                val = c.display || 'Unavailable';
+            } else if (c.money === false) {
+                val = fmtNum(c.value);
+            } else {
+                val = money(c.value == null ? 0 : c.value);
+            }
+            let extra = '';
+            if (c.subtitle) {
+                extra += '<div class="delta subtitle"></div>';
+            }
             if (c.change_pct != null) {
                 const sign = c.change_pct > 0 ? '+' : '';
-                delta =
+                extra +=
                     '<div class="delta ' +
                     (c.direction || 'neutral') +
                     '">' +
                     sign +
                     c.change_pct.toFixed(1) +
                     '% vs prior period</div>';
-            } else if (c.direction === 'up') {
-                delta = '<div class="delta up">New activity</div>';
+            } else if (!c.subtitle && c.direction === 'up') {
+                extra += '<div class="delta up">New activity</div>';
             }
             el.innerHTML =
-                '<div class="label"></div><div class="value"></div>' + delta;
+                '<div class="label"></div><div class="value"></div>' + extra;
             el.querySelector('.label').textContent = c.label;
             el.querySelector('.value').textContent = val;
+            const sub = el.querySelector('.delta.subtitle');
+            if (sub && c.subtitle) sub.textContent = c.subtitle;
             root.appendChild(el);
         });
     }
@@ -147,7 +161,7 @@
             ' ' +
             h +
             '" preserveAspectRatio="none" role="img">' +
-            '<polyline fill="none" stroke="#2563eb" stroke-width="2.5" points="' +
+            '<polyline fill="none" stroke="#667eea" stroke-width="2.5" points="' +
             pts +
             '" />' +
             '</svg>' +
@@ -367,13 +381,178 @@
         $('ov-to').value = todayISO();
     }
 
+    let meUser = null;
+
+    function hasPerm(name) {
+        return !!(meUser && Array.isArray(meUser.permissions) && meUser.permissions.indexOf(name) !== -1);
+    }
+
+    function applyOverviewGates() {
+        const canSell = meUser && (meUser.can_access_pos === true || hasPerm('sales'));
+        const openPos = $('ov-open-pos');
+        const emptyPos = $('ov-empty-pos');
+        if (openPos) openPos.hidden = !canSell;
+        if (emptyPos) emptyPos.hidden = !canSell;
+
+        document.querySelectorAll('#ov-quick-actions .overview-quick-action').forEach(function (el) {
+            const need = el.getAttribute('data-perm');
+            let show = true;
+            if (need === 'admin') show = hasPerm('manage_settings') || hasPerm('manage_users');
+            else if (need === 'inventory') show = hasPerm('manage_inventory');
+            else if (need === 'pending') show = hasPerm('manage_pending_collection');
+            else if (need === 'refunds') show = hasPerm('view_refunds') || hasPerm('request_refunds');
+            else if (need === 'layby') show = hasPerm('sales') || hasPerm('manage_settings');
+            else if (need === 'reports') show = hasPerm('view_reports');
+            else if (need === 'withdrawals') show = hasPerm('view_withdrawals') || hasPerm('process_withdrawals');
+            el.style.display = show ? '' : 'none';
+        });
+    }
+
+    async function refreshPendingBadge() {
+        const badge = $('ov-pending-badge');
+        if (!badge || !hasPerm('manage_pending_collection')) return;
+        try {
+            const rows = await api('/api/sales/pending-collection');
+            const n = Array.isArray(rows) ? rows.length : 0;
+            badge.textContent = String(n);
+            badge.hidden = n <= 0;
+        } catch (_) {
+            badge.hidden = true;
+        }
+    }
+
+    async function refreshNotifBadge() {
+        const badge = $('ov-notif-badge');
+        if (!badge) return;
+        try {
+            const data = await api('/api/notifications/unread-count');
+            const n = Number(data.count) || 0;
+            badge.textContent = String(n);
+            badge.hidden = n <= 0;
+        } catch (_) {
+            badge.hidden = true;
+        }
+    }
+
+    async function openNotifications() {
+        const panel = $('ov-notifications-panel');
+        const list = $('ov-notif-list');
+        if (!panel || !list) return;
+        panel.hidden = false;
+        list.textContent = 'Loading…';
+        try {
+            const rows = await api('/api/notifications');
+            if (!rows || !rows.length) {
+                list.textContent = 'No notifications.';
+                return;
+            }
+            list.innerHTML = '';
+            rows.slice(0, 40).forEach(function (n) {
+                const div = document.createElement('div');
+                div.className = 'overview-notif-item';
+                div.textContent = n.title || n.message || n.body || JSON.stringify(n);
+                list.appendChild(div);
+            });
+            await refreshNotifBadge();
+        } catch (e) {
+            list.textContent = e.message || 'Could not load notifications.';
+        }
+    }
+
+    function cycleTheme() {
+        const order = ['default', 'light', 'classic'];
+        let cur = 'classic';
+        try {
+            cur = localStorage.getItem('pos-theme') || 'classic';
+        } catch (_) {}
+        const idx = order.indexOf(cur);
+        const next = order[(idx + 1) % order.length];
+        if (typeof window.posApplyTheme === 'function') {
+            window.posApplyTheme(next);
+        } else {
+            try {
+                localStorage.setItem('pos-theme', next);
+            } catch (_) {}
+            document.body.classList.remove('theme-default', 'theme-light', 'theme-classic');
+            document.documentElement.classList.remove(
+                'theme-default',
+                'theme-light',
+                'theme-classic'
+            );
+            document.body.classList.add('theme-' + next);
+            document.documentElement.classList.add('theme-' + next);
+        }
+    }
+
+    function setFabOpen(open) {
+        const menu = $('ov-fab-menu');
+        const toggle = $('ov-fab-toggle');
+        if (!menu || !toggle) return;
+        menu.hidden = !open;
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        toggle.setAttribute('aria-label', open ? 'Close tools menu' : 'Open tools menu');
+        toggle.textContent = open ? '×' : '+';
+    }
+
+    function initFab() {
+        const toggle = $('ov-fab-toggle');
+        const menu = $('ov-fab-menu');
+        if (!toggle || !menu) return;
+        function onToggle(e) {
+            if (e) e.preventDefault();
+            setFabOpen(menu.hidden);
+        }
+        toggle.addEventListener('click', onToggle);
+        toggle.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setFabOpen(menu.hidden);
+            }
+        });
+        document.addEventListener('click', function (e) {
+            const root = document.querySelector('.overview-fab-root');
+            if (!root || root.contains(e.target)) return;
+            setFabOpen(false);
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                setFabOpen(false);
+                const panel = $('ov-notifications-panel');
+                if (panel) panel.hidden = true;
+            }
+        });
+        const notifBtn = $('ov-fab-notifications');
+        if (notifBtn) {
+            notifBtn.addEventListener('click', function () {
+                setFabOpen(false);
+                openNotifications();
+            });
+        }
+        const themeBtn = $('ov-fab-theme');
+        if (themeBtn) {
+            themeBtn.addEventListener('click', function () {
+                cycleTheme();
+            });
+        }
+        const closeNotif = $('ov-notif-close');
+        if (closeNotif) {
+            closeNotif.addEventListener('click', function () {
+                const panel = $('ov-notifications-panel');
+                if (panel) panel.hidden = true;
+            });
+        }
+    }
+
     async function gateAccess() {
         try {
-            const me = await api('/api/auth/me');
-            if (!(me.permissions || []).includes('view_reports')) {
-                window.location.replace('/?pos=1');
+            meUser = await api('/api/auth/me');
+            if (!(meUser.permissions || []).includes('view_reports')) {
+                window.location.replace(
+                    meUser.can_access_pos ? '/?pos=1' : '/'
+                );
                 return false;
             }
+            applyOverviewGates();
             return true;
         } catch (_) {
             window.location.replace('/');
@@ -386,6 +565,11 @@
         const ok = await gateAccess();
         if (!ok) return;
 
+        initFab();
+        refreshPendingBadge();
+        refreshNotifBadge();
+        setInterval(refreshNotifBadge, 60000);
+
         $('ov-refresh').addEventListener('click', loadDashboard);
         $('ov-retry').addEventListener('click', loadDashboard);
         $('ov-from').addEventListener('change', loadDashboard);
@@ -395,6 +579,9 @@
         document.querySelectorAll('[data-preset]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 const p = btn.getAttribute('data-preset');
+                document.querySelectorAll('[data-preset]').forEach(function (b) {
+                    b.classList.toggle('is-active', b === btn);
+                });
                 if (p === 'today') {
                     $('ov-from').value = todayISO();
                     $('ov-to').value = todayISO();
@@ -406,11 +593,15 @@
                 loadDashboard();
             });
         });
+        const todayBtn = document.querySelector('[data-preset="today"]');
+        if (todayBtn) todayBtn.classList.add('is-active');
 
         $('ov-logout').addEventListener('click', function () {
             localStorage.removeItem('pos_token');
             localStorage.removeItem('pos_user');
-            window.location.href = '/';
+            fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).finally(function () {
+                window.location.href = '/';
+            });
         });
 
         loadDashboard();

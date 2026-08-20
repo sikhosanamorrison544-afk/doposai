@@ -5,9 +5,9 @@
     'use strict';
 
     var ROLE_DESCRIPTIONS = {
-        admin: 'Full access — inventory, settings, users, billing, enterprise, and all reports.',
+        admin: 'Full business access — inventory, settings, users, billing, enterprise, and reports. No POS selling.',
         supervisor:
-            'Operational lead — process withdrawals, approve refunds, mark pending collections, and manage shifts.',
+            'Operational lead — sell on POS, process withdrawals, approve refunds, pending collections, and shifts.',
         cashier: 'Point of sale only — ring up sales and view stock levels.',
     };
 
@@ -72,10 +72,21 @@
         return ROLE_DESCRIPTIONS[r] || '';
     }
 
+    function canAccessPos(user) {
+        if (!user) return false;
+        if (Array.isArray(user.permissions)) {
+            return user.permissions.indexOf('sales') !== -1;
+        }
+        // Fallback when permissions not loaded: cashiers and supervisors sell.
+        var r = roleOf(user);
+        return r === 'cashier' || r === 'supervisor';
+    }
+
     /** First page after login — mirrors app/landing.py */
     function postLoginPath(user) {
         if (isAdmin(user)) return '/overview';
-        return '/';
+        if (canAccessPos(user)) return '/';
+        return '/overview';
     }
 
     function applyPosRoleGates(user) {
@@ -84,6 +95,7 @@
         var btnPending = document.getElementById('btn-pending-collection');
         var btnWithdraw = document.getElementById('btn-withdraw');
         var btnRefunds = document.getElementById('btn-refunds');
+        var btnLayby = document.getElementById('btn-layby');
 
         if (adminBtn) adminBtn.style.display = canAccessAdmin(user) ? 'inline-block' : 'none';
         if (billingBtn) billingBtn.style.display = canAccessAdmin(user) ? 'inline-block' : 'none';
@@ -96,6 +108,10 @@
         if (btnRefunds) {
             btnRefunds.style.display = canRequestRefunds(user) ? 'inline-block' : 'none';
         }
+        // Layby remains available to selling users; hide for admin-only accounts.
+        if (btnLayby) {
+            btnLayby.style.display = canAccessPos(user) ? 'inline-block' : 'none';
+        }
     }
 
     global.PosRoles = {
@@ -106,6 +122,7 @@
         isCashier: isCashier,
         isSupervisorOrAdmin: isSupervisorOrAdmin,
         canAccessAdmin: canAccessAdmin,
+        canAccessPos: canAccessPos,
         canProcessWithdrawals: canProcessWithdrawals,
         canViewWithdrawals: canViewWithdrawals,
         canManagePendingCollection: canManagePendingCollection,

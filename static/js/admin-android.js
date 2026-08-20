@@ -112,7 +112,6 @@
 
     function wireMobileActions() {
         const actions = [
-            { id: 'admin-action-settings', fn: function () { navigate('/store-settings'); } },
             { id: 'admin-action-withdrawals', fn: function () { navigate('/withdrawals/history'); } },
             { id: 'admin-action-analytics', fn: function () { navigate('/overview'); } },
             { id: 'admin-action-shifts', fn: toggleAndroidShifts },

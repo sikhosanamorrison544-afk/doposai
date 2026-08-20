@@ -3,7 +3,7 @@ import hashlib
 import secrets
 from typing import Any, Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -20,6 +20,9 @@ SECRET_KEY = load_jwt_secret_from_env()
 ALGORITHM = JWT_ALGORITHM
 ACCESS_TOKEN_EXPIRE_MINUTES = 8 * 60  # 8 hours
 REFRESH_TOKEN_EXPIRE_DAYS = 30
+
+# HttpOnly cookie so HTML routes (GET /) can enforce POS access without relying on JS alone.
+POS_ACCESS_COOKIE = "pos_access_token"
 
 pwd_context = CryptContext(schemes=[PWD_HASH_SCHEME], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
@@ -135,3 +138,79 @@ async def get_current_supervisor_or_admin_user(
 
     require_supervisor_or_above(current_user)
     return current_user
+
+
+def set_access_cookie(response: Response, access_token: str) -> None:
+    """
+    Set the HttpOnly POS access cookie used by HTML route guards.
+
+    Attributes follow project defaults: HttpOnly, SameSite=Lax, path=/,
+    max-age matching access-token lifetime. Secure is enabled in production
+    (or when POS_COOKIE_SECURE=1). Optional POS_COOKIE_DOMAIN is applied when set.
+    """
+    import os
+
+    from .config import APP_ENV
+
+    secure_flag = os.environ.get("POS_COOKIE_SECURE", "").strip().lower()
+    if secure_flag in ("1", "true", "yes"):
+        secure = True
+    elif secure_flag in ("0", "false", "no"):
+        secure = False
+    else:
+        secure = APP_ENV in ("production", "prod")
+
+    kwargs: dict[str, Any] = {
+        "key": POS_ACCESS_COOKIE,
+        "value": access_token,
+        "httponly": True,
+        "samesite": "lax",
+        "max_age": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        "path": "/",
+        "secure": secure,
+    }
+    domain = os.environ.get("POS_COOKIE_DOMAIN", "").strip()
+    if domain:
+        kwargs["domain"] = domain
+    response.set_cookie(**kwargs)
+
+
+def clear_access_cookie(response: Response) -> None:
+    """Clear the POS access cookie (match path/domain used at set time)."""
+    import os
+
+    kwargs: dict[str, Any] = {"key": POS_ACCESS_COOKIE, "path": "/"}
+    domain = os.environ.get("POS_COOKIE_DOMAIN", "").strip()
+    if domain:
+        kwargs["domain"] = domain
+    response.delete_cookie(**kwargs)
+
+
+def attach_access_cookie(response: Response, access_token: str) -> Response:
+    """Shared helper: stamp the POS access cookie onto any login response."""
+    set_access_cookie(response, access_token)
+    return response
+
+
+def user_from_access_cookie(request: Request, db: Session) -> Optional[User]:
+    """Resolve the signed-in user from the HttpOnly access cookie (HTML gate)."""
+    token = request.cookies.get(POS_ACCESS_COOKIE)
+    if not token:
+        return None
+    try:
+        payload = decode_access_token(token)
+        username = payload.get("sub")
+        if not username:
+            return None
+        tid_claim = payload.get("tid")
+    except JWTError:
+        return None
+    user = get_user_by_username(db, username=username)
+    if user is None or not user.is_active:
+        return None
+    if user.tenant_id is not None:
+        if tid_claim is not None and int(tid_claim) != int(user.tenant_id):
+            return None
+    elif tid_claim is not None:
+        return None
+    return user

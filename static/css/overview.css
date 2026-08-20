@@ -1,77 +1,107 @@
 /**
- * Business Overview Dashboard — self-contained theme overrides.
+ * Business Overview — layout + POS theme alignment.
  *
- * Must beat global POS light-theme rules such as:
- *   html.theme-light body.theme-light #app * { color: #fff !important; }
- * and fix #app flex row layout that splits header/main into columns.
+ * Reuses POS accent (#667eea), input tokens (--input-*), glass tokens, and
+ * theme-default / theme-light / theme-classic surfaces from style.css.
+ *
+ * Must keep:
+ *   - body.page-overview scoping
+ *   - #app column layout (not POS flex-row centering)
+ *   - exclusion from light-theme #app * { color:#fff } (style.css)
+ *   - explicit overview-button colours (beat any remaining #app * rules)
  */
 
-/* ── Page shell ─────────────────────────────────────────────────────────── */
+/* ── Tokens mapped to live POS chrome ───────────────────────────────────── */
 body.page-overview,
 body.overview-page {
-    --ov-text: #111827;
-    --ov-muted: #4b5563;
-    --ov-surface: #ffffff;
-    --ov-surface-2: #f3f4f6;
-    --ov-border: #d1d5db;
-    --ov-accent: #2563eb;
-    --ov-accent-soft: #dbeafe;
-    --ov-danger: #b91c1c;
-    --ov-danger-bg: #fef2f2;
-    --ov-warn: #92400e;
-    --ov-warn-bg: #fffbeb;
-    --ov-ok: #047857;
-    --ov-page-bg: #e5e7eb;
-    --ov-input-bg: #ffffff;
-    --ov-input-text: #111827;
-    --ov-btn-bg: #111827;
+    /* Fallback = classic POS chrome; theme-* overrides below */
+    --ov-page-bg: #2a2a2a;
+    --ov-surface: #3a3a3a;
+    --ov-surface-2: #404040;
+    --ov-text: #ffffff;
+    --ov-muted: rgba(255, 255, 255, 0.75);
+    --ov-border: rgba(255, 255, 255, 0.2);
+    --ov-accent: #667eea;
+    --ov-accent-soft: rgba(102, 126, 234, 0.28);
+    --ov-danger: #ef4444;
+    --ov-danger-bg: rgba(239, 68, 68, 0.18);
+    --ov-warn: #fbbf24;
+    --ov-warn-bg: rgba(251, 191, 36, 0.18);
+    --ov-ok: #34d399;
+    --ov-input-bg: var(--input-bg, #141414);
+    --ov-input-text: var(--input-text, #ffffff);
+    --ov-input-border: var(--input-border, rgba(255, 255, 255, 0.22));
+    --ov-btn-bg: #404040;
     --ov-btn-text: #ffffff;
-    --ov-btn-border: #111827;
+    --ov-btn-border: rgba(255, 255, 255, 0.25);
+    --ov-primary-bg: #667eea;
+    --ov-primary-text: #ffffff;
+    --ov-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
     margin: 0 !important;
     min-height: 100vh !important;
     background: var(--ov-page-bg) !important;
     background-image: none !important;
     animation: none !important;
     color: var(--ov-text) !important;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     overflow-x: hidden !important;
     overflow-y: auto !important;
 }
 
+/* Classic POS — solid dark panels */
 html.theme-classic body.page-overview,
 html.theme-classic body.overview-page,
 body.theme-classic.page-overview,
 body.theme-classic.overview-page {
-    --ov-page-bg: #1f1f1f;
-    --ov-surface: #2d2d2d;
-    --ov-surface-2: #3a3a3a;
-    --ov-text: #f3f4f6;
-    --ov-muted: #d1d5db;
-    --ov-border: #525252;
-    --ov-input-bg: #141414;
-    --ov-input-text: #f3f4f6;
-    --ov-btn-bg: #374151;
-    --ov-btn-text: #f9fafb;
-    --ov-btn-border: #6b7280;
-    --ov-accent-soft: rgba(37, 99, 235, 0.25);
-    --ov-warn-bg: rgba(251, 191, 36, 0.18);
-    --ov-danger-bg: rgba(239, 68, 68, 0.18);
+    --ov-page-bg: #2a2a2a;
+    --ov-surface: #3a3a3a;
+    --ov-surface-2: #404040;
+    --ov-text: #ffffff;
+    --ov-muted: rgba(255, 255, 255, 0.75);
+    --ov-border: rgba(255, 255, 255, 0.2);
+    --ov-accent: #4a7dc7;
+    --ov-primary-bg: #4a7dc7;
+    --ov-btn-bg: #404040;
+    --ov-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
+/* Default — gradient page (body ::before / theme-instant), translucent cards */
 html.theme-default body.page-overview,
 html.theme-default body.overview-page,
 body.theme-default.page-overview,
 body.theme-default.overview-page {
-    --ov-page-bg: #1e1b4b;
-    --ov-surface: rgba(255, 255, 255, 0.96);
-    --ov-surface-2: #f8fafc;
-    --ov-text: #111827;
-    --ov-muted: #4b5563;
-    --ov-border: #cbd5e1;
-    --ov-input-bg: #ffffff;
-    --ov-input-text: #111827;
-    --ov-btn-bg: #312e81;
-    --ov-btn-text: #ffffff;
-    --ov-btn-border: #4338ca;
+    --ov-page-bg: transparent;
+    --ov-surface: rgba(58, 58, 58, 0.9);
+    --ov-surface-2: rgba(64, 64, 64, 0.85);
+    --ov-text: #f9fafb;
+    --ov-muted: rgba(249, 250, 251, 0.78);
+    --ov-border: rgba(255, 255, 255, 0.3);
+    --ov-accent: #667eea;
+    --ov-primary-bg: #667eea;
+    --ov-btn-bg: rgba(58, 58, 58, 0.95);
+    --ov-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    background: transparent !important;
+}
+
+/* Light — video backdrop + glass panels (readable white text on glass) */
+html.theme-light body.page-overview,
+html.theme-light body.overview-page,
+body.theme-light.page-overview,
+body.theme-light.overview-page {
+    --ov-page-bg: transparent;
+    --ov-surface: var(--glass-bg, rgba(255, 255, 255, 0.22));
+    --ov-surface-2: var(--glass-bg-strong, rgba(255, 255, 255, 0.28));
+    --ov-text: #ffffff;
+    --ov-muted: rgba(255, 255, 255, 0.82);
+    --ov-border: var(--glass-border, rgba(255, 255, 255, 0.3));
+    --ov-accent: #667eea;
+    --ov-primary-bg: #667eea;
+    --ov-btn-bg: rgba(15, 23, 42, 0.45);
+    --ov-btn-border: rgba(255, 255, 255, 0.35);
+    --ov-input-bg: var(--input-bg, #141414);
+    --ov-input-text: var(--input-text, #f3f4f6);
+    --ov-shadow: var(--glass-shadow, 0 8px 32px rgba(0, 0, 0, 0.12));
+    background: transparent !important;
 }
 
 /* Kill POS #app flex-row centering (header | main side-by-side). */
@@ -95,9 +125,8 @@ body.overview-page #app {
 }
 
 /*
- * Beat global light-theme “everything white” rule.
- * That rule gains extra ID specificity from :not(#light-theme-video)…, so
- * overrides must include the same :not() chain plus .page-overview.
+ * Light theme: Overview is excluded from global #app * white rules in style.css,
+ * but we still set explicit colours so glass panels stay readable.
  */
 html.theme-light body.theme-light.page-overview:not(.pos-android-app),
 html.theme-light body.theme-light.overview-page:not(.pos-android-app),
@@ -169,6 +198,28 @@ body.overview-page .overview-header-actions {
     justify-content: flex-end;
 }
 
+body.page-overview .overview-header-right,
+body.overview-page .overview-header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+body.page-overview .overview-theme-selector,
+body.overview-page .overview-theme-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+body.page-overview .overview-theme-selector .theme-btn.active,
+body.overview-page .overview-theme-selector .theme-btn.active {
+    border-color: var(--ov-accent) !important;
+    box-shadow: 0 0 0 2px var(--ov-accent-soft);
+}
+
 body.page-overview .overview-filters,
 body.overview-page .overview-filters {
     display: flex;
@@ -180,7 +231,10 @@ body.overview-page .overview-filters {
     border-radius: 12px;
     background: var(--ov-surface) !important;
     border: 1px solid var(--ov-border) !important;
+    box-shadow: var(--ov-shadow);
     box-sizing: border-box;
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
 }
 
 body.page-overview .overview-filters label,
@@ -207,7 +261,7 @@ body.theme-classic.page-overview input[type="date"],
 body.theme-classic.page-overview select {
     padding: 8px 10px !important;
     border-radius: 8px !important;
-    border: 1px solid var(--ov-border) !important;
+    border: 1px solid var(--ov-input-border, var(--ov-border)) !important;
     background: var(--ov-input-bg) !important;
     color: var(--ov-input-text) !important;
     caret-color: var(--ov-input-text) !important;
@@ -295,8 +349,8 @@ html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app a.ove
 html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app button.overview-button-primary,
 html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app a.overview-button-primary,
 html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app button.overview-button-primary {
-    background: #101828 !important;
-    border-color: #101828 !important;
+    background: var(--ov-primary-bg, #667eea) !important;
+    border-color: var(--ov-primary-bg, #667eea) !important;
     color: #ffffff !important;
 }
 
@@ -308,8 +362,8 @@ html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app a.ove
 html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app button.overview-button-primary:hover,
 html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app a.overview-button-primary:focus-visible,
 html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app button.overview-button-primary:focus-visible {
-    background: #1d2939 !important;
-    border-color: #1d2939 !important;
+    background: #5a67d8 !important;
+    border-color: #5a67d8 !important;
     color: #ffffff !important;
     filter: none;
     transform: none !important;
@@ -321,8 +375,8 @@ body.page-overview button.overview-button-danger,
 body.overview-page button.overview-button-danger,
 html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app button.overview-button-danger,
 html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app button.overview-button-danger {
-    background: #dc2626 !important;
-    border-color: #dc2626 !important;
+    background: #c75050 !important;
+    border-color: #ef4444 !important;
     color: #ffffff !important;
 }
 
@@ -349,11 +403,20 @@ html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .over
     color: var(--ov-text) !important;
 }
 
+body.page-overview .overview-button-secondary.is-active,
+body.page-overview .overview-presets .overview-button.is-active,
+body.overview-page .overview-button-secondary.is-active,
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-presets .overview-button.is-active {
+    background: var(--ov-primary-bg, #667eea) !important;
+    border-color: var(--ov-primary-bg, #667eea) !important;
+    color: #ffffff !important;
+}
+
 body.page-overview .overview-button-secondary:hover,
 body.page-overview .overview-button-secondary:focus-visible,
 body.overview-page .overview-button-secondary:hover,
 body.overview-page .overview-button-secondary:focus-visible {
-    background: #e5e7eb !important;
+    border-color: var(--ov-accent) !important;
     color: var(--ov-text) !important;
     filter: none;
 }
@@ -411,9 +474,11 @@ html.theme-light body.theme-light.page-overview .ov-card {
     background: var(--ov-surface) !important;
     border: 1px solid var(--ov-border) !important;
     color: var(--ov-text) !important;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--ov-shadow);
     min-height: 88px;
     box-sizing: border-box;
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
 }
 
 body.page-overview .ov-card .label,
@@ -440,6 +505,12 @@ body.overview-page .ov-card .delta {
     font-size: 0.75rem !important;
     margin-top: 4px;
     color: var(--ov-muted) !important;
+}
+
+body.page-overview .ov-card .delta.subtitle,
+body.overview-page .ov-card .delta.subtitle {
+    color: var(--ov-muted) !important;
+    font-weight: 500;
 }
 
 body.page-overview .ov-card .delta.up,
@@ -469,7 +540,10 @@ html.theme-light body.theme-light.page-overview .overview-panel {
     background: var(--ov-surface) !important;
     border: 1px solid var(--ov-border) !important;
     color: var(--ov-text) !important;
+    box-shadow: var(--ov-shadow);
     box-sizing: border-box;
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
 }
 
 body.page-overview .overview-panel h2,
@@ -528,7 +602,7 @@ body.page-overview .bar-track {
 
 body.page-overview .bar-fill {
     height: 100%;
-    background: var(--ov-accent) !important;
+    background: var(--ov-accent, #667eea) !important;
     border-radius: 999px;
 }
 
@@ -636,8 +710,17 @@ html.theme-light body.theme-light.page-overview .overview-links a {
         flex-direction: column;
     }
 
+    body.page-overview .overview-header-right {
+        width: 100%;
+        align-items: stretch;
+    }
+
     body.page-overview .overview-header-actions {
         width: 100%;
+        justify-content: flex-start;
+    }
+
+    body.page-overview .overview-theme-selector {
         justify-content: flex-start;
     }
 
@@ -667,6 +750,139 @@ html.theme-light body.theme-light.page-overview .overview-links a {
     }
 }
 
+/* ── Management quick actions ───────────────────────────────────────────── */
+body.page-overview .overview-quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+body.page-overview .overview-quick-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--ov-border);
+    background: var(--ov-surface-2);
+    color: var(--ov-text) !important;
+    text-decoration: none !important;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+body.page-overview .overview-quick-action:hover,
+body.page-overview .overview-quick-action:focus-visible {
+    border-color: var(--ov-accent);
+    outline: none;
+    box-shadow: 0 0 0 2px var(--ov-accent-soft);
+}
+
+body.page-overview .ov-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.4rem;
+    height: 1.4rem;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #ef4444;
+    color: #ffffff !important;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+/* ── Floating action menu ───────────────────────────────────────────────── */
+body.page-overview .overview-fab-root {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+body.page-overview .overview-fab-toggle {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: var(--ov-primary-bg, #667eea) !important;
+    color: #ffffff !important;
+    font-size: 1.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body.page-overview .overview-fab-toggle:focus-visible {
+    outline: 3px solid #ffffff;
+    outline-offset: 2px;
+}
+
+body.page-overview .overview-fab-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 200px;
+}
+
+body.page-overview .overview-fab-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--ov-border);
+    background: var(--ov-surface) !important;
+    color: var(--ov-text) !important;
+    text-decoration: none !important;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: var(--ov-shadow);
+    text-align: left;
+}
+
+body.page-overview .overview-notif-panel {
+    position: fixed;
+    right: 20px;
+    bottom: 90px;
+    width: min(360px, calc(100vw - 32px));
+    max-height: min(420px, 60vh);
+    overflow: auto;
+    z-index: 45;
+    padding: 12px;
+    border-radius: 12px;
+    background: var(--ov-surface);
+    border: 1px solid var(--ov-border);
+    box-shadow: var(--ov-shadow);
+    color: var(--ov-text);
+}
+
+body.page-overview .overview-notif-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+body.page-overview .overview-notif-header h3 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+body.page-overview .overview-notif-list {
+    display: grid;
+    gap: 8px;
+    font-size: 0.9rem;
+}
+
 /*
  * Final cascade (must remain last): restore intentional contrast after the
  * light-theme #app * reset. Matches global ID-heavy specificity.
@@ -693,7 +909,7 @@ html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app butto
 html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app a.overview-button-primary,
 html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app button.overview-button-primary {
     color: #ffffff !important;
-    background: #101828 !important;
+    background: var(--ov-primary-bg, #667eea) !important;
 }
 
 html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-button-secondary,
@@ -703,10 +919,16 @@ html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .over
     color: var(--ov-text) !important;
 }
 
+html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .overview-presets .overview-button.is-active,
+html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app .overview-presets .overview-button.is-active {
+    color: #ffffff !important;
+    background: var(--ov-primary-bg, #667eea) !important;
+}
+
 html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app button.overview-button-danger,
 html.theme-light body.theme-light.overview-page:not(.pos-android-app) #app button.overview-button-danger {
     color: #ffffff !important;
-    background: #dc2626 !important;
+    background: #c75050 !important;
 }
 
 html.theme-light body.theme-light.page-overview:not(.pos-android-app) #app .ov-alert,

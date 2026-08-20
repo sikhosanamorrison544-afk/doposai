@@ -1,31 +1,22 @@
-"""Unit tests for the platform-owner allowlist (`is_platform_owner_user`).
+"""Platform-owner allowlist (`is_platform_owner_user`).
 
-The key invariant we're protecting here: usernames are NOT globally
-unique across tenants in this SaaS deployment (every tenant's primary
-admin uses ``admin`` by default). The introduction of email-based
-gating exists specifically so the platform banner does NOT leak to
-other tenants when the operator forgets to make the username gate
-restrictive.
+Usernames are NOT globally unique across tenants. Email gating is preferred.
+Allowlists are read live from env via config getters so suite import order
+cannot freeze empty frozensets into platform_routes.
 """
 from __future__ import annotations
 
-import os
-import sys
+import pytest
 
-# Configure both allowlists BEFORE importing the module under test, since
-# the env vars are parsed once at import time.
-os.environ.setdefault("PLATFORM_OWNER_USERNAMES", "owner_user")
-os.environ.setdefault("PLATFORM_OWNER_EMAILS", "owner@example.com")
+from app.models import User
+from app import platform_routes as pr
 
-# Reload config + platform_routes if they've been imported by an earlier
-# test in the same process — otherwise the frozensets won't reflect the
-# values we just set.
-for _mod in ("app.config", "app.platform_routes"):
-    if _mod in sys.modules:
-        del sys.modules[_mod]
 
-from app import platform_routes as pr  # noqa: E402
-from app.models import User  # noqa: E402
+@pytest.fixture(autouse=True)
+def _platform_owner_allowlists(monkeypatch):
+    monkeypatch.setenv("PLATFORM_OWNER_USERNAMES", "owner_user")
+    monkeypatch.setenv("PLATFORM_OWNER_EMAILS", "owner@example.com")
+    yield
 
 
 def _make_user(*, username, email, role="admin", is_active=True) -> User:
@@ -53,9 +44,6 @@ def test_username_match_grants_access():
 
 
 def test_regular_tenant_admin_is_denied_even_if_username_is_admin():
-    # This is the core bug we're fixing: every tenant signs up with
-    # username='admin', so an admin-username gate must NOT grant them
-    # platform-owner access just because their email isn't on the list.
     u = _make_user(username="admin", email="cust@somebiz.com")
     assert pr.is_platform_owner_user(u) is False
 
@@ -71,16 +59,11 @@ def test_inactive_user_denied_even_if_email_matches():
 
 
 def test_empty_email_does_not_falsely_match_empty_allowlist_entry():
-    # Defensive: if a user record has email='' it must not match an
-    # empty string in the allowlist (the parser already strips empties,
-    # but we double-check).
     u = _make_user(username="not-owner", email="")
     assert pr.is_platform_owner_user(u) is False
 
 
 def test_user_missing_email_attr_is_denied_cleanly():
-    # Some code paths may construct users without an email attribute
-    # set; we should not crash.
     u = User()
     u.username = "x"
     u.email = None
@@ -111,3 +94,10 @@ def test_is_platform_owner_tenant_by_tenant_email():
             return FakeQuery()
 
     assert pr.is_platform_owner_tenant(FakeDb(), t) is True
+
+
+def test_empty_allowlist_denies_everyone(monkeypatch):
+    monkeypatch.setenv("PLATFORM_OWNER_USERNAMES", "")
+    monkeypatch.setenv("PLATFORM_OWNER_EMAILS", "")
+    u = _make_user(username="owner_user", email="owner@example.com")
+    assert pr.is_platform_owner_user(u) is False

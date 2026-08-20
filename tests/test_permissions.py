@@ -14,12 +14,13 @@ def _user(role: str) -> User:
     return User(username=f"u_{role}", role=role, password_hash="x", is_active=True)
 
 
-def test_admin_has_all_permissions():
+def test_admin_has_management_permissions_without_sales():
     perms = user_permissions(_user("admin"))
     assert Perm.MANAGE_USERS in perms
     assert Perm.MANAGE_BRANCHES in perms
     assert Perm.PROCESS_WITHDRAWALS in perms
-    assert len(perms) == len(Perm)
+    assert Perm.SALES not in perms
+    assert len(perms) == len(Perm) - 1
 
 
 def test_supervisor_operational_permissions():
@@ -63,3 +64,12 @@ def test_permissions_as_strings_sorted():
     assert names == sorted(names)
     assert "sales" in names
     assert "process_withdrawals" not in names
+
+
+def test_can_access_pos_requires_sales():
+    from app.permissions import can_access_pos
+
+    assert can_access_pos(_user("cashier")) is True
+    assert can_access_pos(_user("supervisor")) is True
+    assert can_access_pos(_user("admin")) is False
+    assert can_access_pos(_user("owner")) is False

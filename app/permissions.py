@@ -46,8 +46,9 @@ SUPERVISOR_ROLES = frozenset({"supervisor"})
 CASHIER_ROLES = frozenset({"cashier"})
 
 _ROLE_PERMS: dict[str, Set[Perm]] = {
-    "owner": set(Perm),
-    "admin": set(Perm),
+    # Admin/owner manage the business but do not sell on the POS by default.
+    "owner": {p for p in Perm if p != Perm.SALES},
+    "admin": {p for p in Perm if p != Perm.SALES},
     "supervisor": {
         Perm.SALES,
         Perm.VIEW_INVENTORY,
@@ -68,8 +69,8 @@ _ROLE_PERMS: dict[str, Set[Perm]] = {
 }
 
 ROLE_DESCRIPTIONS: dict[str, str] = {
-    "admin": "Full access — inventory, settings, users, billing, enterprise, and all reports.",
-    "supervisor": "Operational lead — process withdrawals, approve refunds, mark pending collections, and manage shifts.",
+    "admin": "Full business access — inventory, settings, users, billing, enterprise, and reports. No POS selling.",
+    "supervisor": "Operational lead — sell on POS, process withdrawals, approve refunds, pending collections, and shifts.",
     "cashier": "Point of sale only — ring up sales and view stock levels.",
 }
 
@@ -92,6 +93,11 @@ def permissions_as_strings(user: User) -> List[str]:
 
 def has_permission(user: User, perm: Perm) -> bool:
     return perm in user_permissions(user)
+
+
+def can_access_pos(user: User) -> bool:
+    """POS selling page requires explicit sales permission (not admin-by-default)."""
+    return has_permission(user, Perm.SALES)
 
 
 def require_permission(user: User, perm: Perm) -> None:

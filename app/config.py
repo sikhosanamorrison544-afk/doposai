@@ -127,9 +127,20 @@ def _parse_platform_owner_emails() -> frozenset[str]:
     return frozenset(p.strip().lower() for p in raw.split(",") if p.strip())
 
 
-# Parsed once at import; restart app after changing env.
+# Parsed once at import for display/debug; authorization must use getters below
+# so tests and runtime env updates are not stuck with empty frozensets.
 PLATFORM_OWNER_USERNAMES: frozenset[str] = _parse_platform_owner_usernames()
 PLATFORM_OWNER_EMAILS: frozenset[str] = _parse_platform_owner_emails()
+
+
+def get_platform_owner_usernames() -> frozenset[str]:
+    """Live allowlist from env (re-parsed each call)."""
+    return _parse_platform_owner_usernames()
+
+
+def get_platform_owner_emails() -> frozenset[str]:
+    """Live allowlist from env (re-parsed each call)."""
+    return _parse_platform_owner_emails()
 
 # Contabo AI microservice (vLLM + Qwen3) — Render calls this; no Ollama
 AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "").rstrip("/")

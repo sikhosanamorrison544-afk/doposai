@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from jose import JWTError
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import func
@@ -171,7 +172,14 @@ def _issue_tokens(db: Session, user: User, tenant: Optional[Tenant]) -> AuthResp
     )
 
 
-@router.post("/register", response_model=AuthResponse)
+def _auth_response_with_cookie(body: AuthResponse) -> JSONResponse:
+    """Same JWT cookie as ``/api/auth/token`` for HTML route guards."""
+    response = JSONResponse(content=body.model_dump(mode="json"))
+    auth.attach_access_cookie(response, body.access_token)
+    return response
+
+
+@router.post("/register")
 def auth_register(request: Request, body: RegisterBody, db: Session = Depends(get_db)):
     _rate_limit(request, "register", max_calls=10, window_sec=300)
     email_norm = body.email.strip().lower()
@@ -247,10 +255,10 @@ def auth_register(request: Request, body: RegisterBody, db: Session = Depends(ge
         tenant_uid,
         security_payload,
     )
-    return _issue_tokens(db, user, tenant)
+    return _auth_response_with_cookie(_issue_tokens(db, user, tenant))
 
 
-@router.post("/login", response_model=AuthResponse)
+@router.post("/login")
 def auth_login(request: Request, body: LoginBody, db: Session = Depends(get_db)):
     _rate_limit(request, "login", max_calls=40, window_sec=60)
     email_norm = body.email.strip().lower()
@@ -262,10 +270,10 @@ def auth_login(request: Request, body: LoginBody, db: Session = Depends(get_db))
     tenant = None
     if user.tenant_id:
         tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
-    return _issue_tokens(db, user, tenant)
+    return _auth_response_with_cookie(_issue_tokens(db, user, tenant))
 
 
-@router.post("/refresh", response_model=AuthResponse)
+@router.post("/refresh")
 def auth_refresh(request: Request, body: RefreshBody, db: Session = Depends(get_db)):
     _rate_limit(request, "refresh", max_calls=60, window_sec=60)
     h = auth.hash_token(body.refresh_token.strip())
@@ -283,7 +291,7 @@ def auth_refresh(request: Request, body: RefreshBody, db: Session = Depends(get_
         if remote and remote.get("subscription_status"):
             tenant.subscription_status = str(remote["subscription_status"])[:32]
             tenant.last_subscription_verified_at = datetime.utcnow()
-    return _issue_tokens(db, user, tenant)
+    return _auth_response_with_cookie(_issue_tokens(db, user, tenant))
 
 
 @router.post("/logout")
@@ -294,7 +302,9 @@ def auth_logout(body: LogoutBody, db: Session = Depends(get_db)):
         if row and row.revoked_at is None:
             row.revoked_at = datetime.utcnow()
             db.commit()
-    return {"ok": True}
+    response = JSONResponse(content={"ok": True})
+    auth.clear_access_cookie(response)
+    return response
 
 
 @router.get("/verify", response_model=VerifyResponse)

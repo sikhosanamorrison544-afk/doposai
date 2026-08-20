@@ -559,7 +559,13 @@ async function maybeShowTrialSubscribeModal() {
 /** After OAuth token or SaaS /auth/register — same JWT shape for API calls */
 async function enterPosAfterAuth(data) {
     token = data.access_token;
-    currentUser = { username: data.username, role: data.role };
+    currentUser = {
+        username: data.username,
+        role: data.role,
+        permissions: data.permissions || [],
+        can_access_pos: data.can_access_pos === true,
+        landing_path: data.landing_path || null,
+    };
     localStorage.setItem('pos_token', token);
     localStorage.setItem('pos_user', JSON.stringify(currentUser));
     if (window.PosBranding && typeof window.PosBranding.clearCache === 'function') {
@@ -588,6 +594,15 @@ async function enterPosAfterAuth(data) {
     const landing =
         data.landing_path ||
         (window.PosRoles ? PosRoles.postLoginPath(currentUser) : '/');
+    const canSell =
+        data.can_access_pos === true ||
+        (Array.isArray(data.permissions) && data.permissions.indexOf('sales') !== -1) ||
+        (window.PosRoles && PosRoles.canAccessPos(currentUser));
+    // Admin-only (and any account without sales) cannot use POS, including /?pos=1.
+    if (!canSell) {
+        window.location.replace(landing && landing !== '/' ? landing : '/overview');
+        return;
+    }
     if (!forcePos && landing && landing !== '/' && landing !== window.location.pathname) {
         window.location.replace(landing);
         return;
@@ -726,6 +741,7 @@ async function registerBusiness() {
                 email,
                 password,
             }),
+            credentials: 'same-origin',
         });
         if (!res.ok) {
             errorEl.textContent = (await parseFastApiErrorResponse(res)) || 'Could not complete registration';
@@ -755,6 +771,7 @@ async function login() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: username, password: password }),
+                credentials: 'same-origin',
             });
         } else {
             const form = new URLSearchParams();
@@ -765,6 +782,7 @@ async function login() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: form.toString(),
+                credentials: 'same-origin',
             });
         }
         if (!res.ok) {
@@ -1489,6 +1507,7 @@ function setupEvents() {
         renderCart();
         localStorage.removeItem('pos_token');
         localStorage.removeItem('pos_user');
+        fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(function () {});
         if (window.PosBranding && typeof window.PosBranding.clearCache === 'function') {
             window.PosBranding.clearCache();
         }
@@ -2664,6 +2683,9 @@ async function restoreSession() {
         currentUser = {
             username: me.username || JSON.parse(savedUser).username,
             role: me.role || JSON.parse(savedUser).role,
+            permissions: me.permissions || [],
+            can_access_pos: me.can_access_pos === true,
+            landing_path: me.landing_path || null,
         };
         localStorage.setItem('pos_user', JSON.stringify(currentUser));
 
@@ -2671,6 +2693,14 @@ async function restoreSession() {
         const landing =
             me.landing_path ||
             (window.PosRoles ? PosRoles.postLoginPath(currentUser) : '/');
+        const canSell =
+            me.can_access_pos === true ||
+            (Array.isArray(me.permissions) && me.permissions.indexOf('sales') !== -1) ||
+            (window.PosRoles && PosRoles.canAccessPos(currentUser));
+        if (!canSell) {
+            window.location.replace(landing && landing !== '/' ? landing : '/overview');
+            return true;
+        }
         if (!forcePos && landing && landing !== '/' && landing !== window.location.pathname) {
             window.location.replace(landing);
             return true;

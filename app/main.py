@@ -410,7 +410,16 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
+async def index(request: Request, db: Session = Depends(get_db)):
+    """
+    POS shell. Authenticated users without sales permission are redirected to
+    Overview (including ``/?pos=1``). Unauthenticated visitors get the login UI.
+    """
+    from .permissions import can_access_pos
+
+    user = auth.user_from_access_cookie(request, db)
+    if user is not None and not can_access_pos(user):
+        return RedirectResponse(url="/overview", status_code=303)
     return _shell_page(request, "index.html")
 
 
@@ -421,14 +430,25 @@ async def accounting_page(request: Request):
 
 
 @app.get("/admin", response_class=HTMLResponse)
-async def admin_page(request: Request):
-    # Authentication for actions is enforced on the API endpoints.
+async def admin_page(request: Request, db: Session = Depends(get_db)):
+    from .page_auth import gate_page, is_redirect
+    from .permissions import Perm
+
+    gated = gate_page(request, db, any_of=(Perm.MANAGE_INVENTORY,))
+    if is_redirect(gated):
+        return gated
     return _shell_page(request, "admin.html")
 
 
 @app.get("/overview", response_class=HTMLResponse)
-async def business_overview_page(request: Request):
+async def business_overview_page(request: Request, db: Session = Depends(get_db)):
     """Administrator Business Overview Dashboard (post-login landing for admins)."""
+    from .page_auth import gate_page, is_redirect
+    from .permissions import Perm
+
+    gated = gate_page(request, db, any_of=(Perm.VIEW_REPORTS,))
+    if is_redirect(gated):
+        return gated
     return _shell_page(request, "overview.html")
 
 
@@ -445,8 +465,13 @@ async def platform_tenants_typo():
 
 
 @app.get("/store-settings", response_class=HTMLResponse)
-async def store_settings_page(request: Request):
-    # Authentication for actions is enforced on the API endpoints.
+async def store_settings_page(request: Request, db: Session = Depends(get_db)):
+    from .page_auth import gate_page, is_redirect
+    from .permissions import Perm
+
+    gated = gate_page(request, db, any_of=(Perm.MANAGE_SETTINGS,))
+    if is_redirect(gated):
+        return gated
     return _shell_page(request, "store-settings.html")
 
 
@@ -489,6 +514,9 @@ class Token(BaseModel):
     username: str
     role: str
     landing_path: str = "/"
+    permissions: List[str] = []
+    can_access_pos: bool = False
+    can_access_overview: bool = False
 
 
 @app.post("/api/auth/token", response_model=Token)
@@ -518,18 +546,35 @@ async def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     logging.info(f"Login successful for user: {user.username} (role: {user.role})")
-    from .landing import post_login_path
+    from .landing import can_access_overview, post_login_path
+    from .permissions import can_access_pos
 
     payload = {"sub": user.username, "role": user.role}
     if user.tenant_id is not None:
         payload["tid"] = user.tenant_id
     access_token = auth.create_access_token(data=payload)
-    return Token(
+    body = Token(
         access_token=access_token,
         username=user.username,
         role=user.role,
         landing_path=post_login_path(user),
+        permissions=permissions_as_strings(user),
+        can_access_pos=can_access_pos(user),
+        can_access_overview=can_access_overview(user),
     )
+    response = JSONResponse(content=body.model_dump())
+    auth.attach_access_cookie(response, access_token)
+    return response
+
+
+@app.post("/api/auth/logout")
+
+async def logout_clear_session():
+    """Clear the HttpOnly POS access cookie (Bearer token remains client-managed)."""
+    response = JSONResponse(content={"ok": True})
+    auth.clear_access_cookie(response)
+    return response
+
 
 
 class UserMeRead(BaseModel):
@@ -538,6 +583,8 @@ class UserMeRead(BaseModel):
     permissions: List[str]
     role_description: str
     landing_path: str
+    can_access_pos: bool = False
+    can_access_overview: bool = False
 
 
 @app.get("/api/auth/me", response_model=UserMeRead)
@@ -545,7 +592,8 @@ async def read_current_user_me(
     current_user: User = Depends(auth.get_current_active_user),
 ):
     """Current user role and permission list for UI gating."""
-    from .landing import post_login_path
+    from .landing import can_access_overview, post_login_path
+    from .permissions import can_access_pos
 
     role = (current_user.role or "cashier").strip().lower()
     if role == "owner":
@@ -556,6 +604,8 @@ async def read_current_user_me(
         permissions=permissions_as_strings(current_user),
         role_description=ROLE_DESCRIPTIONS.get(role, ""),
         landing_path=post_login_path(current_user),
+        can_access_pos=can_access_pos(current_user),
+        can_access_overview=can_access_overview(current_user),
     )
 
 
@@ -1641,7 +1691,7 @@ async def create_sale(
     sale_data: SaleCreate,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth.get_current_active_user),
+    current_user: User = Depends(dep_perm(Perm.SALES)),
 ):
     if not sale_data.items:
         raise HTTPException(status_code=400, detail="No items in sale")
@@ -2112,8 +2162,14 @@ async def get_pending_collection_sales(
 
 
 @app.get("/pending-collection", response_class=HTMLResponse)
-async def pending_collection_page(request: Request):
+async def pending_collection_page(request: Request, db: Session = Depends(get_db)):
     """Pending collection items page."""
+    from .page_auth import gate_page, is_redirect
+    from .permissions import Perm
+
+    gated = gate_page(request, db, any_of=(Perm.MANAGE_PENDING_COLLECTION,))
+    if is_redirect(gated):
+        return gated
     return _shell_page(request, "pending_collection.html")
 
 
@@ -3635,8 +3691,16 @@ class LaybyPaymentRead(BaseModel):
 
 
 @app.get("/layby", response_class=HTMLResponse)
-async def layby_page(request: Request):
+async def layby_page(request: Request, db: Session = Depends(get_db)):
     """Layby management page."""
+    from .page_auth import gate_page, is_redirect
+    from .permissions import Perm
+
+    gated = gate_page(
+        request, db, any_of=(Perm.SALES, Perm.MANAGE_SETTINGS)
+    )
+    if is_redirect(gated):
+        return gated
     return _shell_page(request, "layby.html")
 
 
@@ -3653,14 +3717,30 @@ async def withdrawal_history_page(request: Request):
 
 
 @app.get("/refunds", response_class=HTMLResponse)
-async def refunds_page(request: Request):
+async def refunds_page(request: Request, db: Session = Depends(get_db)):
     """Refund management — request, track, and approve refunds."""
+    from .page_auth import gate_page, is_redirect
+    from .permissions import Perm
+
+    gated = gate_page(
+        request, db, any_of=(Perm.VIEW_REFUNDS, Perm.REQUEST_REFUNDS)
+    )
+    if is_redirect(gated):
+        return gated
     return _shell_page(request, "refunds.html")
 
 
 @app.get("/billing", response_class=HTMLResponse)
-async def billing_page(request: Request):
+async def billing_page(request: Request, db: Session = Depends(get_db)):
     """Subscription management & Paynow / EcoCash billing."""
+    from .page_auth import gate_page, is_redirect
+    from .permissions import Perm
+
+    gated = gate_page(
+        request, db, any_of=(Perm.MANAGE_SETTINGS, Perm.MANAGE_USERS)
+    )
+    if is_redirect(gated):
+        return gated
     return _shell_page(request, "billing.html")
 
 

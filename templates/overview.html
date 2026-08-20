@@ -6,11 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="platform-motto" content="{{ platform_motto or 'Pecunia Non Olet' }}">
     <script src="/static/js/theme-instant.js"></script>
-    <link rel="stylesheet" href="/static/css/style.css?v=overview7">
+    <link rel="stylesheet" href="/static/css/style.css?v=overview11">
     <link rel="stylesheet" href="/static/css/secondary-pages-theme.css">
-    <link rel="stylesheet" href="/static/css/overview.css?v=8">
+    <link rel="stylesheet" href="/static/css/overview.css?v=11">
 </head>
 <body class="page-overview overview-page">
+<video id="light-theme-video" autoplay loop muted playsinline preload="auto" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; pointer-events: none; display: none;">
+    <source src="/static/background-web.mp4" type="video/mp4">
+</video>
+<script src="/static/js/light-theme-video.js?v=3"></script>
 <div id="app" class="overview-app">
     <header class="overview-header">
         <div class="overview-header-main">
@@ -20,8 +24,7 @@
                 <p id="ov-branch-line" class="overview-sub">Loading…</p>
             </div>
             <nav class="overview-header-actions" aria-label="Overview actions">
-                <a class="overview-button overview-button-primary" href="/?pos=1">Open POS</a>
-                <a class="overview-button overview-button-primary" href="/admin">Inventory</a>
+                <a class="overview-button overview-button-primary" id="ov-open-pos" href="/?pos=1" hidden>Open POS</a>
                 <button type="button" class="overview-button overview-button-primary" id="ov-refresh">Refresh</button>
                 <button type="button" class="overview-button overview-button-danger" id="ov-logout">Log out</button>
             </nav>
@@ -52,9 +55,26 @@
             <button type="button" class="overview-button overview-button-primary" id="ov-retry">Retry</button>
         </div>
         <div id="ov-empty" class="overview-state" hidden>
-            <p>No sales in this period yet. Open POS to ring up your first sale.</p>
-            <a class="overview-button overview-button-primary" href="/?pos=1">Open POS</a>
+            <p>No sales in this period yet.</p>
+            <a class="overview-button overview-button-primary" id="ov-empty-pos" href="/?pos=1" hidden>Open POS</a>
         </div>
+
+        <section class="overview-panel overview-management" aria-label="Management">
+            <h2>Management</h2>
+            <div class="overview-quick-actions" id="ov-quick-actions">
+                <a class="overview-quick-action" data-perm="admin" href="/billing" title="Subscription and plan billing for this business">Billing</a>
+                <a class="overview-quick-action" data-perm="pending" href="/pending-collection">
+                    Pending collection
+                    <span class="ov-badge" id="ov-pending-badge" hidden>0</span>
+                </a>
+                <a class="overview-quick-action" data-perm="refunds" href="/refunds">Refunds</a>
+                <a class="overview-quick-action" data-perm="layby" href="/layby">Layby</a>
+                <a class="overview-quick-action" data-perm="inventory" href="/admin">Inventory</a>
+                <a class="overview-quick-action" data-perm="reports" href="/accounting">Accounting</a>
+                <a class="overview-quick-action" data-perm="admin" href="/enterprise">Enterprise</a>
+                <a class="overview-quick-action" data-perm="withdrawals" href="/withdrawals/history">Withdrawals</a>
+            </div>
+        </section>
 
         <section id="ov-alerts" class="overview-alerts" aria-label="Action required" hidden></section>
 
@@ -84,21 +104,36 @@
             <div id="ov-activity" class="overview-activity"></div>
         </section>
 
-        <nav class="overview-links" aria-label="Management links">
-            <a href="/admin">Products &amp; stock</a>
-            <a href="/accounting">Accounting</a>
-            <a href="/enterprise">Enterprise</a>
-            <a href="/withdrawals/history">Withdrawals</a>
+        <nav class="overview-links" aria-label="More links">
             <a href="/debts/outstanding">Customer credit</a>
-            <a href="/refunds">Refunds</a>
-            <a href="/pending-collection">Pending collection</a>
-            <a href="/store-settings">Store settings</a>
         </nav>
     </main>
 </div>
+
+<div class="overview-fab-root">
+    <div id="ov-fab-menu" class="overview-fab-menu" hidden role="menu" aria-label="Overview tools">
+        <button type="button" class="overview-fab-item" id="ov-fab-notifications" role="menuitem">
+            Notifications
+            <span class="ov-badge" id="ov-notif-badge" hidden>0</span>
+        </button>
+        <a class="overview-fab-item" id="ov-fab-settings" href="/store-settings" role="menuitem">Settings</a>
+        <button type="button" class="overview-fab-item" id="ov-fab-theme" role="menuitem">Theme</button>
+    </div>
+    <button type="button" id="ov-fab-toggle" class="overview-fab-toggle"
+            aria-label="Open tools menu" aria-expanded="false" aria-controls="ov-fab-menu">+</button>
+</div>
+
+<div id="ov-notifications-panel" class="overview-notif-panel" hidden>
+    <div class="overview-notif-header">
+        <h3>Notifications</h3>
+        <button type="button" id="ov-notif-close" class="overview-button overview-button-secondary" aria-label="Close notifications">Close</button>
+    </div>
+    <div id="ov-notif-list" class="overview-notif-list"></div>
+</div>
+
 <script src="/static/js/theme-sync.js"></script>
 <script src="/static/js/role-permissions.js"></script>
 <script src="/static/js/store-branding.js"></script>
-<script src="/static/js/overview.js?v=8"></script>
+<script src="/static/js/overview.js?v=12"></script>
 </body>
 </html>
