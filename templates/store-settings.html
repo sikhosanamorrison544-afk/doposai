@@ -40,19 +40,21 @@
             } catch (e) {}
         })();
     </script>
-    <link rel="stylesheet" href="/static/css/style.css?v=20260820s">
-    <link rel="stylesheet" href="/static/css/settings.css?v=1">
+    <link rel="stylesheet" href="/static/css/style.css?v=20260820t">
+    <link rel="stylesheet" href="/static/css/settings.css?v=2">
 </head>
-<body class="page-store-settings">
+<body class="page-store-settings" data-settings-chrome="compact">
 <!-- Video Background for Light Theme -->
 <video id="light-theme-video" autoplay loop muted playsinline preload="auto" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; pointer-events: none; display: none;">
     <source src="/static/background-web.mp4" type="video/mp4">
 </video>
 <script src="/static/js/light-theme-video.js?v=3"></script>
 <div id="app" class="screen active">
-    <header class="top-bar">
-        <span></span>
-        <div class="shop-name break-long">{{ store_name }} — Settings</div>
+    <header class="top-bar settings-top-bar">
+        <div class="top-bar-brand">
+            <div class="shop-name break-long" data-branding="suffix" data-suffix="— Settings">{{ store_name }} — Settings</div>
+            <span class="platform-motto">{{ platform_motto or 'Pecunia Non Olet' }}</span>
+        </div>
         <div class="top-bar-right">
             <button id="btn-back-to-admin" class="small" type="button" onclick="window.location.href='/admin'; return false;">Back to Admin</button>
         </div>
@@ -592,7 +594,7 @@
         if (typeof loadStoreSettings === 'function') loadStoreSettings();
     });
 </script>
-<script src="/static/js/store-branding.js?v=3"></script>
+<script src="/static/js/store-branding.js?v=4"></script>
 <script src="/static/js/password-toggle.js?v=1"></script>
 </body>
 </html>

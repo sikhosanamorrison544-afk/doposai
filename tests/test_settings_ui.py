@@ -96,11 +96,12 @@ def test_settings_stylesheet_exists_and_is_scoped():
     assert "grid-template-columns: 1fr" in SETTINGS_CSS
     assert "min-height: var(--settings-touch)" in SETTINGS_CSS
     assert "--settings-touch: 44px" in SETTINGS_CSS
-    assert "clamp(1.35rem, 2vw, 1.75rem)" in SETTINGS_CSS
+    assert "clamp(1.2rem, 1.8vw, 1.45rem)" in SETTINGS_CSS
     assert "max-height: min(100dvh" in SETTINGS_CSS
     assert "#app *" not in SETTINGS_CSS
     assert "body.page-store-settings" in SETTINGS_CSS
-
+    assert "justify-content: flex-start !important" in SETTINGS_CSS
+    assert "max-height: 4.75rem !important" in SETTINGS_CSS
 
 def test_style_css_has_no_new_global_app_star_rule_for_settings():
     # Existing light-theme rules may target #app *; ensure settings.css is not inlined into style.css
@@ -114,7 +115,7 @@ def test_cashier_pos_does_not_load_settings_css():
 
 
 def test_store_settings_template_markers():
-    assert 'href="/static/css/settings.css?v=1"' in STORE_SETTINGS_HTML
+    assert 'href="/static/css/settings.css?v=2"' in STORE_SETTINGS_HTML
     assert 'class="store-settings-page-content settings-page-container"' in STORE_SETTINGS_HTML
     assert "settings-page-title" in STORE_SETTINGS_HTML
     assert "settings-form-grid" in STORE_SETTINGS_HTML
@@ -127,6 +128,9 @@ def test_store_settings_template_markers():
     assert "viewport-fit=cover" in STORE_SETTINGS_HTML
     assert 'for="store-name"' in STORE_SETTINGS_HTML
     assert 'for="cashier-username"' in STORE_SETTINGS_HTML
+    assert 'data-settings-chrome="compact"' in STORE_SETTINGS_HTML
+    assert "settings-top-bar" in STORE_SETTINGS_HTML
+    assert 'data-branding="suffix"' in STORE_SETTINGS_HTML
     assert 'id="backup-api-key"' in STORE_SETTINGS_HTML
     assert 'type="password" id="backup-api-key"' in STORE_SETTINGS_HTML or re.search(
         r'id="backup-api-key"[^>]*type="password"|type="password"[^>]*id="backup-api-key"',
@@ -142,10 +146,11 @@ def test_store_settings_template_markers():
 
 
 def test_settings_css_mobile_padding_and_container():
-    assert "--settings-pad-desktop: 1.25rem" in SETTINGS_CSS
-    assert "--settings-pad-mobile: 0.9375rem" in SETTINGS_CSS
+    assert "--settings-pad-desktop: 1.125rem" in SETTINGS_CSS
+    assert "--settings-pad-mobile: 0.875rem" in SETTINGS_CSS
     assert "width: min(100% - 1rem, var(--settings-max))" in SETTINGS_CSS
     assert "font-size: 16px" in SETTINGS_CSS  # iOS zoom guard
+    assert "--settings-max: 920px" in SETTINGS_CSS
 
 
 def test_store_settings_requires_auth(client, db_session):
@@ -168,13 +173,14 @@ def test_admin_store_settings_page_loads_scoped_assets(client, db_session):
     r = client.get("/store-settings")
     assert r.status_code == 200
     html = r.text
-    assert "settings.css?v=1" in html
+    assert "settings.css?v=2" in html
     assert "settings-page-container" in html
     assert "settings-form-grid" in html
     assert "password-toggle.js" in html
     assert 'id="btn-save-settings"' in html
     assert 'id="cashier-password"' in html
     assert 'name="viewport"' in html
+    assert 'data-settings-chrome="compact"' in html
 
 
 def test_billing_loads_settings_css(client, db_session):
@@ -182,11 +188,24 @@ def test_billing_loads_settings_css(client, db_session):
     _login(client, "settings_admin", "AdminPass1234")
     r = client.get("/billing")
     assert r.status_code == 200
-    assert "settings.css?v=1" in r.text
+    assert "settings.css?v=1" in r.text or "settings.css?v=2" in r.text
     assert "settings-page-container" in r.text
 
 
 def test_static_settings_css_served(client):
-    r = client.get("/static/css/settings.css?v=1")
+    r = client.get("/static/css/settings.css?v=2")
     assert r.status_code == 200
     assert ".settings-page-container" in r.text
+    assert "page-store-settings" in r.text
+    assert "min-height: 3rem" in r.text
+    assert "--settings-max: 920px" in r.text
+
+
+def test_settings_css_compact_header_rules():
+    assert "settings-top-bar" in STORE_SETTINGS_HTML or "top-bar-brand" in STORE_SETTINGS_HTML
+    assert "min-height: 3rem" in SETTINGS_CSS
+    assert "height: auto !important" in SETTINGS_CSS
+    assert "#app.screen.active" in SETTINGS_CSS
+    assert "flex: 0 0 auto !important" in SETTINGS_CSS
+    assert "settings-actions-row" in SETTINGS_CSS or ".settings-actions" in SETTINGS_CSS
+    assert "white-space: normal !important" in SETTINGS_CSS

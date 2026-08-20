@@ -36,14 +36,30 @@ PROBE_JS = r"""
 
   function run() {
     try {
+      // Stay on page 1 for the screenshot; password fields remain in DOM when hidden.
       if (typeof switchSettingsPage === 'function') switchSettingsPage(1);
       if (window.PosPasswordToggle && window.PosPasswordToggle.scan) {
         window.PosPasswordToggle.scan(document);
       }
-      // Enhance password fields on page 2 as well
-      if (typeof switchSettingsPage === 'function') switchSettingsPage(2);
-      if (window.PosPasswordToggle && window.PosPasswordToggle.scan) {
-        window.PosPasswordToggle.scan(document);
+      // Also scan page 2 fields without leaving page 1 visible state permanently.
+      var page1 = document.getElementById('settings-page-1');
+      var page2 = document.getElementById('settings-page-2');
+      if (page2) {
+        var wasHidden = page2.hidden;
+        page2.hidden = false;
+        if (window.PosPasswordToggle && window.PosPasswordToggle.scan) {
+          window.PosPasswordToggle.scan(page2);
+        }
+        page2.hidden = wasHidden;
+      }
+      if (typeof switchSettingsPage === 'function') switchSettingsPage(1);
+      if (page1) {
+        page1.hidden = false;
+        page1.style.display = 'flex';
+      }
+      if (page2) {
+        page2.hidden = true;
+        page2.style.display = 'none';
       }
       var body = document.body;
       var html = document.documentElement;
@@ -72,10 +88,27 @@ PROBE_JS = r"""
       var input = document.querySelector('#store-name');
       var tab = document.querySelector('.settings-page-btn');
       var card = document.querySelector('details.settings-section');
+      var topBar = document.querySelector('.top-bar, .settings-top-bar');
+      var backBtn = document.querySelector('#btn-back-to-admin');
+      var motto = document.querySelector('.top-bar .platform-motto');
+      var printerRow = document.querySelector('#web-printer-section .settings-actions-row, #web-printer-section .settings-actions');
+      var testPrint = document.querySelector('#btn-test-web-printer');
       var kids = main ? Array.prototype.slice.call(main.querySelectorAll('*')) : [];
       var wide = kids.map(function (el) {
         return { tag: el.tagName, id: el.id || '', cls: (el.className || '').toString().slice(0, 60), w: el.scrollWidth };
       }).filter(function (x) { return x.w > mainClient + 2; }).sort(function (a, b) { return b.w - a.w; }).slice(0, 8);
+      var shopEl = document.querySelector('.top-bar .shop-name');
+      var shopRect = shopEl ? shopEl.getBoundingClientRect() : null;
+      var topBarRect = topBar ? topBar.getBoundingClientRect() : null;
+      var mainRect = main ? main.getBoundingClientRect() : null;
+      var backRect = backBtn ? backBtn.getBoundingClientRect() : null;
+      var mottoRect = motto ? motto.getBoundingClientRect() : null;
+      var testRect = testPrint ? testPrint.getBoundingClientRect() : null;
+      var printerOverflow = false;
+      if (printerRow) {
+        printerOverflow = printerRow.scrollWidth > printerRow.clientWidth + 2;
+      }
+      var mottoDelta = (shopRect && mottoRect) ? Math.abs(mottoRect.top - shopRect.top) : null;
       var payload = {
         overflowX: overflowX,
         scrollW: scrollW,
@@ -93,7 +126,19 @@ PROBE_JS = r"""
         tabMinH: tab ? getComputedStyle(tab).minHeight : null,
         hasPassword: !!document.querySelector('#cashier-password'),
         hasPwToggle: !!document.querySelector('.pw-field .pw-toggle'),
-        cardPad: card ? getComputedStyle(card).padding : null
+        cardPad: card ? getComputedStyle(card).padding : null,
+        topBarHeight: topBarRect ? Math.round(topBarRect.height) : null,
+        topBarTop: topBarRect ? Math.round(topBarRect.top) : null,
+        mainTop: mainRect ? Math.round(mainRect.top) : null,
+        backBtnBottomInHeader: !!(topBarRect && backRect && backRect.bottom <= topBarRect.bottom + 1),
+        mottoNearName: mottoDelta !== null ? mottoDelta < 36 : null,
+        printerOverflow: printerOverflow,
+        testPrintVisible: testRect ? (testRect.right <= window.innerWidth + 1 && testRect.left >= -1) : null,
+        appJustify: getComputedStyle(document.getElementById('app') || body).justifyContent,
+        brandDirection: (function () {
+          var b = document.querySelector('.top-bar-brand');
+          return b ? getComputedStyle(b).flexDirection : null;
+        })()
       };
       fetch('/beacon', {
         method: 'POST',
@@ -244,10 +289,12 @@ def main() -> int:
             results.append(row)
             print(
                 f"{w}x{h}: overflowX={row.get('overflowX')} "
+                f"topBarH={row.get('topBarHeight')} mainTop={row.get('mainTop')} "
+                f"brandDir={row.get('brandDirection')} justify={row.get('appJustify')} "
+                f"printerOv={row.get('printerOverflow')} testVis={row.get('testPrintVisible')} "
                 f"scrollW={row.get('scrollW')} clientW={row.get('clientW')} "
                 f"inner={row.get('innerWidth')} css={row.get('hasSettingsCss')} "
                 f"pwToggle={row.get('hasPwToggle')} titleFont={row.get('titleFont')} "
-                f"inputMinH={row.get('inputMinH')} tabMinH={row.get('tabMinH')} "
                 f"shot={shot.name} bytes={shot.stat().st_size if shot.exists() else 0}"
             )
     finally:
@@ -255,17 +302,40 @@ def main() -> int:
 
     report = ROOT / "settings_viewport_report.json"
     report.write_text(json.dumps(results, indent=2), encoding="utf-8")
-    bad = [
-        r
-        for r in results
-        if r.get("error")
-        or r.get("overflowX")
-        or not r.get("hasSettingsCss")
-        or not r.get("hasContainer")
-        or not r.get("hasPwToggle")
-    ]
+    bad = []
+    for r in results:
+        reasons = []
+        if r.get("error"):
+            reasons.append("error")
+        if r.get("overflowX"):
+            reasons.append("overflowX")
+        if not r.get("hasSettingsCss"):
+            reasons.append("noSettingsCss")
+        if not r.get("hasContainer"):
+            reasons.append("noContainer")
+        if not r.get("hasPwToggle"):
+            reasons.append("noPwToggle")
+        th = r.get("topBarHeight")
+        if th is None or th > 80:
+            reasons.append(f"topBarHeight={th}")
+        mt = r.get("mainTop")
+        if mt is not None and mt > 100:
+            reasons.append(f"mainTop={mt}")
+        if r.get("brandDirection") and r.get("brandDirection") != "row":
+            reasons.append(f"brandDirection={r.get('brandDirection')}")
+        if r.get("appJustify") and r.get("appJustify") not in ("flex-start", "normal", "start"):
+            reasons.append(f"appJustify={r.get('appJustify')}")
+        if r.get("printerOverflow"):
+            reasons.append("printerOverflow")
+        if r.get("testPrintVisible") is False:
+            reasons.append("testPrintClipped")
+        if reasons:
+            r["failReasons"] = reasons
+            bad.append(r)
     if bad:
         print("VIEWPORT_ISSUES", len(bad), file=sys.stderr)
+        for r in bad:
+            print(r.get("width"), r.get("height"), r.get("failReasons"), file=sys.stderr)
         return 1
     print("VIEWPORT_OK", len(results))
     return 0
