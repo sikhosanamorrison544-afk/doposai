@@ -141,6 +141,11 @@ class WebViewActivity : AppCompatActivity() {
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             useWideViewPort = true
             loadWithOverviewMode = true
+            builtInZoomControls = false
+            displayZoomControls = false
+            setSupportZoom(false)
+            // Prefer CSS media queries over forced text autosizing in WebView
+            textZoom = 100
             val baseUa = userAgentString ?: ""
             if (!baseUa.contains("DoPosPOS-Android")) {
                 userAgentString = "$baseUa DoPosPOS-Android/1"

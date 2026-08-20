@@ -72,16 +72,30 @@
                     android:textColor="@color/login_title"
                     android:textSize="@dimen/login_label_size"
                     android:layout_marginBottom="4dp" />
-                <EditText
-                    android:id="@+id/login_password"
+                <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="textPassword"
-                    android:maxLines="1"
-                    android:padding="@dimen/input_padding"
-                    android:background="@drawable/edit_text_web"
-                    android:textColor="@color/text_primary"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="12dp">
+                    <EditText
+                        android:id="@+id/login_password"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPassword"
+                        android:maxLines="1"
+                        android:padding="@dimen/input_padding"
+                        android:paddingEnd="48dp"
+                        android:background="@drawable/edit_text_web"
+                        android:textColor="@color/text_primary" />
+                    <ImageButton
+                        android:id="@+id/login_password_toggle"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_gravity="end|center_vertical"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="@string/show_password"
+                        android:padding="10dp"
+                        android:src="@drawable/ic_visibility" />
+                </FrameLayout>
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -254,16 +268,30 @@
                     android:textColor="@color/login_title"
                     android:textSize="@dimen/login_label_size"
                     android:layout_marginBottom="4dp" />
-                <EditText
-                    android:id="@+id/reg_password"
+                <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="textPassword"
-                    android:maxLines="1"
-                    android:padding="@dimen/input_padding"
-                    android:background="@drawable/edit_text_web"
-                    android:textColor="@color/text_primary"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="12dp">
+                    <EditText
+                        android:id="@+id/reg_password"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPassword"
+                        android:maxLines="1"
+                        android:padding="@dimen/input_padding"
+                        android:paddingEnd="48dp"
+                        android:background="@drawable/edit_text_web"
+                        android:textColor="@color/text_primary" />
+                    <ImageButton
+                        android:id="@+id/reg_password_toggle"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_gravity="end|center_vertical"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="@string/show_password"
+                        android:padding="10dp"
+                        android:src="@drawable/ic_visibility" />
+                </FrameLayout>
 
                 <Button
                     android:id="@+id/register_button"

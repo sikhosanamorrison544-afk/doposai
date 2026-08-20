@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Store Settings - POS</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="platform-motto" content="{{ platform_motto or 'Pecunia Non Olet' }}">
     <script>
         // CRITICAL: Apply theme INSTANTLY - must be first script, runs synchronously
@@ -40,7 +40,8 @@
             } catch (e) {}
         })();
     </script>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=20260820s">
+    <link rel="stylesheet" href="/static/css/settings.css?v=1">
 </head>
 <body class="page-store-settings">
 <!-- Video Background for Light Theme -->
@@ -51,111 +52,120 @@
 <div id="app" class="screen active">
     <header class="top-bar">
         <span></span>
-        <div class="shop-name">{{ store_name }} - Store Settings</div>
+        <div class="shop-name break-long">{{ store_name }} — Settings</div>
         <div class="top-bar-right">
-            <button id="btn-back-to-admin" class="small" onclick="window.location.href='/admin'; return false;">Back to Admin</button>
+            <button id="btn-back-to-admin" class="small" type="button" onclick="window.location.href='/admin'; return false;">Back to Admin</button>
         </div>
     </header>
-    
-    <main class="store-settings-page-content">
-        <!-- Page Navigation: left/right arrows -->
-        <div class="settings-page-nav">
-            <button class="settings-page-btn settings-page-arrow" data-page="1" onclick="switchSettingsPage(1)" aria-label="Page 1: Store & Notifications" title="Page 1: Store & Notifications">←</button>
-            <button class="settings-page-btn settings-page-arrow" data-page="2" onclick="switchSettingsPage(2)" aria-label="Page 2: Users & Backup" title="Page 2: Users & Backup">→</button>
-        </div>
+
+    <main class="store-settings-page-content settings-page-container" id="settings-main">
+        <header class="settings-page-header">
+            <h1 class="settings-page-title">Store Settings</h1>
+            <p class="settings-page-description">
+                Manage business profile, notifications, printers, users, backup, and account safety controls.
+            </p>
+        </header>
+
+        <nav class="settings-page-nav settings-tabs" aria-label="Settings sections" role="tablist">
+            <button type="button" class="settings-page-btn settings-tab active" role="tab" aria-selected="true" data-page="1" onclick="switchSettingsPage(1)" aria-controls="settings-page-1" id="settings-tab-1">
+                Store &amp; printers
+            </button>
+            <button type="button" class="settings-page-btn settings-tab" role="tab" aria-selected="false" data-page="2" onclick="switchSettingsPage(2)" aria-controls="settings-page-2" id="settings-tab-2">
+                Users &amp; backup
+            </button>
+        </nav>
 
         <div class="store-settings-content settings-accordion">
             <!-- PAGE 1: Store Information & Notifications -->
-            <div class="settings-page" id="settings-page-1">
-                <details class="settings-section" open>
-                    <summary class="settings-section-summary">🏪 Store Information</summary>
-                    <div>
-                        <label for="store-name">Store Name</label>
-                        <input type="text" id="store-name" name="store-name" placeholder="Store Name">
-                    </div>
-                    <div>
-                        <label for="store-phone">Phone Number</label>
-                        <input type="text" id="store-phone" name="store-phone" placeholder="Phone Number">
-                    </div>
-                    <div>
-                        <label for="store-location">Location/Address</label>
-                        <textarea id="store-location" name="store-location" rows="3" placeholder="Store Location/Address"></textarea>
+            <div class="settings-page" id="settings-page-1" role="tabpanel" aria-labelledby="settings-tab-1">
+                <details class="settings-section settings-card" open>
+                    <summary class="settings-section-summary">Business profile</summary>
+                    <div class="settings-form-grid">
+                        <div>
+                            <label class="settings-label" for="store-name">Store Name</label>
+                            <input type="text" id="store-name" name="store-name" placeholder="Store Name" autocomplete="organization">
+                        </div>
+                        <div>
+                            <label class="settings-label" for="store-phone">Phone Number</label>
+                            <input type="tel" id="store-phone" name="store-phone" placeholder="Phone Number" inputmode="tel" autocomplete="tel">
+                        </div>
+                        <div class="settings-field-full">
+                            <label class="settings-label" for="store-location">Location / Address</label>
+                            <textarea id="store-location" name="store-location" rows="3" placeholder="Store Location/Address"></textarea>
+                        </div>
                     </div>
                     <div class="settings-actions">
-                        <button id="btn-save-settings" class="primary small">Save Settings</button>
+                        <button id="btn-save-settings" class="primary small" type="button">Save Settings</button>
                     </div>
-                    <div id="settings-message" class="info"></div>
+                    <div id="settings-message" class="info" role="status" aria-live="polite"></div>
                 </details>
 
-                <details class="settings-section" open>
-                    <summary class="settings-section-summary">📧 Low Stock Email Notifications</summary>
+                <details class="settings-section settings-card" open>
+                    <summary class="settings-section-summary">Notifications</summary>
                     <div>
-                        <label for="notification-email">Notification Email Address</label>
-                        <input type="email" id="notification-email" name="notification-email" placeholder="email@example.com">
-                        <small class="help-text">Email address to receive low-stock alerts</small>
+                        <label class="settings-label" for="notification-email">Notification Email Address</label>
+                        <input type="email" id="notification-email" name="notification-email" placeholder="email@example.com" autocomplete="email">
+                        <small class="help-text settings-help">Email address to receive low-stock alerts</small>
                     </div>
                     <div class="settings-inline">
                         <label for="low-stock-email-enabled" class="checkbox-label">
                             <input type="checkbox" id="low-stock-email-enabled" name="low-stock-email-enabled">
-                            Enable low-stock email alerts
+                            <span>Enable low-stock email alerts</span>
                         </label>
                     </div>
                 </details>
 
-                <details class="settings-section">
-                    <summary class="settings-section-summary">⚙️ More Settings</summary>
-                    <div id="more-settings-content">
+                <details class="settings-section settings-card">
+                    <summary class="settings-section-summary">Stock alerts &amp; email tools</summary>
+                    <div id="more-settings-content" class="settings-option-grid">
                         <div class="settings-subcard">
                             <label for="default-low-stock-threshold" class="settings-subtitle">Low Stock Threshold Quantity</label>
-                            <input type="number" id="default-low-stock-threshold" name="default-low-stock-threshold" min="0" step="0.1" value="10" placeholder="10">
-                            <small class="help-text">
-                                <strong>What is this?</strong><br>
-                                This is the default quantity threshold for low-stock alerts. When a product's stock falls below this number, you'll receive a notification.<br>
-                                Example: If set to 5, you'll be alerted when any product has 5 or fewer units remaining.<br>
-                                You can also set a custom threshold for individual products in the product edit screen.
+                            <input type="number" id="default-low-stock-threshold" name="default-low-stock-threshold" min="0" step="0.1" value="10" placeholder="10" inputmode="decimal">
+                            <small class="help-text settings-help">
+                                Default quantity for low-stock alerts. Example: 5 alerts when stock is 5 or fewer. Products can override this in edit.
                             </small>
                         </div>
 
                         <div class="settings-subcard">
-                            <strong class="settings-subtitle">📧 Test Email Configuration</strong>
-                            <p class="help-text">
-                                Click the button below to send a test email to verify your email configuration is working correctly.
-                            </p>
-                            <button id="btn-test-email" class="primary small">📧 Send Test Email</button>
-                            <div id="test-email-message" class="info" style="display:none;"></div>
+                            <strong class="settings-subtitle">Test email configuration</strong>
+                            <p class="help-text settings-help">Send a test message to verify SMTP configuration.</p>
+                            <div class="settings-actions">
+                                <button id="btn-test-email" class="primary small" type="button">Send Test Email</button>
+                            </div>
+                            <div id="test-email-message" class="info" style="display:none;" role="status" aria-live="polite"></div>
 
-                            <strong class="settings-subtitle" style="margin-top:16px;">🔔 Check &amp; Create Notifications</strong>
-                            <p class="help-text">
-                                Click the button below to check all products and create notifications for out-of-stock items and items with quantity ≤ 5.
-                            </p>
-                            <button id="btn-check-notifications" class="primary small">🔔 Check Products &amp; Create Notifications</button>
-                            <div id="check-notifications-message" class="info" style="display:none;"></div>
+                            <strong class="settings-subtitle">Check &amp; create notifications</strong>
+                            <p class="help-text settings-help">Scan products and create notifications for out-of-stock and low-quantity items.</p>
+                            <div class="settings-actions">
+                                <button id="btn-check-notifications" class="primary small" type="button">Check Products &amp; Create Notifications</button>
+                            </div>
+                            <div id="check-notifications-message" class="info" style="display:none;" role="status" aria-live="polite"></div>
                         </div>
 
-                        <div class="settings-subcard">
-                            <strong class="settings-subtitle">Email Configuration</strong>
-                            <p class="help-text">
-                                Configure SMTP settings using environment variables:<br>
+                        <div class="settings-subcard settings-field-full">
+                            <strong class="settings-subtitle">Email configuration</strong>
+                            <p class="help-text settings-help break-long">
+                                Configure SMTP with environment variables:
                                 <code>SMTP_HOST</code>, <code>SMTP_PORT</code>, <code>SMTP_USER</code>, <code>SMTP_PASSWORD</code>
                             </p>
                         </div>
                     </div>
                 </details>
-                <details class="settings-section" id="web-printer-section" open>
-                    <summary class="settings-section-summary">🖨️ Receipt printer (USB / Bluetooth)</summary>
-                    <p class="help-text">
-                        For Chrome or Edge on a laptop: connect a USB thermal printer or pair a Bluetooth printer in system settings, then authorize it below.
-                        Bluetooth uses the Web Serial port created when the printer is paired.
+
+                <details class="settings-section settings-card" id="web-printer-section" open>
+                    <summary class="settings-section-summary">Receipt printer</summary>
+                    <p class="help-text settings-help">
+                        On Chrome or Edge, connect a USB thermal printer or pair Bluetooth in system settings, then authorize it below.
                     </p>
-                    <p id="web-printer-status" class="info">Checking printers…</p>
-                    <div class="settings-actions settings-actions-row" style="flex-wrap:wrap;gap:8px;">
+                    <p id="web-printer-status" class="info settings-status-card">Checking printers…</p>
+                    <div class="settings-actions settings-actions-row">
                         <button type="button" id="btn-connect-usb-printer" class="primary small">Connect USB printer</button>
                         <button type="button" id="btn-connect-bt-printer" class="small">Connect Bluetooth printer</button>
                         <button type="button" id="btn-test-web-printer" class="small">Test print</button>
                     </div>
-                    <div class="grid-2" style="margin-top:12px;">
+                    <div class="settings-form-grid grid-2">
                         <div>
-                            <label for="web-printer-preference">When both are connected</label>
+                            <label class="settings-label" for="web-printer-preference">When both are connected</label>
                             <select id="web-printer-preference">
                                 <option value="auto">Ask which to use</option>
                                 <option value="usb">Always USB</option>
@@ -163,72 +173,71 @@
                             </select>
                         </div>
                         <div>
-                            <label for="web-printer-paper-width">Paper width (characters)</label>
+                            <label class="settings-label" for="web-printer-paper-width">Paper width (characters)</label>
                             <select id="web-printer-paper-width">
                                 <option value="32">58mm (32)</option>
                                 <option value="48">80mm (48)</option>
                             </select>
                         </div>
                     </div>
-                    <div id="web-printer-message" class="info" style="margin-top:8px;"></div>
+                    <div id="web-printer-message" class="info" role="status" aria-live="polite"></div>
                 </details>
-
             </div>
 
             <!-- PAGE 2: Users, Backup & Factory Reset -->
-            <div class="settings-page" id="settings-page-2" style="display:none !important;">
-                <details class="settings-section" open>
-                    <summary class="settings-section-summary">👥 User Management</summary>
-                    <div class="settings-wide" style="margin-bottom:14px;padding:12px 14px;border-radius:8px;background:rgba(255,255,255,0.04);font-size:13px;line-height:1.55;">
-                        <strong>Roles</strong>
-                        <ul style="margin:8px 0 0;padding-left:18px;">
-                            <li><strong>Admin</strong> — full access (inventory, settings, users, billing, enterprise, reports).</li>
-                            <li><strong>Supervisor</strong> — withdrawals, refunds, pending collections, shifts, and reports.</li>
-                            <li><strong>Cashier</strong> — sell at POS and view stock only.</li>
-                        </ul>
-                    </div>
+            <div class="settings-page" id="settings-page-2" role="tabpanel" aria-labelledby="settings-tab-2" hidden style="display:none !important;">
+                <details class="settings-section settings-card" open>
+                    <summary class="settings-section-summary">User management</summary>
                     <div class="settings-wide">
-                        <div class="grid-2">
+                        <div class="settings-roles-note">
+                            <strong>Roles</strong>
+                            <ul>
+                                <li><strong>Admin</strong> — full access (inventory, settings, users, billing, enterprise, reports).</li>
+                                <li><strong>Supervisor</strong> — withdrawals, refunds, pending collections, shifts, and reports.</li>
+                                <li><strong>Cashier</strong> — sell at POS and view stock only.</li>
+                            </ul>
+                        </div>
+                        <div class="settings-form-grid grid-2">
                             <div>
-                                <label for="cashier-username">Username</label>
-                                <input type="text" id="cashier-username" name="cashier-username" placeholder="Username">
+                                <label class="settings-label" for="cashier-username">Username</label>
+                                <input type="text" id="cashier-username" name="cashier-username" placeholder="Username" autocomplete="off">
                             </div>
                             <div>
-                                <label for="cashier-fullname">Full Name</label>
-                                <input type="text" id="cashier-fullname" name="cashier-fullname" placeholder="Full Name (optional)">
+                                <label class="settings-label" for="cashier-fullname">Full Name</label>
+                                <input type="text" id="cashier-fullname" name="cashier-fullname" placeholder="Full Name (optional)" autocomplete="name">
                             </div>
                             <div>
-                                <label for="cashier-password">Password</label>
-                                <input type="password" id="cashier-password" name="cashier-password" placeholder="Password">
+                                <label class="settings-label" for="cashier-password">Password</label>
+                                <input type="password" id="cashier-password" name="cashier-password" placeholder="Password" autocomplete="new-password">
                             </div>
                             <div>
-                                <label for="cashier-role">Role</label>
+                                <label class="settings-label" for="cashier-role">Role</label>
                                 <select id="cashier-role" name="cashier-role">
                                     <option value="cashier">Cashier</option>
                                     <option value="supervisor">Supervisor</option>
                                     <option value="admin">Admin</option>
                                 </select>
-                                <p id="cashier-role-hint" class="settings-hint" style="margin:6px 0 0;font-size:12px;opacity:0.8;line-height:1.45;">
+                                <p id="cashier-role-hint" class="settings-hint settings-help">
                                     Cashier — point of sale only; ring up sales and view stock.
                                 </p>
                             </div>
-                            <div id="cashier-branch-wrap" style="display:none;">
-                                <label for="cashier-branch">Branch</label>
+                            <div id="cashier-branch-wrap" class="settings-field-full" style="display:none;">
+                                <label class="settings-label" for="cashier-branch">Branch</label>
                                 <select id="cashier-branch" name="cashier-branch">
                                     <option value="">— All branches (admin) —</option>
                                 </select>
-                                <p class="settings-hint" style="margin:4px 0 0;font-size:12px;opacity:0.75;">
+                                <p class="settings-hint settings-help">
                                     Cashiers assigned to a branch only see sales and shifts for that location.
                                 </p>
                             </div>
                         </div>
                         <div class="settings-actions settings-actions-row">
-                            <button id="btn-add-cashier" class="primary small">Add User</button>
-                            <button id="btn-clear-cashier" class="small">Clear</button>
+                            <button id="btn-add-cashier" class="primary small" type="button">Add User</button>
+                            <button id="btn-clear-cashier" class="small" type="button">Clear</button>
                         </div>
-                        <div id="cashier-message" class="info"></div>
+                        <div id="cashier-message" class="info" role="status" aria-live="polite"></div>
 
-                        <h4 class="settings-subheading">Existing Users</h4>
+                        <h2 class="settings-subheading">Existing Users</h2>
                         <div class="table-scroll">
                             <table class="users-table">
                                 <thead>
@@ -251,14 +260,14 @@
                     </div>
                 </details>
 
-                <details class="settings-section">
-                    <summary class="settings-section-summary">📊 Google Sheets Backup</summary>
+                <details class="settings-section settings-card">
+                    <summary class="settings-section-summary">Google Sheets backup</summary>
                     <div class="settings-wide">
-                        <p class="help-text">
-                            Automatically backup your inventory to Google Sheets. Changes made offline will be synced when internet is available.
+                        <p class="help-text settings-help">
+                            Automatically backup inventory to Google Sheets. Offline changes sync when internet is available.
                         </p>
 
-                        <div id="backup-status" class="settings-subcard">
+                        <div id="backup-status" class="settings-subcard settings-status-card">
                             <div>Status: <span id="backup-status-text">Loading...</span></div>
                             <div>Internet: <span id="backup-internet-status">Checking...</span></div>
                             <div>Pending Changes: <span id="backup-pending-count">0</span></div>
@@ -267,33 +276,35 @@
                         <div class="settings-inline">
                             <label for="backup-enabled" class="checkbox-label">
                                 <input type="checkbox" id="backup-enabled">
-                                Enable Google Sheets Backup
+                                <span>Enable Google Sheets Backup</span>
                             </label>
                         </div>
-                        <div>
-                            <label for="backup-web-app-url">Google Apps Script Web App URL</label>
-                            <input type="text" id="backup-web-app-url" placeholder="https://script.google.com/macros/s/.../exec">
-                            <small class="help-text">Paste the Web App URL from your deployed Google Apps Script (see setup instructions)</small>
-                        </div>
-                        <div>
-                            <label for="backup-api-key">API Key (Optional - for security)</label>
-                            <input type="text" id="backup-api-key" placeholder="Leave empty to disable">
-                            <small class="help-text">Optional: Set an API key in your Apps Script for extra security</small>
+                        <div class="settings-form-grid">
+                            <div class="settings-field-full">
+                                <label class="settings-label" for="backup-web-app-url">Google Apps Script Web App URL</label>
+                                <input type="url" id="backup-web-app-url" class="break-long" placeholder="https://script.google.com/macros/s/.../exec" inputmode="url">
+                                <small class="help-text settings-help">Paste the Web App URL from your deployed Google Apps Script</small>
+                            </div>
+                            <div class="settings-field-full">
+                                <label class="settings-label" for="backup-api-key">API Key (optional)</label>
+                                <input type="password" id="backup-api-key" placeholder="Leave empty to disable" autocomplete="off">
+                                <small class="help-text settings-help">Optional secret for Apps Script security — not a public identifier</small>
+                            </div>
                         </div>
 
-                        <h4 class="settings-subheading">Simple Manual Backup (No Setup Required)</h4>
+                        <h2 class="settings-subheading">Manual CSV backup</h2>
                         <input type="file" id="store-csv-file-input" accept=".csv,.CSV,text/csv,text/comma-separated-values,text/plain,application/vnd.ms-excel,application/csv" style="display:none;">
                         <div class="settings-actions settings-actions-row">
-                            <button id="btn-export-csv" class="primary small">📥 Download CSV Backup</button>
-                            <button type="button" id="btn-import-backup" class="small">📤 Import from CSV</button>
+                            <button id="btn-export-csv" class="primary small" type="button">Download CSV Backup</button>
+                            <button type="button" id="btn-import-backup" class="small">Import from CSV</button>
                         </div>
-                        <p class="help-text">
+                        <p class="help-text settings-help">
                             Download a CSV backup, then use Import from CSV to restore inventory (same format as export).
                         </p>
 
-                        <h4 class="settings-subheading">Automatic Backup (Google Apps Script)</h4>
+                        <h2 class="settings-subheading">Automatic backup actions</h2>
                         <div class="settings-actions settings-actions-row">
-                            <button id="btn-save-backup-config" class="small" onclick="
+                            <button id="btn-save-backup-config" class="small" type="button" onclick="
                                 console.log('Save backup config clicked');
                                 var config = {
                                     enabled: document.getElementById('backup-enabled').checked,
@@ -340,7 +351,7 @@
                                 });
                                 return false;
                             ">Save Configuration</button>
-                            <button id="btn-sync-all-backup" class="small" onclick="
+                            <button id="btn-sync-all-backup" class="small" type="button" onclick="
                                 console.log('Sync all clicked');
                                 var msg = document.getElementById('backup-message');
                                 if (msg) {
@@ -388,7 +399,7 @@
                                 });
                                 return false;
                             ">Sync All Products Now</button>
-                            <button id="btn-sync-debtors" class="small" onclick="
+                            <button id="btn-sync-debtors" class="small" type="button" onclick="
                                 console.log('Sync debtors clicked');
                                 var msg = document.getElementById('backup-message');
                                 if (msg) {
@@ -426,8 +437,8 @@
                                     }
                                 });
                                 return false;
-                            ">💳 Sync Debtors to Google Sheets</button>
-                            <button id="btn-process-queue" class="small" onclick="
+                            ">Sync Debtors to Google Sheets</button>
+                            <button id="btn-process-queue" class="small" type="button" onclick="
                                 console.log('Process queue clicked');
                                 var msg = document.getElementById('backup-message');
                                 if (msg) {
@@ -469,34 +480,38 @@
                             ">Process Pending Changes</button>
                         </div>
 
-                        <div id="backup-message" class="info"></div>
+                        <div id="backup-message" class="info" role="status" aria-live="polite"></div>
                     </div>
                 </details>
 
-                <details class="settings-section">
-                    <summary class="settings-section-summary">📦 Clear inventory</summary>
+                <details class="settings-section settings-card settings-card--danger">
+                    <summary class="settings-section-summary">Clear inventory</summary>
                     <div class="settings-danger">
-                        <p class="help-text">
+                        <p class="help-text settings-help">
                             Permanently removes all products from your active stock list so you can start fresh
                             (for example before a new CSV import). Products linked to past sales are deactivated
                             instead of deleted so reports stay intact.
                             <strong>This cannot be undone.</strong>
                         </p>
-                        <button id="btn-clear-all-stock" type="button" class="danger">Delete all stock</button>
-                        <div id="clear-stock-message" class="info"></div>
+                        <div class="settings-actions">
+                            <button id="btn-clear-all-stock" type="button" class="danger">Delete all stock</button>
+                        </div>
+                        <div id="clear-stock-message" class="info" role="status" aria-live="polite"></div>
                     </div>
                 </details>
 
-                <details class="settings-section">
-                    <summary class="settings-section-summary">⚠️ Factory Reset</summary>
+                <details class="settings-section settings-card settings-card--danger">
+                    <summary class="settings-section-summary">Factory reset</summary>
                     <div class="settings-danger">
-                        <p class="help-text">
+                        <p class="help-text settings-help">
                             This will permanently delete ALL data including products, sales, customers, layby transactions, users, and settings.
                             The database will be reset to factory defaults with a new admin user (username: admin, password: admin).
                             <strong>This action CANNOT be undone.</strong>
                         </p>
-                        <button id="btn-factory-reset" type="button" class="danger" onclick="if(typeof window.factoryReset === 'function') { window.factoryReset(); } else { console.error('factoryReset not found, available:', typeof factoryReset, typeof window.factoryReset); alert('Error: Reset function not loaded. Please refresh the page.'); } return false;">Reset to Factory Settings</button>
-                        <div id="reset-message" class="info"></div>
+                        <div class="settings-actions">
+                            <button id="btn-factory-reset" type="button" class="danger" onclick="if(typeof window.factoryReset === 'function') { window.factoryReset(); } else { console.error('factoryReset not found, available:', typeof factoryReset, typeof window.factoryReset); alert('Error: Reset function not loaded. Please refresh the page.'); } return false;">Reset to Factory Settings</button>
+                        </div>
+                        <div id="reset-message" class="info" role="status" aria-live="polite"></div>
                     </div>
                 </details>
             </div>
@@ -515,79 +530,69 @@
 <script src="/static/js/list-fetch.js?v=1"></script>
 <script src="/static/js/admin.js?v=30"></script>
 <script>
-    // Switch between settings pages
     window.switchSettingsPage = function(pageNum) {
-        console.log('Switching to settings page:', pageNum);
-        
         const page1 = document.getElementById('settings-page-1');
         const page2 = document.getElementById('settings-page-2');
-        
         const buttons = document.querySelectorAll('.settings-page-btn');
-        buttons.forEach(btn => btn.classList.remove('active'));
-        
+        buttons.forEach(function(btn) {
+            const active = String(btn.getAttribute('data-page')) === String(pageNum);
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+
         if (pageNum === 1) {
             if (page1) {
+                page1.hidden = false;
                 page1.style.display = 'flex';
                 page1.style.setProperty('display', 'flex', 'important');
             }
             if (page2) {
+                page2.hidden = true;
                 page2.style.display = 'none';
                 page2.style.setProperty('display', 'none', 'important');
             }
-            const btn1 = document.querySelector('.settings-page-btn[data-page="1"]');
-            if (btn1) btn1.classList.add('active');
         } else if (pageNum === 2) {
             if (page1) {
+                page1.hidden = true;
                 page1.style.display = 'none';
                 page1.style.setProperty('display', 'none', 'important');
             }
             if (page2) {
+                page2.hidden = false;
                 page2.style.display = 'flex';
                 page2.style.setProperty('display', 'flex', 'important');
             }
-            const btn2 = document.querySelector('.settings-page-btn[data-page="2"]');
-            if (btn2) btn2.classList.add('active');
         }
-        
+
         const settingsContent = document.querySelector('.store-settings-content');
-        if (settingsContent) {
-            settingsContent.scrollTop = 0;
-        }
+        if (settingsContent) settingsContent.scrollTop = 0;
     };
-    
-    // Ensure page 2 is hidden on page load
+
     document.addEventListener('DOMContentLoaded', function() {
         const page2 = document.getElementById('settings-page-2');
         if (page2) {
+            page2.hidden = true;
             page2.style.display = 'none';
             page2.style.setProperty('display', 'none', 'important');
         }
         const page1 = document.getElementById('settings-page-1');
         if (page1) {
+            page1.hidden = false;
             page1.style.display = 'flex';
             page1.style.setProperty('display', 'flex', 'important');
         }
     });
-    
-    // Load settings on page load
+
     window.addEventListener('load', function() {
-        if (typeof loadStoreSettings === 'function') {
-            loadStoreSettings();
-        }
-        if (typeof loadCashiers === 'function') {
-            loadCashiers();
-        }
-        if (typeof loadBackupStatus === 'function') {
-            loadBackupStatus();
-        }
+        if (typeof loadStoreSettings === 'function') loadStoreSettings();
+        if (typeof loadCashiers === 'function') loadCashiers();
+        if (typeof loadBackupStatus === 'function') loadBackupStatus();
     });
     window.addEventListener('focus', function() {
-        if (typeof loadStoreSettings === 'function') {
-            loadStoreSettings();
-        }
+        if (typeof loadStoreSettings === 'function') loadStoreSettings();
     });
 </script>
 <script src="/static/js/store-branding.js?v=3"></script>
+<script src="/static/js/password-toggle.js?v=1"></script>
 </body>
 </html>
-

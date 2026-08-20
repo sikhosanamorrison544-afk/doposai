@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Platform tenants — {{ store_name }}</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="platform-motto" content="{{ platform_motto or 'Pecunia Non Olet' }}">
     <script>
         (function () {
@@ -704,15 +704,21 @@
 
         .reset-modal select,
         .reset-modal input[type="text"],
-        .reset-modal input[type="password"] {
+        .reset-modal input[type="password"],
+        .reset-modal .pw-field > input[type="password"],
+        .reset-modal .pw-field > input[type="text"] {
             width: 100%;
             box-sizing: border-box;
             padding: 10px 12px;
             border-radius: 8px;
             border: 1px solid rgba(0, 0, 0, 0.16);
-            font-size: 14px;
+            font-size: 16px;
             background: #fff;
             color: #1a1a2e;
+        }
+
+        .reset-modal .pw-toggle {
+            color: #334155;
         }
 
         .reset-modal select:focus,
@@ -946,6 +952,7 @@
 </div>
 
 <script src="/static/js/platform-tenants.js?v=5"></script>
+<script src="/static/js/password-toggle.js?v=1"></script>
 <script src="/static/js/store-branding.js?v=3"></script>
 </body>
 </html>

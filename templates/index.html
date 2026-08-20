@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>{{ store_name }}</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="platform-motto" content="{{ platform_motto or 'Pecunia Non Olet' }}">
     <!-- Fallback: same as web POS so app never shows black -->
     <style id="fallback-bg">html,body{min-height:100vh;margin:0;padding:0;background:linear-gradient(135deg,#667eea 0%,#764ba2 25%,#f093fb 50%,#4facfe 75%,#00f2fe 100%);background-size:400% 400%;color:#1a1a2e;}</style>
@@ -181,7 +181,7 @@
             <div id="login-form-card" class="card">
                 <!-- Hidden dummy fields to trick browsers -->
                 <input type="text" name="fake-username" autocomplete="off" style="position: absolute; left: -9999px; opacity: 0; pointer-events: none;" tabindex="-1">
-                <input type="password" name="fake-password" autocomplete="off" style="position: absolute; left: -9999px; opacity: 0; pointer-events: none;" tabindex="-1">
+                <input type="password" name="fake-password" data-no-toggle="1" autocomplete="off" style="position: absolute; left: -9999px; opacity: 0; pointer-events: none;" tabindex="-1" aria-hidden="true">
 
                 <label for="login-username">Username or email</label>
                 <input type="text" id="login-username" autocomplete="off" spellcheck="false" data-lpignore="true" data-form-type="other" data-1p-ignore="true">
@@ -544,6 +544,7 @@
 <script src="/static/js/role-permissions.js?v=1"></script>
 <script src="/static/js/list-fetch.js?v=1"></script>
 <script src="/static/js/app.js?v=19"></script>
+<script src="/static/js/password-toggle.js?v=1"></script>
 <script src="/static/js/background3d.js?v=5"></script>
 <script src="/static/js/store-branding.js?v=4"></script>
 </body>

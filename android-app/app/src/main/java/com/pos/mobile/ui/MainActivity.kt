@@ -19,6 +19,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
@@ -27,6 +28,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import android.text.method.PasswordTransformationMethod
+import android.text.method.HideReturnsTransformationMethod
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
@@ -135,6 +138,7 @@ class MainActivity : AppCompatActivity() {
         val registerCard = findViewById<View>(R.id.register_form_card)
         val username = findViewById<EditText>(R.id.login_username)
         val password = findViewById<EditText>(R.id.login_password)
+        bindPasswordVisibilityToggle(password, findViewById(R.id.login_password_toggle))
         val loginButton = findViewById<android.widget.Button>(R.id.login_button)
         val loginError = findViewById<TextView>(R.id.login_error)
         val linkCreate = findViewById<TextView>(R.id.link_create_business)
@@ -294,6 +298,7 @@ class MainActivity : AppCompatActivity() {
         val phone = findViewById<EditText>(R.id.reg_phone)
         val email = findViewById<EditText>(R.id.reg_email)
         val pass = findViewById<EditText>(R.id.reg_password)
+        bindPasswordVisibilityToggle(pass, findViewById(R.id.reg_password_toggle))
         val btn = findViewById<android.widget.Button>(R.id.register_button)
         val regErr = findViewById<TextView>(R.id.register_error)
         btn.setOnClickListener {
@@ -1661,6 +1666,29 @@ class MainActivity : AppCompatActivity() {
         } catch (e: android.content.ActivityNotFoundException) {
             Log.w("MainActivity", "No PDF viewer installed", e)
             Toast.makeText(this, R.string.quotation_no_pdf_viewer, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun bindPasswordVisibilityToggle(field: EditText, toggle: ImageButton) {
+        var visible = false
+        fun apply() {
+            val start = field.selectionStart
+            val end = field.selectionEnd
+            if (visible) {
+                field.transformationMethod = HideReturnsTransformationMethod.getInstance()
+                toggle.setImageResource(R.drawable.ic_visibility_off)
+                toggle.contentDescription = getString(R.string.hide_password)
+            } else {
+                field.transformationMethod = PasswordTransformationMethod.getInstance()
+                toggle.setImageResource(R.drawable.ic_visibility)
+                toggle.contentDescription = getString(R.string.show_password)
+            }
+            field.setSelection(start.coerceAtLeast(0), end.coerceAtLeast(0))
+        }
+        apply()
+        toggle.setOnClickListener {
+            visible = !visible
+            apply()
         }
     }
 }

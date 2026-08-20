@@ -1,0 +1,810 @@
+/**
+ * Settings visual system — loaded only on Settings-related pages.
+ * Scoped to body.page-store-settings / body.page-billing / .settings-shell
+ * Does not introduce global app-wide color overrides.
+ */
+
+:root {
+  --settings-max: 1180px;
+  --settings-radius: 12px;
+  --settings-gap: 1rem;
+  --settings-pad-desktop: 1.25rem; /* 20px */
+  --settings-pad-tablet: 1.0625rem; /* 17px */
+  --settings-pad-mobile: 0.9375rem; /* 15px */
+  --settings-title: clamp(1.35rem, 2vw, 1.75rem); /* ~21.6–28px */
+  --settings-desc: clamp(0.8125rem, 1.2vw, 0.9375rem); /* 13–15px */
+  --settings-section: clamp(1rem, 1.5vw, 1.25rem); /* 16–20px */
+  --settings-card-title: clamp(0.9375rem, 1.2vw, 1.0625rem); /* 15–17px */
+  --settings-body: 0.875rem; /* 14px */
+  --settings-help: 0.78rem; /* ~12.5px */
+  --settings-label: 0.875rem;
+  --settings-touch: 44px;
+  --settings-surface: rgba(255, 255, 255, 0.12);
+  --settings-border: rgba(255, 255, 255, 0.22);
+  --settings-text: #f8fafc;
+  --settings-muted: rgba(248, 250, 252, 0.78);
+  --settings-danger-bg: rgba(220, 38, 38, 0.12);
+  --settings-danger-border: rgba(248, 113, 113, 0.45);
+  --settings-focus: rgba(102, 126, 234, 0.45);
+}
+
+body.theme-light {
+  --settings-surface: #ffffff;
+  --settings-border: rgba(15, 23, 42, 0.12);
+  --settings-text: #0f172a;
+  --settings-muted: #475569;
+  --settings-danger-bg: #fef2f2;
+  --settings-danger-border: #fca5a5;
+}
+
+body.theme-classic {
+  --settings-surface: #3a3a3a;
+  --settings-border: rgba(255, 255, 255, 0.18);
+  --settings-text: #ffffff;
+  --settings-muted: rgba(255, 255, 255, 0.75);
+  --settings-danger-bg: rgba(127, 29, 29, 0.35);
+  --settings-danger-border: rgba(252, 165, 165, 0.5);
+}
+
+/* —— Shell / container —— */
+body.page-store-settings,
+body.page-billing.settings-shell {
+  overflow-x: clip;
+}
+
+body.page-store-settings #app {
+  max-width: 100%;
+  overflow-x: clip;
+  box-sizing: border-box;
+}
+
+.settings-page-container,
+.store-settings-page-content.settings-page-container,
+body.page-store-settings .store-settings-page-content {
+  width: min(100% - 2rem, var(--settings-max));
+  margin-inline: auto;
+  padding: 1rem 0 5.5rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--settings-gap);
+  overflow-x: clip;
+  min-width: 0;
+  max-width: min(100% - 2rem, var(--settings-max));
+}
+
+@media (max-width: 768px) {
+  .settings-page-container,
+  .store-settings-page-content.settings-page-container,
+  body.page-store-settings .store-settings-page-content {
+    width: min(100% - 1rem, var(--settings-max));
+    padding: 0.75rem 0 5rem;
+  }
+}
+
+.settings-page-header {
+  width: 100%;
+  margin: 0 0 0.25rem;
+}
+
+.settings-page-title {
+  margin: 0;
+  font-size: var(--settings-title);
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--settings-text);
+}
+
+.settings-page-description {
+  margin: 0.4rem 0 0;
+  font-size: var(--settings-desc);
+  line-height: 1.45;
+  color: var(--settings-muted);
+  max-width: 62ch;
+}
+
+/* —— Tabs / page nav —— */
+.settings-tabs,
+body.page-store-settings .settings-page-nav {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scroll-padding-inline: 0.75rem;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.25rem 0 0.75rem;
+  margin: 0;
+  border-bottom: 1px solid var(--settings-border);
+  width: 100%;
+  box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: transparent;
+  pointer-events: auto;
+}
+
+body.page-store-settings .settings-page-nav .settings-page-btn,
+.settings-tab {
+  flex: 0 0 auto;
+  min-height: var(--settings-touch);
+  min-width: var(--settings-touch);
+  padding: 0.55rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--settings-border);
+  background: var(--settings-surface);
+  color: var(--settings-text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  position: static;
+  width: auto;
+  height: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  pointer-events: auto;
+  box-shadow: none;
+  transform: none;
+}
+
+body.page-store-settings .settings-page-nav .settings-page-btn.active,
+.settings-tab.is-active,
+.settings-tab[aria-selected="true"] {
+  border-color: #667eea;
+  background: rgba(102, 126, 234, 0.28);
+  color: #fff;
+  box-shadow: 0 0 0 2px var(--settings-focus);
+}
+
+body.theme-light .settings-tab.is-active,
+body.theme-light .settings-page-btn.active {
+  color: #1e1b4b;
+  background: rgba(102, 126, 234, 0.18);
+}
+
+/* —— Accordion / content stack —— */
+.settings-accordion,
+body.page-store-settings .store-settings-content,
+.settings-page,
+body.page-store-settings .settings-page,
+body.page-store-settings .settings-wide,
+body.page-store-settings .settings-form-grid,
+body.page-store-settings .grid-2,
+body.page-store-settings .table-scroll,
+body.page-store-settings .settings-option-grid {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.settings-accordion,
+body.page-store-settings .store-settings-content {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--settings-gap);
+  align-items: stretch;
+  padding-bottom: 0.5rem;
+  overflow-x: clip;
+}
+
+.settings-page,
+body.page-store-settings .settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--settings-gap);
+  align-items: stretch;
+  overflow-x: clip;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  width: 100%;
+}
+
+.settings-option-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 0.875rem;
+  width: 100%;
+}
+
+body.page-store-settings .break-long {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 768px) {
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* —— Cards / sections —— */
+.settings-card,
+body.page-store-settings details.settings-section {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  box-sizing: border-box;
+  border-radius: var(--settings-radius);
+  border: 1px solid var(--settings-border);
+  background: var(--settings-surface);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: 0;
+  overflow: hidden;
+  color: var(--settings-text);
+}
+
+body.page-store-settings details.settings-section > summary.settings-section-summary,
+.settings-card-header {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: var(--settings-touch);
+  padding: var(--settings-pad-desktop);
+  font-size: var(--settings-card-title);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--settings-text);
+  border-bottom: 1px solid transparent;
+  background: transparent;
+}
+
+body.page-store-settings details.settings-section[open] > summary.settings-section-summary {
+  border-bottom-color: var(--settings-border);
+}
+
+body.page-store-settings details.settings-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+body.page-store-settings details.settings-section > summary.settings-section-summary::after {
+  content: "▾";
+  font-size: 0.85rem;
+  opacity: 0.7;
+  flex: 0 0 auto;
+}
+
+body.page-store-settings details.settings-section[open] > summary.settings-section-summary::after {
+  content: "▴";
+}
+
+.settings-card-body,
+body.page-store-settings details.settings-section > *:not(summary) {
+  padding-left: var(--settings-pad-desktop);
+  padding-right: var(--settings-pad-desktop);
+}
+
+body.page-store-settings details.settings-section > *:not(summary):last-child {
+  padding-bottom: var(--settings-pad-desktop);
+}
+
+body.page-store-settings details.settings-section > *:not(summary):first-of-type {
+  padding-top: 0.85rem;
+}
+
+.settings-subcard {
+  margin: 0.65rem 0;
+  padding: 0.85rem 0.95rem;
+  border-radius: 10px;
+  border: 1px solid var(--settings-border);
+  background: rgba(0, 0, 0, 0.06);
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+body.theme-light .settings-subcard {
+  background: #f8fafc;
+}
+
+.settings-section-title {
+  margin: 0 0 0.35rem;
+  font-size: var(--settings-section);
+  font-weight: 700;
+  color: var(--settings-text);
+}
+
+.settings-subtitle,
+.settings-subheading {
+  display: block;
+  margin: 0.85rem 0 0.35rem;
+  font-size: var(--settings-card-title);
+  font-weight: 650;
+  color: var(--settings-text);
+}
+
+.settings-status-card {
+  display: grid;
+  gap: 0.35rem;
+  font-size: var(--settings-body);
+  color: var(--settings-muted);
+}
+
+.settings-status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: rgba(102, 126, 234, 0.2);
+  color: var(--settings-text);
+  width: fit-content;
+}
+
+.settings-danger,
+body.page-store-settings .settings-danger {
+  margin: 0.5rem var(--settings-pad-desktop) var(--settings-pad-desktop);
+  padding: 0.85rem 0.95rem;
+  border-radius: 10px;
+  border: 1px solid var(--settings-danger-border);
+  background: var(--settings-danger-bg);
+  box-sizing: border-box;
+}
+
+body.page-store-settings details.settings-section.settings-card--danger > .settings-danger {
+  margin-left: var(--settings-pad-desktop);
+  margin-right: var(--settings-pad-desktop);
+}
+
+.settings-wide,
+body.page-store-settings .settings-wide {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.settings-roles-note {
+  margin: 0 0 0.85rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid var(--settings-border);
+  background: rgba(0, 0, 0, 0.05);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--settings-muted);
+}
+
+.settings-roles-note ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.15rem;
+}
+
+/* —— Forms —— */
+.settings-form-grid,
+body.page-store-settings .settings-form-grid,
+body.page-store-settings .grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.settings-field-full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 768px) {
+  .settings-form-grid,
+  body.page-store-settings .settings-form-grid,
+  body.page-store-settings .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+body.page-store-settings label,
+.settings-label {
+  display: block;
+  font-size: var(--settings-label);
+  font-weight: 600;
+  color: var(--settings-text);
+  margin: 0.15rem 0 0.35rem;
+}
+
+body.page-store-settings .help-text,
+body.page-store-settings .settings-help,
+body.page-store-settings .settings-hint,
+body.page-store-settings small.help-text,
+.settings-help {
+  display: block;
+  font-size: var(--settings-help);
+  line-height: 1.45;
+  color: var(--settings-muted);
+  margin: 0.3rem 0 0;
+}
+
+body.page-store-settings input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+body.page-store-settings select,
+body.page-store-settings textarea,
+.settings-page input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.settings-page select,
+.settings-page textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-height: var(--settings-touch);
+  font-size: 0.95rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--settings-border);
+  background: rgba(255, 255, 255, 0.94);
+  color: #0f172a;
+}
+
+body.theme-classic.page-store-settings input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+body.theme-classic.page-store-settings select,
+body.theme-classic.page-store-settings textarea {
+  background: #2a2a2a;
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+body.page-store-settings textarea {
+  min-height: 5.5rem;
+  resize: vertical;
+}
+
+body.page-store-settings input:focus-visible,
+body.page-store-settings select:focus-visible,
+body.page-store-settings textarea:focus-visible,
+body.page-store-settings button:focus-visible,
+body.page-store-settings .settings-page-btn:focus-visible {
+  outline: 2px solid #667eea;
+  outline-offset: 2px;
+}
+
+body.page-store-settings .pw-field > input {
+  padding-right: 2.75rem !important;
+}
+
+/* Switches / checkboxes — full row hit target */
+.settings-inline,
+body.page-store-settings .settings-inline {
+  margin: 0.5rem 0;
+}
+
+body.page-store-settings .checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-height: var(--settings-touch);
+  padding: 0.55rem 0.15rem;
+  margin: 0;
+  font-size: var(--settings-body);
+  font-weight: 600;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+body.page-store-settings .checkbox-label input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  min-height: 0;
+  margin-top: 0.15rem;
+  flex: 0 0 auto;
+}
+
+/* —— Actions —— */
+.settings-actions,
+body.page-store-settings .settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+  width: 100%;
+}
+
+body.page-store-settings .settings-actions > button,
+body.page-store-settings .settings-actions > a,
+.settings-actions > button,
+.settings-actions > a {
+  min-height: var(--settings-touch);
+  font-size: 0.9rem;
+  padding: 0.55rem 1rem;
+  border-radius: 10px;
+  touch-action: manipulation;
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 100%;
+}
+
+@media (max-width: 480px) {
+  .settings-actions > button,
+  .settings-actions > a,
+  body.page-store-settings .settings-actions > button,
+  body.page-store-settings .settings-actions > a {
+    flex: 1 1 100%;
+  }
+}
+
+body.page-store-settings button.primary {
+  background: #4f46e5;
+  border: 1px solid #4338ca;
+  color: #fff;
+}
+
+body.page-store-settings button.small:not(.primary):not(.danger) {
+  background: rgba(100, 116, 139, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  color: var(--settings-text);
+}
+
+body.theme-light.page-store-settings button.small:not(.primary):not(.danger) {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+body.page-store-settings button.danger,
+body.page-store-settings .danger {
+  background: #dc2626;
+  border: 1px solid #b91c1c;
+  color: #fff;
+  min-height: var(--settings-touch);
+}
+
+body.page-store-settings .info {
+  font-size: var(--settings-body);
+  color: var(--settings-muted);
+  margin-top: 0.5rem;
+  min-height: 1.2em;
+}
+
+/* —— Tables —— */
+body.page-store-settings .table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 0.5rem;
+}
+
+body.page-store-settings .users-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--settings-body);
+}
+
+body.page-store-settings .users-table th,
+body.page-store-settings .users-table td {
+  padding: 0.55rem 0.45rem;
+  text-align: left;
+  border-bottom: 1px solid var(--settings-border);
+  vertical-align: middle;
+}
+
+body.page-store-settings .break-long {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* —— Icons —— */
+.settings-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 1.25rem;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.settings-icon--inline {
+  width: 1.125rem;
+  height: 1.125rem;
+  font-size: 1rem;
+}
+
+/* —— Modals (settings pages) —— */
+body.page-store-settings .settings-modal,
+body.page-store-settings [role="dialog"].settings-modal {
+  width: min(92vw, 620px);
+  max-height: min(100dvh - 1.5rem, 900px);
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+@media (max-width: 480px) {
+  body.page-store-settings .settings-modal,
+  body.page-store-settings [role="dialog"].settings-modal {
+    width: min(100vw - 0.75rem, 620px);
+    max-height: 100dvh;
+  }
+}
+
+/* —— Billing as settings-adjacent —— */
+body.page-billing.settings-shell .billing-wrap.settings-page-container {
+  width: min(100% - 2rem, var(--settings-max));
+  margin-inline: auto;
+  padding: 1rem 0 2rem;
+}
+
+body.page-billing.settings-shell .billing-card {
+  padding: var(--settings-pad-desktop);
+  border-radius: var(--settings-radius);
+}
+
+body.page-billing.settings-shell h1 {
+  font-size: var(--settings-title);
+  line-height: 1.2;
+  margin: 0.25rem 0 1rem;
+}
+
+body.page-billing.settings-shell .billing-card h2 {
+  font-size: var(--settings-section);
+  margin: 0 0 0.65rem;
+}
+
+body.page-billing.settings-shell input,
+body.page-billing.settings-shell select,
+body.page-billing.settings-shell button {
+  min-height: var(--settings-touch);
+}
+
+@media (max-width: 768px) {
+  body.page-billing.settings-shell .billing-wrap.settings-page-container {
+    width: min(100% - 1rem, var(--settings-max));
+  }
+
+  body.page-store-settings details.settings-section > summary.settings-section-summary,
+  .settings-card-header,
+  .settings-card-body,
+  body.page-store-settings details.settings-section > *:not(summary) {
+    padding-left: var(--settings-pad-mobile);
+    padding-right: var(--settings-pad-mobile);
+  }
+
+  body.page-store-settings details.settings-section > *:not(summary):last-child {
+    padding-bottom: var(--settings-pad-mobile);
+  }
+
+  body.page-store-settings .settings-danger {
+    margin-left: var(--settings-pad-mobile);
+    margin-right: var(--settings-pad-mobile);
+  }
+
+  body.page-store-settings input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  body.page-store-settings select,
+  body.page-store-settings textarea {
+    font-size: 16px; /* avoid iOS zoom */
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  body.page-store-settings details.settings-section > summary.settings-section-summary,
+  body.page-store-settings details.settings-section > *:not(summary) {
+    padding-left: var(--settings-pad-tablet);
+    padding-right: var(--settings-pad-tablet);
+  }
+}
+
+body.page-store-settings .settings-form-grid > *,
+body.page-store-settings .grid-2 > *,
+body.page-store-settings .pw-field {
+  min-width: 0;
+  max-width: 100%;
+}
+
+body.page-store-settings .pw-field {
+  position: relative;
+  width: 100%;
+  display: block;
+}
+
+body.page-store-settings .pw-toggle {
+  right: 0.25rem;
+  color: #334155;
+  opacity: 0.9;
+}
+
+body.theme-classic.page-store-settings .pw-toggle {
+  color: #e2e8f0;
+}
+
+/* Top bar: keep actions visible without horizontal page scroll */
+body.page-store-settings .top-bar {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 0.55rem max(0.5rem, env(safe-area-inset-left, 0)) 0.55rem max(0.5rem, env(safe-area-inset-right, 0));
+  overflow: hidden !important;
+}
+
+body.page-store-settings .top-bar > span:empty {
+  display: none;
+}
+
+body.page-store-settings .shop-name {
+  font-size: clamp(0.95rem, 2vw, 1.15rem);
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  flex: 1 1 12rem;
+  min-width: 0;
+  grid-column: auto !important;
+  grid-row: auto !important;
+  text-align: left !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.page-store-settings .top-bar-right {
+  flex: 0 0 auto;
+  grid-column: auto !important;
+  grid-row: auto !important;
+}
+
+body.page-store-settings .top-bar-right .small,
+body.page-store-settings #btn-back-to-admin {
+  min-height: var(--settings-touch);
+  color: #fff;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+body.theme-light.page-store-settings .top-bar-right .small,
+body.theme-light.page-store-settings #btn-back-to-admin {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(15, 23, 42, 0.18);
+}
+
+body.page-store-settings .users-table {
+  width: 100%;
+  min-width: 0 !important;
+  border-collapse: collapse;
+  font-size: var(--settings-body);
+  table-layout: auto;
+}
+
+body.page-store-settings .users-table th,
+body.page-store-settings .users-table td {
+  padding: 0.55rem 0.45rem;
+  text-align: left;
+  border-bottom: 1px solid var(--settings-border);
+  vertical-align: middle;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  body.page-store-settings .settings-form-grid,
+  body.page-store-settings .grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  body.page-store-settings .settings-page-nav.settings-tabs {
+    position: sticky;
+    top: 0;
+  }
+
+  body.page-store-settings .settings-page-btn,
+  body.page-store-settings .settings-tab {
+    font-size: 0.82rem;
+    padding: 0.45rem 0.7rem;
+  }
+}

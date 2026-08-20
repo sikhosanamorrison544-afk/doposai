@@ -1,3 +1,5 @@
+@import url("/static/css/password-toggle.css?v=1");
+
 /* Base font size - increase for better readability */
 html {
     font-size: 18px;
@@ -3587,1219 +3589,7 @@ html body.theme-light #store-settings-panel .settings-page-btn.active {
     height: auto !important;
 }
 
-/* Store Settings Page (full page, not panel) - prevent any right-side cutoff on Android/narrow viewports */
-body.page-store-settings #app,
-#app:has(.store-settings-page-content) {
-    overflow-x: hidden !important;
-    max-width: 100vw !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-}
-body.page-store-settings {
-    overflow-x: hidden !important;
-    max-width: 100vw !important;
-}
-.store-settings-page-content {
-    flex: 1 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    padding: clamp(1rem, 2vw, 2rem) !important;
-    width: 100% !important;
-    max-width: min(100%, 100vw) !important;
-    box-sizing: border-box !important;
-    -webkit-overflow-scrolling: touch !important;
-    min-height: 0 !important;
-    min-width: 0 !important;
-}
-
-.store-settings-page-content .settings-page-nav {
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    z-index: 10 !important;
-    background: transparent !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    display: block !important;
-    pointer-events: none !important;
-}
-
-.store-settings-page-content .settings-page-nav .settings-page-arrow {
-    pointer-events: auto !important;
-    position: absolute !important;
-    bottom: clamp(0.5rem, 1.5vw, 1rem) !important;
-}
-
-.store-settings-page-content .settings-page-nav .settings-page-arrow:first-child {
-    left: clamp(0.5rem, 1.5vw, 1rem) !important;
-}
-
-.store-settings-page-content .settings-page-nav .settings-page-arrow:last-child {
-    right: clamp(0.5rem, 1.5vw, 1rem) !important;
-}
-
-html body.theme-light .store-settings-page-content .settings-page-nav {
-    background: transparent !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-}
-
-/* Arrow-only page nav buttons (left/right) */
-.store-settings-page-content .settings-page-nav .settings-page-arrow {
-    min-width: clamp(2.5rem, 5vw, 3.5rem) !important;
-    width: clamp(2.5rem, 5vw, 3.5rem) !important;
-    height: clamp(2.5rem, 5vw, 3.5rem) !important;
-    min-height: clamp(2.5rem, 5vw, 3.5rem) !important;
-    padding: 0 !important;
-    font-size: clamp(1.25rem, 2.5vw, 1.75rem) !important;
-    line-height: 1 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-}
-
-.store-settings-page-content .store-settings-content {
-    flex: 1 1 auto !important;
-    min-height: 0 !important;
-    min-width: 0 !important;
-    overflow-y: visible !important;
-    overflow-x: hidden !important;
-    width: 100% !important;
-    max-width: min(clamp(600px, 90vw, 1100px), calc(100vw - 2rem)) !important;
-    margin: 0 auto !important;
-    padding-bottom: clamp(4.5rem, 10vw, 6rem) !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    box-sizing: border-box !important;
-}
-
-html body.theme-light .store-settings-page-content .store-settings-content {
-    background: transparent !important;
-}
-
-/* Ensure all settings sections are visible on the page and centered; never overflow */
-.store-settings-page-content .settings-section {
-    margin-bottom: clamp(1rem, 2vw, 1.5rem) !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    box-sizing: border-box !important;
-    overflow-x: hidden !important;
-}
-
-/* Glass morphism for settings sections on store settings page */
-.store-settings-page-content details.settings-section {
-    background: rgba(255, 255, 255, 0.2) !important;
-    backdrop-filter: blur(25px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(25px) saturate(200%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.4) !important;
-    border-radius: clamp(1rem, 2vw, 1.5rem) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
-    padding: clamp(1rem, 2vw, 1.5rem) !important;
-    margin-bottom: clamp(1.5rem, 3vw, 2rem) !important;
-}
-
-html body.theme-light .store-settings-page-content details.settings-section {
-    background: rgba(255, 255, 255, 0.35) !important;
-    backdrop-filter: blur(25px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(25px) saturate(200%) !important;
-    border: 1px solid rgba(0, 0, 0, 0.2) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
-}
-
-.store-settings-page-content .settings-section-card {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    background: rgba(255, 255, 255, 0.15) !important;
-    backdrop-filter: blur(20px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(20px) saturate(200%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.3) !important;
-    border-radius: clamp(0.875rem, 1.75vw, 1.25rem) !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
-    padding: clamp(1.5rem, 3vw, 2rem) !important;
-    margin: clamp(1rem, 2vw, 1.5rem) 0 !important;
-}
-
-html body.theme-light .store-settings-page-content .settings-section-card {
-    background: rgba(255, 255, 255, 0.3) !important;
-    backdrop-filter: blur(20px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(20px) saturate(200%) !important;
-    border: 1px solid rgba(0, 0, 0, 0.18) !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
-}
-
-/* Center align all content within settings page */
-.store-settings-page-content .settings-accordion {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-    margin: 0 auto !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    gap: clamp(1rem, 2vw, 1.5rem) !important;
-}
-
-.store-settings-page-content .settings-page {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-    margin: 0 auto !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    gap: clamp(1rem, 2vw, 1.5rem) !important;
-}
-
-/* Ensure page 2 is hidden by default */
-.store-settings-page-content #settings-page-2 {
-    display: none !important;
-}
-
-/* Ensure page 1 is visible by default */
-.store-settings-page-content #settings-page-1 {
-    display: flex !important;
-}
-
-/* Center all cards and content with glass morphism - Reduced by 50%; never overflow viewport */
-.store-settings-page-content .card,
-.store-settings-page-content .settings-section-card {
-    width: 100% !important;
-    max-width: min(clamp(250px, 42.5vw, 450px), 100%) !important;
-    min-width: 0 !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    margin-top: clamp(0.25rem, 0.5vw, 0.375rem) !important;
-    margin-bottom: clamp(0.25rem, 0.5vw, 0.375rem) !important;
-    box-sizing: border-box !important;
-    overflow-x: hidden !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    background: rgba(255, 255, 255, 0.15) !important;
-    backdrop-filter: blur(20px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(20px) saturate(200%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.3) !important;
-    border-radius: clamp(0.4375rem, 0.875vw, 0.625rem) !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
-    padding: clamp(0.75rem, 1.5vw, 1rem) !important;
-    box-sizing: border-box !important;
-}
-
-html body.theme-light .store-settings-page-content .card,
-html body.theme-light .store-settings-page-content .settings-section-card {
-    background: rgba(255, 255, 255, 0.3) !important;
-    backdrop-filter: blur(20px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(20px) saturate(200%) !important;
-    border: 1px solid rgba(0, 0, 0, 0.18) !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
-}
-
-/* Light theme styles for content directly inside details */
-html body.theme-light .store-settings-page-content .settings-section > div:not(.settings-section-summary) {
-    background: transparent !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    border: none !important;
-    box-shadow: none !important;
-}
-
-/* Center all divs inside cards with proper spacing - Reduced by 50% */
-/* Style content directly inside details elements (not in nested cards) */
-.store-settings-page-content .settings-section > div:not(.settings-section-summary) {
-    width: 100% !important;
-    max-width: min(clamp(250px, 42.5vw, 450px), 100%) !important;
-    min-width: 0 !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    margin-top: clamp(0.5rem, 1vw, 0.75rem) !important;
-    margin-bottom: clamp(0.5rem, 1vw, 0.75rem) !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    gap: clamp(0.5rem, 1vw, 0.75rem) !important;
-    padding: clamp(0.75rem, 1.5vw, 1rem) !important;
-    box-sizing: border-box !important;
-}
-
-/* Widen More Settings panel (Low Stock Threshold, Test Email Configuration, etc.) */
-.store-settings-page-content #more-settings-content {
-    max-width: min(clamp(640px, 92vw, 1100px), 100%) !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    box-sizing: border-box !important;
-}
-
-/* Allow settings-wide to expand beyond normal constraints for tables - but never overflow viewport */
-.store-settings-page-content .settings-section > div.settings-wide {
-    max-width: 100% !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    padding-left: clamp(0.75rem, 1.5vw, 1rem) !important;
-    padding-right: clamp(0.75rem, 1.5vw, 1rem) !important;
-    align-items: stretch !important;
-    box-sizing: border-box !important;
-    overflow-x: hidden !important;
-}
-
-.store-settings-page-content .card > div,
-.store-settings-page-content .settings-section-card > div {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    gap: clamp(0.5rem, 1vw, 0.75rem) !important;
-    padding: clamp(0.25rem, 0.5vw, 0.375rem) !important;
-}
-
-/* Center all inputs, labels, buttons, and text */
-.store-settings-page-content label,
-.store-settings-page-content input,
-.store-settings-page-content textarea,
-.store-settings-page-content select,
-.store-settings-page-content button,
-.store-settings-page-content .help-text,
-.store-settings-page-content small {
-    text-align: center !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-}
-
-.store-settings-page-content label {
-    margin-bottom: clamp(0.25rem, 0.5vw, 0.375rem) !important;
-    margin-top: clamp(0.375rem, 0.75vw, 0.5rem) !important;
-    font-size: clamp(0.65rem, 1.2vw, 0.8rem) !important;
-    font-weight: 600 !important;
-    display: block !important;
-    width: 100% !important;
-}
-
-html body.theme-light .store-settings-page-content label {
-    color: #ffffff !important;
-    font-weight: 500 !important;
-    font-size: clamp(0.9rem, 1.6vw, 1.1rem) !important;
-}
-
-.store-settings-page-content .help-text,
-.store-settings-page-content small {
-    font-size: clamp(0.55rem, 1vw, 0.7rem) !important;
-    line-height: 1.4 !important;
-    margin-top: clamp(0.15rem, 0.3vw, 0.25rem) !important;
-    margin-bottom: clamp(0.15rem, 0.3vw, 0.25rem) !important;
-    display: block !important;
-    width: 100% !important;
-}
-
-html body.theme-light .store-settings-page-content .help-text,
-html body.theme-light .store-settings-page-content small {
-    color: #4b5563 !important;
-    opacity: 0.9 !important;
-    font-size: clamp(0.8rem, 1.4vw, 0.95rem) !important;
-}
-
-/* Larger font for "Email address to receive low-stock alerts" in light theme */
-html body.theme-light .store-settings-page-content #notification-email + .help-text {
-    font-size: clamp(0.95rem, 1.6vw, 1.1rem) !important;
-}
-
-.store-settings-page-content input,
-.store-settings-page-content textarea,
-.store-settings-page-content select {
-    display: block !important;
-    width: clamp(240px, 50vw, 420px) !important;
-    max-width: clamp(240px, 50vw, 420px) !important;
-    background: rgba(255, 255, 255, 0.4) !important;
-    backdrop-filter: blur(15px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(15px) saturate(200%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.5) !important;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
-    padding: clamp(0.5rem, 1vw, 0.65rem) clamp(0.6rem, 1.2vw, 0.75rem) !important;
-    margin: clamp(0.25rem, 0.5vw, 0.375rem) auto !important;
-    border-radius: clamp(0.375rem, 0.75vw, 0.5rem) !important;
-    min-height: clamp(1.75rem, 3.5vw, 2.5rem) !important;
-    font-size: clamp(0.875rem, 1.5vw, 1.05rem) !important;
-    box-sizing: border-box !important;
-}
-
-html body.theme-light .store-settings-page-content input,
-html body.theme-light .store-settings-page-content textarea,
-html body.theme-light .store-settings-page-content select {
-    background: var(--input-bg) !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    border: 1px solid var(--input-border) !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
-    padding: clamp(0.5rem, 1vw, 0.65rem) clamp(0.6rem, 1.2vw, 0.75rem) !important;
-    margin: clamp(0.25rem, 0.5vw, 0.375rem) auto !important;
-    border-radius: clamp(0.375rem, 0.75vw, 0.5rem) !important;
-    min-height: clamp(1.75rem, 3.5vw, 2.5rem) !important;
-    font-size: clamp(0.95rem, 1.65vw, 1.15rem) !important;
-    color: var(--input-text) !important;
-    width: clamp(240px, 50vw, 420px) !important;
-    max-width: clamp(240px, 50vw, 420px) !important;
-    box-sizing: border-box !important;
-}
-
-html body.theme-light .store-settings-page-content textarea {
-    min-height: clamp(2.5rem, 5vw, 3.5rem) !important;
-    width: clamp(240px, 50vw, 420px) !important;
-    max-width: clamp(240px, 50vw, 420px) !important;
-}
-
-.store-settings-page-content textarea {
-    width: clamp(240px, 50vw, 420px) !important;
-    max-width: clamp(240px, 50vw, 420px) !important;
-}
-
-.store-settings-page-content input[type="checkbox"],
-.store-settings-page-content input[type="radio"] {
-    width: 0.875rem !important;
-    min-width: 0.875rem !important;
-    height: 0.875rem !important;
-    min-height: 0.875rem !important;
-    max-width: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    display: inline-block !important;
-    vertical-align: middle !important;
-    flex-shrink: 0 !important;
-    align-self: center !important;
-}
-
-/* Light theme: keep checkboxes and radios square (override wide input styles) */
-html body.theme-light .store-settings-page-content input[type="checkbox"],
-html body.theme-light .store-settings-page-content input[type="radio"] {
-    width: 0.875rem !important;
-    min-width: 0.875rem !important;
-    max-width: 0.875rem !important;
-    height: 0.875rem !important;
-    min-height: 0.875rem !important;
-    padding: 0 !important;
-}
-
-html body.theme-light .store-settings-page-content input:focus,
-html body.theme-light .store-settings-page-content textarea:focus,
-html body.theme-light .store-settings-page-content select:focus {
-    background: var(--input-bg-focus) !important;
-    border-color: var(--input-focus-border) !important;
-    box-shadow: 0 0 0 3px var(--input-focus-ring), 0 4px 12px rgba(0, 0, 0, 0.2) !important;
-    color: var(--input-text) !important;
-}
-
-.store-settings-page-content input:focus,
-.store-settings-page-content textarea:focus,
-.store-settings-page-content select:focus {
-    background: rgba(255, 255, 255, 0.5) !important;
-    backdrop-filter: blur(20px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(20px) saturate(200%) !important;
-    border-color: rgba(59, 130, 246, 0.7) !important;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25), 0 2px 6px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
-    outline: none !important;
-    transform: translateY(-0.5px) !important;
-    transition: all 0.2s ease !important;
-    padding: clamp(0.5rem, 1vw, 0.65rem) clamp(0.6rem, 1.2vw, 0.75rem) !important;
-    font-size: clamp(0.875rem, 1.5vw, 1.05rem) !important;
-}
-
-.store-settings-page-content button {
-    display: block !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    background: rgba(59, 130, 246, 0.3) !important;
-    backdrop-filter: blur(10px) saturate(180%) !important;
-    -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.3) !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
-    transition: all 0.3s ease !important;
-    padding: clamp(0.6rem, 1.2vw, 0.875rem) clamp(1rem, 2vw, 1.5rem) !important;
-    font-size: clamp(0.95rem, 1.8vw, 1.25rem) !important;
-    min-height: clamp(2.25rem, 4.5vw, 3rem) !important;
-    border-radius: clamp(0.5rem, 1vw, 0.75rem) !important;
-}
-
-.store-settings-page-content button:hover {
-    background: rgba(59, 130, 246, 0.4) !important;
-    border-color: rgba(255, 255, 255, 0.5) !important;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2) !important;
-    transform: translateY(-2px) !important;
-}
-
-.store-settings-page-content button.primary {
-    background: rgba(59, 130, 246, 0.4) !important;
-    border-color: rgba(59, 130, 246, 0.6) !important;
-}
-
-.store-settings-page-content button.primary:hover {
-    background: rgba(59, 130, 246, 0.5) !important;
-    border-color: rgba(59, 130, 246, 0.8) !important;
-}
-
-html body.theme-light .store-settings-page-content button {
-    background: rgba(59, 130, 246, 0.25) !important;
-    border: 1px solid rgba(0, 0, 0, 0.2) !important;
-    color: #111827 !important;
-    font-size: clamp(0.95rem, 1.8vw, 1.25rem) !important;
-    padding: clamp(0.6rem, 1.2vw, 0.875rem) clamp(1rem, 2vw, 1.5rem) !important;
-    min-height: clamp(2.25rem, 4.5vw, 3rem) !important;
-}
-
-html body.theme-light .store-settings-page-content button:hover {
-    background: rgba(59, 130, 246, 0.35) !important;
-    border-color: rgba(0, 0, 0, 0.3) !important;
-}
-
-/* Center grid layouts */
-.store-settings-page-content .grid-2 {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: clamp(0.75rem, 1.5vw, 1rem) !important;
-    justify-items: center !important;
-    align-items: start !important;
-}
-
-/* Center settings actions */
-.store-settings-page-content .settings-actions,
-.store-settings-page-content .settings-actions-row {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    display: flex !important;
-    justify-content: center !important;
-    align-items: center !important;
-    gap: clamp(0.5rem, 1vw, 0.75rem) !important;
-    flex-wrap: wrap !important;
-}
-
-/* Center tables - table scrolls inside this box so the page is never cut off */
-.store-settings-page-content .table-scroll {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    display: block !important;
-    overflow-x: auto !important;
-    overflow-y: visible !important;
-    -webkit-overflow-scrolling: touch !important;
-    box-sizing: border-box !important;
-    contain: layout !important;
-}
-
-/* Ensure table-scroll inside settings-wide has no padding constraints */
-.store-settings-page-content .settings-wide .table-scroll {
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-}
-
-.store-settings-page-content table {
-    margin-left: auto !important;
-    margin-right: auto !important;
-    background: rgba(255, 255, 255, 0.15) !important;
-    backdrop-filter: blur(20px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(20px) saturate(200%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.3) !important;
-    border-radius: clamp(0.875rem, 1.75vw, 1.25rem) !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
-    overflow: hidden !important;
-}
-
-/* Users table - wide; scrolls horizontally inside .table-scroll on narrow viewports so page is never cut off */
-.store-settings-page-content .users-table {
-    width: 100% !important;
-    min-width: 800px !important;
-    border-collapse: collapse !important;
-    table-layout: auto !important;
-}
-
-html body.theme-light .store-settings-page-content .users-table {
-    min-width: 800px !important;
-    width: 100% !important;
-    max-width: none !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-}
-
-.store-settings-page-content .users-table th,
-.store-settings-page-content .users-table td {
-    white-space: nowrap !important;
-    text-align: left !important;
-    vertical-align: middle !important;
-    padding: clamp(0.4rem, 0.8vw, 0.6rem) clamp(0.6rem, 1.2vw, 0.9rem) !important;
-}
-
-.store-settings-page-content .users-table thead th {
-    font-weight: 800 !important;
-    font-size: clamp(0.85rem, 1.5vw, 1.1rem) !important;
-    padding: clamp(0.45rem, 0.9vw, 0.65rem) clamp(0.6rem, 1.2vw, 0.9rem) !important;
-}
-
-/* Reduce button sizes in users table */
-.store-settings-page-content .users-table button.small {
-    padding: clamp(0.25rem, 0.5vw, 0.4rem) clamp(0.5rem, 1vw, 0.75rem) !important;
-    font-size: clamp(0.65rem, 1.2vw, 0.8rem) !important;
-    line-height: 1.2 !important;
-    min-height: auto !important;
-    height: auto !important;
-}
-
-/* Reduce font size for table cell content */
-.store-settings-page-content .users-table td {
-    font-size: clamp(0.75rem, 1.4vw, 0.95rem) !important;
-}
-
-/* Store-settings tables: same layby-style in light theme (inherits body.theme-light table) */
-html body.theme-light .store-settings-page-content table {
-    background: rgba(255, 255, 255, 0.1) !important;
-    backdrop-filter: blur(10px) saturate(180%) !important;
-    -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    border-radius: 8px !important;
-}
-
-html body.theme-light .store-settings-page-content .users-table thead th {
-    background: rgba(255, 255, 255, 0.2) !important;
-    color: #ffffff !important;
-    border-bottom: 2px solid rgba(0, 0, 0, 0.12) !important;
-}
-
-html body.theme-light .store-settings-page-content .users-table td {
-    background: rgba(255, 255, 255, 0.05) !important;
-    color: #ffffff !important;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
-}
-
-html body.theme-light .store-settings-page-content .users-table tbody tr:hover td {
-    background: rgba(255, 255, 255, 0.15) !important;
-}
-
-/* Table header and cell font sizes in light theme (buttons unchanged) */
-html body.theme-light .store-settings-page-content .users-table thead th {
-    font-size: clamp(1rem, 1.75vw, 1.2rem) !important;
-    padding: clamp(0.45rem, 0.9vw, 0.65rem) clamp(0.6rem, 1.2vw, 0.9rem) !important;
-}
-
-html body.theme-light .store-settings-page-content .users-table td {
-    font-size: clamp(0.9rem, 1.55vw, 1.05rem) !important;
-}
-
-/* Reduce button sizes in users table for light theme */
-html body.theme-light .store-settings-page-content .users-table button.small {
-    padding: clamp(0.25rem, 0.5vw, 0.4rem) clamp(0.5rem, 1vw, 0.75rem) !important;
-    font-size: clamp(0.65rem, 1.2vw, 0.8rem) !important;
-    line-height: 1.2 !important;
-    min-height: auto !important;
-    height: auto !important;
-    color: #ffffff !important;
-}
-
-/* Actions column: arrange Edit, Activate/Deactivate, Delete horizontally in light theme */
-html body.theme-light .store-settings-page-content .users-table tbody tr td:last-child {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    align-items: center !important;
-    gap: 0.5rem !important;
-}
-
-html body.theme-light .store-settings-page-content .users-table tbody tr:last-child td {
-    border-bottom: none !important;
-}
-
-.store-settings-page-content table thead {
-    background: rgba(255, 255, 255, 0.2) !important;
-    backdrop-filter: blur(15px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(15px) saturate(200%) !important;
-}
-
-html body.theme-light .store-settings-page-content table thead {
-    background: rgba(255, 255, 255, 0.2) !important;
-    backdrop-filter: blur(10px) saturate(180%) !important;
-    -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
-}
-
-html body.theme-light .store-settings-page-content table thead th {
-    color: #ffffff !important;
-    border-bottom: 2px solid rgba(0, 0, 0, 0.12) !important;
-}
-
-html body.theme-light .store-settings-page-content table td {
-    color: #ffffff !important;
-    background: rgba(255, 255, 255, 0.05) !important;
-}
-
-html body.theme-light .store-settings-page-content table tbody tr:hover td {
-    background: rgba(255, 255, 255, 0.15) !important;
-}
-
-.store-settings-page-content table tbody tr {
-    transition: background 0.2s ease !important;
-}
-
-/* Center info messages */
-.store-settings-page-content .info {
-    text-align: center !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    background: rgba(59, 130, 246, 0.15) !important;
-    backdrop-filter: blur(10px) saturate(180%) !important;
-    -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
-    border: 1px solid rgba(59, 130, 246, 0.3) !important;
-    border-radius: clamp(0.5rem, 1vw, 0.75rem) !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-    padding: clamp(0.75rem, 1.5vw, 1rem) !important;
-}
-
-html body.theme-light .store-settings-page-content .info {
-    background: rgba(59, 130, 246, 0.1) !important;
-    border: 1px solid rgba(59, 130, 246, 0.25) !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
-    font-size: clamp(0.9rem, 1.5vw, 1.05rem) !important;
-}
-
-/* Factory reset: larger warning text */
-.store-settings-page-content .settings-danger .help-text {
-    font-size: clamp(0.95rem, 1.65vw, 1.15rem) !important;
-}
-
-html body.theme-light .store-settings-page-content .settings-danger .help-text {
-    font-size: clamp(1rem, 1.75vw, 1.2rem) !important;
-}
-
-/* Hide empty bluish message box below Reset to Factory Settings */
-.store-settings-page-content #reset-message.info:empty {
-    display: none !important;
-    min-height: 0 !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    border: none !important;
-    background: transparent !important;
-}
-
-/* Hide empty bluish message box below Process Pending Changes button */
-.store-settings-page-content #backup-message.info:empty {
-    display: none !important;
-    min-height: 0 !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    border: none !important;
-    background: transparent !important;
-}
-
-/* Hide empty bluish message box below Add User button */
-.store-settings-page-content #cashier-message.info:empty {
-    display: none !important;
-    min-height: 0 !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    border: none !important;
-    background: transparent !important;
-}
-
-/* Center details sections - glass morphism already applied above */
-.store-settings-page-content details.settings-section > summary {
-    text-align: center !important;
-    justify-content: center !important;
-}
-
-/* Center subcards with glass morphism */
-.store-settings-page-content .settings-subcard {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    text-align: center !important;
-    background: rgba(255, 255, 255, 0.12) !important;
-    backdrop-filter: blur(15px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(15px) saturate(200%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.25) !important;
-    border-radius: clamp(0.75rem, 1.5vw, 1rem) !important;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
-    padding: clamp(1rem, 2vw, 1.5rem) !important;
-    margin: clamp(0.75rem, 1.5vw, 1rem) 0 !important;
-}
-
-html body.theme-light .store-settings-page-content .settings-subcard {
-    background: rgba(255, 255, 255, 0.25) !important;
-    backdrop-filter: blur(15px) saturate(200%) !important;
-    -webkit-backdrop-filter: blur(15px) saturate(200%) !important;
-    border: 1px solid rgba(0, 0, 0, 0.15) !important;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
-    font-size: clamp(0.9rem, 1.5vw, 1.05rem) !important;
-}
-
-/* Center subtitles and headings */
-.store-settings-page-content .settings-subtitle,
-.store-settings-page-content .settings-subheading,
-.store-settings-page-content h4 {
-    text-align: center !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    width: 100% !important;
-    display: block !important;
-}
-
-html body.theme-light .store-settings-page-content .settings-subtitle,
-html body.theme-light .store-settings-page-content .settings-subheading,
-html body.theme-light .store-settings-page-content h4 {
-    font-size: clamp(1.05rem, 1.8vw, 1.25rem) !important;
-}
-
-html body.theme-light .store-settings-page-content details.settings-section > summary {
-    font-size: clamp(1.1rem, 1.9vw, 1.35rem) !important;
-}
-
-/* Checkbox label: text on top, tickbox below; center the block */
-.store-settings-page-content .checkbox-label {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    display: flex !important;
-    flex-direction: column-reverse !important;
-    justify-content: center !important;
-    align-items: center !important;
-    gap: clamp(0.35rem, 0.7vw, 0.5rem) !important;
-}
-
-.store-settings-page-content .settings-inline {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    display: flex !important;
-    justify-content: center !important;
-    align-items: center !important;
-}
-
-/* Ensure even spacing between all elements */
-.store-settings-page-content .settings-section + .settings-section {
-    margin-top: clamp(1rem, 2vw, 1.5rem) !important;
-}
-
-.store-settings-page-content .card > div + div {
-    margin-top: clamp(0.75rem, 1.5vw, 1rem) !important;
-}
-
-/* Ensure the accordion inside store-settings-content can expand fully */
-#store-settings-panel .store-settings-content .settings-accordion {
-    overflow: visible !important;
-    overflow-y: visible !important;
-    max-height: none !important;
-    height: auto !important;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Ensure all sections are visible on their respective pages */
-#store-settings-panel .settings-page details.settings-section {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-}
-
-/* Make sure page navigation stays visible */
-#store-settings-panel .settings-page-nav {
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 5 !important;
-    background: rgba(17, 24, 39, 0.95) !important;
-    backdrop-filter: blur(10px) !important;
-    -webkit-backdrop-filter: blur(10px) !important;
-    padding-top: clamp(0.75rem, 1.5vw, 1rem) !important;
-    padding-bottom: clamp(0.75rem, 1.5vw, 1rem) !important;
-}
-
-html body.theme-light #store-settings-panel .settings-page-nav {
-    background: rgba(20, 20, 20, 0.95) !important;
-}
-
-#store-settings-panel details.settings-section {
-    width: 100% !important;
-    max-width: 100% !important;
-    border-radius: 14px !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    background: rgba(255, 255, 255, 0.06) !important;
-    overflow: visible !important;
-    overflow-y: visible !important;
-    overflow-x: visible !important;
-    margin-bottom: clamp(0.75rem, 1.5vw, 1rem) !important;
-    min-height: auto !important;
-    height: auto !important;
-    max-height: none !important;
-    box-sizing: border-box !important;
-}
-
-/* Store Settings page: simple flat UI for Android / mobile – no glassmorphism, max visibility */
-@media (max-width: 768px) {
-    .store-settings-page-content {
-        padding: 12px 16px 12px 16px !important;
-        box-sizing: border-box !important;
-        background: #353535 !important;
-    }
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content {
-        background: rgba(30, 35, 50, 0.97) !important;
-    }
-    .store-settings-page-content .store-settings-content {
-        max-width: 100% !important;
-        padding-left: 0 !important;
-        padding-right: 0 !important;
-        padding-bottom: 4rem !important;
-        background: transparent !important;
-    }
-    /* Simple flat panels – no blur, no glass */
-    .store-settings-page-content .card,
-    .store-settings-page-content .settings-section-card {
-        max-width: 100% !important;
-        padding: 0.65rem 0.85rem !important;
-        margin-top: 0.5rem !important;
-        margin-bottom: 0.5rem !important;
-        border-radius: 6px !important;
-        background: #ffffff !important;
-        border: 1px solid rgba(0, 0, 0, 0.1) !important;
-        box-shadow: none !important;
-        backdrop-filter: none !important;
-        -webkit-backdrop-filter: none !important;
-    }
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content .card,
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content .settings-section-card {
-        background: #374151 !important;
-        border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    }
-    .store-settings-page-content .settings-section > div:not(.settings-section-summary) {
-        padding: 0.5rem 0.75rem !important;
-        margin-top: 0.4rem !important;
-        margin-bottom: 0.4rem !important;
-    }
-    .store-settings-page-content details.settings-section {
-        padding: 0 !important;
-        margin-bottom: 0.75rem !important;
-        border-radius: 6px !important;
-        background: #ffffff !important;
-        border: 1px solid rgba(0, 0, 0, 0.12) !important;
-        box-shadow: none !important;
-        backdrop-filter: none !important;
-        -webkit-backdrop-filter: none !important;
-    }
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content details.settings-section {
-        background: #374151 !important;
-        border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    }
-    .store-settings-page-content details.settings-section > summary {
-        padding: 0.6rem 0.85rem !important;
-        background: rgba(0, 0, 0, 0.04) !important;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
-        font-size: 0.95rem !important;
-    }
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content details.settings-section > summary {
-        background: rgba(0, 0, 0, 0.2) !important;
-        border-bottom-color: rgba(255, 255, 255, 0.1) !important;
-        color: #f3f4f6 !important;
-    }
-    .store-settings-page-content .settings-section-card {
-        padding: 0.6rem 0.85rem !important;
-        margin: 0.5rem 0 !important;
-        border-radius: 6px !important;
-        background: #fafafa !important;
-        border: 1px solid rgba(0, 0, 0, 0.08) !important;
-        box-shadow: none !important;
-        backdrop-filter: none !important;
-        -webkit-backdrop-filter: none !important;
-    }
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content .settings-section-card {
-        background: #4b5563 !important;
-        border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    }
-    .store-settings-page-content .card > div,
-    .store-settings-page-content .settings-section-card > div {
-        padding: 0.3rem 0.4rem !important;
-        gap: 0.4rem !important;
-    }
-    .store-settings-page-content .settings-subcard {
-        padding: 0.55rem 0.75rem !important;
-        margin: 0.4rem 0 !important;
-        border-radius: 6px !important;
-        background: #404040 !important;
-        border: 1px solid rgba(0, 0, 0, 0.08) !important;
-        box-shadow: none !important;
-        backdrop-filter: none !important;
-        -webkit-backdrop-filter: none !important;
-    }
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content .settings-subcard {
-        background: #4b5563 !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    }
-    .store-settings-page-content label {
-        font-size: 0.85rem !important;
-        margin-bottom: 0.25rem !important;
-        margin-top: 0.35rem !important;
-        color: #1f2937 !important;
-        font-weight: 600 !important;
-    }
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content label {
-        color: #e5e7eb !important;
-    }
-    html body.theme-light .store-settings-page-content label {
-        font-size: 0.85rem !important;
-        color: #1f2937 !important;
-    }
-    .store-settings-page-content .help-text,
-    .store-settings-page-content small {
-        font-size: 0.75rem !important;
-        margin-top: 0.15rem !important;
-        margin-bottom: 0.15rem !important;
-        color: #4b5563 !important;
-    }
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content .help-text,
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content small {
-        color: #d1d5db !important;
-    }
-    html body.theme-light .store-settings-page-content .help-text,
-    html body.theme-light .store-settings-page-content small {
-        font-size: 0.75rem !important;
-        color: #4b5563 !important;
-    }
-    .store-settings-page-content input,
-    .store-settings-page-content textarea,
-    .store-settings-page-content select {
-        width: 100% !important;
-        max-width: 100% !important;
-        padding: 0.5rem 0.6rem !important;
-        min-height: 2.25rem !important;
-        font-size: 0.9rem !important;
-        border-radius: 6px !important;
-        background: #ffffff !important;
-        border: 1px solid #d1d5db !important;
-        color: #111827 !important;
-        box-shadow: none !important;
-        backdrop-filter: none !important;
-    }
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content input,
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content textarea,
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content select {
-        background: #1f2937 !important;
-        border-color: rgba(255, 255, 255, 0.2) !important;
-        color: #f9fafb !important;
-    }
-    html body.theme-light .store-settings-page-content input,
-    html body.theme-light .store-settings-page-content textarea,
-    html body.theme-light .store-settings-page-content select {
-        font-size: 0.9rem !important;
-        padding: 0.5rem 0.6rem !important;
-        min-height: 2.25rem !important;
-        background: #ffffff !important;
-        border: 1px solid #d1d5db !important;
-        color: #111827 !important;
-    }
-    .store-settings-page-content textarea {
-        min-height: 2.5rem !important;
-    }
-    .store-settings-page-content button,
-    .store-settings-page-content .primary,
-    .store-settings-page-content .small,
-    .store-settings-page-content .danger {
-        font-size: 0.88rem !important;
-        padding: 0.5rem 0.75rem !important;
-        min-height: 2.25rem !important;
-        border-radius: 6px !important;
-        background: #3b82f6 !important;
-        border: 1px solid #2563eb !important;
-        color: #ffffff !important;
-        box-shadow: none !important;
-    }
-    .store-settings-page-content button.small,
-    .store-settings-page-content .small {
-        background: #6b7280 !important;
-        border-color: #4b5563 !important;
-    }
-    .store-settings-page-content button.primary {
-        background: #3b82f6 !important;
-        border-color: #2563eb !important;
-    }
-    .store-settings-page-content button.danger,
-    .store-settings-page-content .danger {
-        background: #dc2626 !important;
-        border-color: #ffffff !important;
-    }
-    html body.theme-light .store-settings-page-content button {
-        font-size: 0.88rem !important;
-        padding: 0.5rem 0.75rem !important;
-    }
-    .store-settings-page-content .settings-subtitle,
-    .store-settings-page-content .settings-subheading,
-    .store-settings-page-content h4 {
-        font-size: 0.92rem !important;
-        color: #1f2937 !important;
-    }
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content .settings-subtitle,
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content .settings-subheading,
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content h4 {
-        color: #e5e7eb !important;
-    }
-    html body.theme-light .store-settings-page-content .settings-subtitle,
-    html body.theme-light .store-settings-page-content .settings-subheading,
-    html body.theme-light .store-settings-page-content h4 {
-        font-size: 0.92rem !important;
-        color: #1f2937 !important;
-    }
-    html body.theme-light .store-settings-page-content details.settings-section > summary {
-        font-size: 0.95rem !important;
-        color: #1f2937 !important;
-    }
-    .store-settings-page-content .settings-accordion {
-        gap: 0.5rem !important;
-    }
-    .store-settings-page-content .settings-page {
-        gap: 0.5rem !important;
-    }
-    .store-settings-page-content .settings-section + .settings-section {
-        margin-top: 0.6rem !important;
-    }
-    .store-settings-page-content .card > div + div {
-        margin-top: 0.4rem !important;
-    }
-    .store-settings-page-content #more-settings-content {
-        max-width: 100% !important;
-    }
-    .store-settings-page-content .settings-section > div.settings-wide {
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem !important;
-    }
-    .store-settings-page-content .table-scroll {
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-    }
-    .store-settings-page-content table,
-    .store-settings-page-content .users-table {
-        font-size: 0.8rem !important;
-        background: #ffffff !important;
-        border: 1px solid rgba(0, 0, 0, 0.1) !important;
-        box-shadow: none !important;
-        backdrop-filter: none !important;
-    }
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content table,
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content .users-table {
-        background: #374151 !important;
-        border-color: rgba(255, 255, 255, 0.12) !important;
-    }
-    .store-settings-page-content .users-table thead th {
-        background: #f3f4f6 !important;
-        color: #1f2937 !important;
-        font-size: 0.82rem !important;
-        padding: 0.45rem 0.55rem !important;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
-    }
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content .users-table thead th {
-        background: #4b5563 !important;
-        color: #f9fafb !important;
-        border-bottom-color: rgba(255, 255, 255, 0.1) !important;
-    }
-    .store-settings-page-content .users-table th,
-    .store-settings-page-content .users-table td {
-        padding: 0.4rem 0.55rem !important;
-        font-size: 0.8rem !important;
-    }
-    .store-settings-page-content .users-table td {
-        border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
-    }
-    body:not(.theme-light):not(.theme-classic) .store-settings-page-content .users-table td {
-        border-bottom-color: rgba(255, 255, 255, 0.06) !important;
-    }
-    .store-settings-page-content .users-table button.small {
-        font-size: 0.75rem !important;
-        padding: 0.25rem 0.45rem !important;
-    }
-    html body.theme-light .store-settings-page-content .users-table thead th {
-        font-size: 0.82rem !important;
-        background: #f3f4f6 !important;
-        color: #1f2937 !important;
-    }
-    html body.theme-light .store-settings-page-content .users-table td {
-        font-size: 0.8rem !important;
-    }
-    html body.theme-light .store-settings-page-content .users-table button.small {
-        font-size: 0.75rem !important;
-    }
-    .store-settings-page-content .info {
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        font-size: 0.85rem !important;
-    }
-    .store-settings-page-content .settings-page-nav .settings-page-arrow {
-        min-width: 2.5rem !important;
-        width: 2.5rem !important;
-        height: 2.5rem !important;
-        min-height: 2.5rem !important;
-        font-size: 1.25rem !important;
-    }
-    .store-settings-page-content .settings-page-nav .settings-page-arrow:first-child {
-        left: 16px !important;
-    }
-    .store-settings-page-content .settings-page-nav .settings-page-arrow:last-child {
-        right: 16px !important;
-    }
-    .store-settings-page-content .settings-page-nav .settings-page-arrow {
-        background: #374151 !important;
-        color: #fff !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        box-shadow: none !important;
-    }
-    .store-settings-page-content .settings-page-nav .settings-page-arrow.active {
-        background: #3b82f6 !important;
-        border-color: #2563eb !important;
-    }
-}
+/* Store Settings full-page layout lives in /static/css/settings.css (loaded only on Settings pages). Panel leftovers for #store-settings-panel remain below. */
 
 html body.theme-light #store-settings-panel details.settings-section {
     border: 1px solid rgba(0, 0, 0, 0.12) !important;
@@ -6407,8 +5197,7 @@ body.theme-classic #pending-collection-list [style*="color:rgba(255,255,255"] {
 }
 
 /* Pending Collection Page - Center and enlarge content panel */
-/* Target the main element on pending collection page to center content */
-body #app.screen.active main {
+body.page-pending-collection #app.screen.active main {
     padding: 8px !important; /* 8px (4mm) margin on all sides */
     display: flex !important;
     flex-direction: column !important;
@@ -6417,7 +5206,7 @@ body #app.screen.active main {
 }
 
 /* Center and enlarge the container div inside main */
-body #app.screen.active main > div {
+body.page-pending-collection #app.screen.active main > div {
     width: calc(100vw - 16px) !important; /* 8px margin on each side */
     max-width: calc(100vw - 16px) !important;
     margin: 0 auto !important;
@@ -7687,6 +6476,139 @@ html body.theme-classic.page-layby #payment-panel .totals * {
 html body.theme-classic input::placeholder,
 html body.theme-classic textarea::placeholder {
     color: rgba(255, 255, 255, 0.45) !important;
+}
+
+/* —— Responsive shell: mobile browsers + Android WebView —— */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+html,
+body {
+    overflow-x: clip;
+    max-width: 100%;
+}
+
+body {
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+img,
+video,
+canvas,
+svg {
+    max-width: 100%;
+    height: auto;
+}
+
+.table-scroll,
+.table-wrap,
+.users-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 820px) {
+    #login-screen .card,
+    #login-form-card,
+    #register-form-card {
+        width: 100%;
+        max-width: min(100%, 420px);
+        box-sizing: border-box;
+    }
+
+    .top-bar {
+        flex-wrap: wrap;
+        gap: 8px;
+        row-gap: 8px;
+    }
+
+    .top-bar-right {
+        flex-wrap: wrap;
+        max-width: 100%;
+    }
+
+    .pos-layout {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .pos-layout .left,
+    .pos-layout .right {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    input,
+    select,
+    textarea,
+    button {
+        font-size: 16px; /* avoid iOS zoom on focus */
+    }
+
+    button,
+    .overview-button,
+    .floating-icon,
+    a.primary,
+    .small {
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 600px) {
+    .grid-2,
+    .product-form-grid,
+    .plan-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .billing-wrap,
+    .overview-app,
+    .settings-wide {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+}
+
+/* Secondary pages: keep content in viewport on phones / WebView */
+@media (max-width: 820px) {
+    body.page-billing #app,
+    body.page-layby #app,
+    body.page-refunds #app,
+    body.page-enterprise #app,
+    body.page-accounting #app,
+    body.page-analytics #app,
+    body.page-store-settings #app,
+    body.page-pending-collection #app,
+    body.page-quotations #app,
+    .billing-wrap,
+    .layby-wrap,
+    .refunds-wrap {
+        max-width: 100%;
+        overflow-x: clip;
+        box-sizing: border-box;
+    }
+
+    .floating-panel,
+    .modal,
+    .reset-modal,
+    #shift-password-modal > div,
+    .card {
+        max-width: min(100vw - 16px, 100%);
+        box-sizing: border-box;
+    }
+
+    #pos-action-bar.pos-action-bar {
+        padding-bottom: max(10px, env(safe-area-inset-bottom, 0));
+        height: auto;
+        min-height: var(--pos-action-bar-height, 56px);
+        flex-wrap: wrap;
+    }
 }
 
 
