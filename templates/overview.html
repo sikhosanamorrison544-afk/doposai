@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="pos-build" content="{{ pos_build }}">
+    <script>window.__POS_BUILD__={{ pos_build|tojson }};</script>
+    <script src="/static/js/pos-client-boot.js?v={{ pos_build }}"></script>
     <title>Business Overview - {{ store_name }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="platform-motto" content="{{ platform_motto or 'Pecunia Non Olet' }}">

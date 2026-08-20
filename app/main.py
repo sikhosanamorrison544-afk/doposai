@@ -33,6 +33,7 @@ except ImportError as e:
     OLLAMA_MODEL = None
     OLLAMA_BASE_URL = None
 from .backup_service import get_backup_service
+from .client_build import POS_CLIENT_BUILD, POS_CLIENT_BUILD_SOURCE, log_client_build
 from .config import (
     BASE_DIR,
     DATABASE_URL,
@@ -174,6 +175,12 @@ def platform_info():
     }
 
 
+@app.get("/api/client-build")
+def client_build():
+    """Public client build id — used to diagnose stale browser caches after deploys."""
+    return {"build": POS_CLIENT_BUILD}
+
+
 from .slow_request_middleware import SlowRequestLogMiddleware
 
 app.add_middleware(SlowRequestLogMiddleware)
@@ -245,6 +252,8 @@ async def startup_event():
 
     from .config import APP_ENV
     from .startup_config import DISABLE_STARTUP_OLLAMA
+
+    log_client_build(POS_CLIENT_BUILD, POS_CLIENT_BUILD_SOURCE)
 
     asyncio.create_task(asyncio.to_thread(_deferred_db_bootstrap))
 
@@ -363,16 +372,18 @@ class FingerprintedStaticFiles(StaticFiles):
     """Serve static assets with explicit Cache-Control.
 
     Cloudflare was caching ``/static/css/settings.css?v=2`` for 4 hours after a
-    deploy race filled the edge with the pre-deploy body. Explicit short
-    ``must-revalidate`` headers keep edge/browser caches from trapping an old
-    file behind an already-bumped query string.
+    deploy race filled the edge with the pre-deploy body. Keep CSS/JS revalidation
+    aggressive; HTML shells use ``no-store`` separately so normal browser profiles
+    pick up new ``?v=`` query strings after each deploy.
     """
 
     def file_response(self, full_path, stat_result, scope, status_code: int = 200):
         response = super().file_response(full_path, stat_result, scope, status_code=status_code)
         path = str(full_path).replace("\\", "/").lower()
         if path.endswith((".css", ".js")):
-            response.headers["Cache-Control"] = "public, max-age=120, must-revalidate"
+            # Short TTL + must-revalidate so a bumped ?v= query is not trapped
+            # behind a multi-hour Cloudflare browser-cache HIT of an older body.
+            response.headers["Cache-Control"] = "public, max-age=60, must-revalidate"
         elif path.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".woff2", ".woff")):
             response.headers["Cache-Control"] = "public, max-age=86400, must-revalidate"
         else:
@@ -383,11 +394,17 @@ class FingerprintedStaticFiles(StaticFiles):
 app.mount("/static", FingerprintedStaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 templates.env.globals["platform_motto"] = PLATFORM_MOTTO
+templates.env.globals["pos_build"] = POS_CLIENT_BUILD
 
 
 def _page_ctx(request: Request, **kwargs):
-    """Template context for HTML pages (always includes platform motto)."""
-    return {"request": request, "platform_motto": PLATFORM_MOTTO, **kwargs}
+    """Template context for HTML pages (always includes platform motto + build)."""
+    return {
+        "request": request,
+        "platform_motto": PLATFORM_MOTTO,
+        "pos_build": POS_CLIENT_BUILD,
+        **kwargs,
+    }
 
 
 def _shell_store_name() -> str:
@@ -395,12 +412,33 @@ def _shell_store_name() -> str:
     return STORE_NAME.upper()
 
 
+def _html_no_store(response: Response) -> Response:
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
 def _shell_page(request: Request, template_name: str, **extra):
     """Render a static HTML shell; tenant store name loads via JS (/api/store-settings)."""
-    return templates.TemplateResponse(
-        template_name,
-        _page_ctx(request, store_name=_shell_store_name(), **extra),
+    return _html_no_store(
+        templates.TemplateResponse(
+            template_name,
+            _page_ctx(request, store_name=_shell_store_name(), **extra),
+        )
     )
+
+
+@app.middleware("http")
+async def html_responses_are_uncacheable(request: Request, call_next):
+    """Prevent normal browser profiles from pinning HTML shells across deploys."""
+    response = await call_next(request)
+    content_type = (response.headers.get("content-type") or "").lower()
+    if "text/html" in content_type:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 
 @app.exception_handler(HTTPException)
