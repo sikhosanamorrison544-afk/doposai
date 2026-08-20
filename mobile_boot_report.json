@@ -1,0 +1,54 @@
+[
+  {
+    "profile": "android-390",
+    "readyState": "complete",
+    "loadMs": 179,
+    "hasLogin": true,
+    "loginActive": true,
+    "glbRequested": false,
+    "threeRequested": false,
+    "preloadGlb": false,
+    "ua": "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) ",
+    "requestedSample": [],
+    "event": "load"
+  },
+  {
+    "profile": "iphone-390",
+    "readyState": "complete",
+    "loadMs": 96,
+    "hasLogin": true,
+    "loginActive": true,
+    "glbRequested": false,
+    "threeRequested": false,
+    "preloadGlb": false,
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHT",
+    "requestedSample": [],
+    "event": "load"
+  },
+  {
+    "profile": "android-360",
+    "readyState": "complete",
+    "loadMs": 163,
+    "hasLogin": true,
+    "loginActive": true,
+    "glbRequested": false,
+    "threeRequested": false,
+    "preloadGlb": false,
+    "ua": "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) ",
+    "requestedSample": [],
+    "event": "load"
+  },
+  {
+    "profile": "desktop",
+    "readyState": "complete",
+    "loadMs": 182,
+    "hasLogin": true,
+    "loginActive": true,
+    "glbRequested": false,
+    "threeRequested": false,
+    "preloadGlb": false,
+    "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12",
+    "requestedSample": [],
+    "event": "load"
+  }
+]

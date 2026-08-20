@@ -6,8 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="platform-motto" content="{{ platform_motto or 'Pecunia Non Olet' }}">
     <script src="/static/js/theme-instant.js?v=1"></script>
-    <link rel="preload" href="/static/butterflies.glb" as="fetch" crossorigin="anonymous">
-    <link rel="stylesheet" href="/static/css/style.css">
+<link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="/static/css/pos-android.css?v=4">
     <link rel="stylesheet" href="/static/css/secondary-pages-theme.css?v=1">
     <link rel="stylesheet" href="/static/css/settings.css?v=3">
@@ -56,10 +55,10 @@
 </head>
 <body class="page-enterprise settings-shell">
 <canvas id="bg3d-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none; background: transparent;"></canvas>
-<video id="light-theme-video" autoplay loop muted playsinline preload="auto" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; pointer-events: none; display: none;">
+<video id="light-theme-video" autoplay loop muted playsinline preload="none" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; pointer-events: none; display: none;">
     <source src="/static/background-web.mp4" type="video/mp4">
 </video>
-<script src="/static/js/light-theme-video.js?v=3"></script>
+<script src="/static/js/light-theme-video.js?v=4"></script>
 <div class="enterprise-wrap settings-page-container">
     <header class="settings-page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
         <div>
@@ -227,7 +226,7 @@
 </div>
 
 <script src="/static/js/theme-sync.js?v=1"></script>
-<script src="/static/js/background3d.js?v=5"></script>
+<script src="/static/js/background3d.js?v=6"></script>
 <script src="/static/js/offline-fetch.js?v=1"></script>
 <script src="/static/js/plan-features.js?v=1"></script>
 <script src="/static/js/list-fetch.js?v=1"></script>

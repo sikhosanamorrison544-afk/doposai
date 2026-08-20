@@ -12,16 +12,57 @@
     let modelLoaded = false;
     let loaderReady = false;
     let LoaderClass = null;
-    
-    // Preload the GLB file immediately
-    function preloadModel() {
-        // Create a link preload hint for faster loading
-        const link = document.createElement('link');
-        link.rel = 'preload';
-        link.as = 'fetch';
-        link.href = '/static/butterflies.glb';
-        link.crossOrigin = 'anonymous';
-        document.head.appendChild(link);
+    let threeScriptsPromise = null;
+
+    var THREE_JS_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+    var GLTF_SRC = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js';
+
+    function shouldEnableHeavyBackground() {
+        try {
+            if (navigator.connection && navigator.connection.saveData) return false;
+            if (navigator.connection && /2g/i.test(navigator.connection.effectiveType || '')) return false;
+        } catch (e) { /* ignore */ }
+        // Skip WebGL scene on very small phones unless the user explicitly chose default theme.
+        // Classic/light never need the 10MB GLB.
+        return true;
+    }
+
+    function injectScript(src) {
+        return new Promise(function (resolve, reject) {
+            var existing = document.querySelector('script[src="' + src + '"]');
+            if (existing) {
+                if (existing.dataset.loaded === '1') {
+                    resolve();
+                    return;
+                }
+                existing.addEventListener('load', function () { resolve(); });
+                existing.addEventListener('error', function () { reject(new Error('Failed ' + src)); });
+                return;
+            }
+            var s = document.createElement('script');
+            s.src = src;
+            s.async = true;
+            s.onload = function () {
+                s.dataset.loaded = '1';
+                resolve();
+            };
+            s.onerror = function () { reject(new Error('Failed ' + src)); };
+            document.head.appendChild(s);
+        });
+    }
+
+    function ensureThreeScripts() {
+        if (typeof THREE !== 'undefined' && (typeof THREE.GLTFLoader !== 'undefined' || typeof GLTFLoader !== 'undefined')) {
+            return Promise.resolve();
+        }
+        if (threeScriptsPromise) return threeScriptsPromise;
+        threeScriptsPromise = injectScript(THREE_JS_SRC)
+            .then(function () { return injectScript(GLTF_SRC); })
+            .catch(function (err) {
+                console.warn('3D Background: optional Three.js load failed', err);
+                threeScriptsPromise = null;
+            });
+        return threeScriptsPromise;
     }
     
     // Wait for Three.js and GLTFLoader to be available - check more frequently
@@ -30,13 +71,18 @@
     
     function waitForThree() {
         threeJsWaitAttempts++;
-        
+
+        if (!isDefaultTheme || !shouldEnableHeavyBackground()) {
+            return;
+        }
+
         if (typeof THREE === 'undefined') {
+            ensureThreeScripts();
             if (threeJsWaitAttempts >= maxWaitAttempts) {
                 console.error('3D Background: THREE.js failed to load after', maxWaitAttempts * 50, 'ms');
                 return;
             }
-            setTimeout(waitForThree, 50); // Check more frequently
+            setTimeout(waitForThree, 50);
             return;
         }
         
@@ -52,19 +98,19 @@
             loaderReady = true;
             console.log('3D Background: GLTFLoader found in global scope');
         } else {
+            ensureThreeScripts();
             if (threeJsWaitAttempts >= maxWaitAttempts) {
                 console.error('3D Background: GLTFLoader failed to load after', maxWaitAttempts * 50, 'ms');
                 console.error('3D Background: THREE.GLTFLoader:', typeof THREE.GLTFLoader, 'GLTFLoader:', typeof GLTFLoader);
                 return;
             }
-            setTimeout(waitForThree, 50); // Check more frequently
+            setTimeout(waitForThree, 50);
             return;
         }
         
-        // CRITICAL: Start loading model immediately on startup, regardless of theme
-        // This ensures the model is cached by the browser for instant loading on all pages
-        if (loaderReady && !modelLoaded) {
-            console.log('3D Background: Starting model preload on startup for all pages...');
+        // Only fetch the large GLB when the default theme actually needs it
+        if (loaderReady && !modelLoaded && isDefaultTheme) {
+            console.log('3D Background: Default theme active — loading model…');
             loadModel();
         }
         
@@ -186,51 +232,29 @@
         const html = document.documentElement;
         const wasDefault = isDefaultTheme;
         
-        // PRIMARY: Check localStorage first - most reliable source
-        const savedTheme = localStorage.getItem('pos-theme') || 'default';
-        
-        // Default theme is when savedTheme is 'default' or empty/null
-        isDefaultTheme = (savedTheme === 'default' || !savedTheme);
-        
-        // SECONDARY: Also check DOM classes as fallback (in case localStorage is out of sync)
-        if (!isDefaultTheme) {
-            // If localStorage says not default, double-check DOM classes
-            const themeClasses = ['theme-default', 'theme-light', 'theme-classic'];
-            let hasThemeClass = false;
-            if (body) {
-                hasThemeClass = themeClasses.some(cls => body.classList.contains(cls));
-            }
-            if (!hasThemeClass && html) {
-                hasThemeClass = themeClasses.some(cls => html.classList.contains(cls));
-            }
-            // If no theme class found but localStorage says not default, trust DOM
-            // (This handles edge case where localStorage is stale but DOM is correct)
-            if (!hasThemeClass) {
-                isDefaultTheme = true;
-            }
-        } else {
-            // If localStorage says default, verify DOM doesn't have conflicting theme class
-            const themeClasses = ['theme-light', 'theme-classic'];
-            let hasThemeClass = false;
-            if (body) {
-                hasThemeClass = themeClasses.some(cls => body.classList.contains(cls));
-            }
-            if (!hasThemeClass && html) {
-                hasThemeClass = themeClasses.some(cls => html.classList.contains(cls));
-            }
-            // If DOM has a theme class but localStorage says default, trust localStorage
-            // (But this shouldn't happen in normal operation)
-            if (hasThemeClass) {
-                console.warn('3D Background: Theme mismatch - localStorage says default but DOM has theme class');
-            }
+        // Match index.html theme-instant fallback (classic). Never treat "missing" as default.
+        const savedTheme = localStorage.getItem('pos-theme') || 'classic';
+        isDefaultTheme = savedTheme === 'default';
+        if (body && body.classList.contains('theme-default')) isDefaultTheme = true;
+        if (html && html.classList.contains('theme-default')) isDefaultTheme = true;
+        if ((body && (body.classList.contains('theme-light') || body.classList.contains('theme-classic'))) ||
+            (html && (html.classList.contains('theme-light') || html.classList.contains('theme-classic')))) {
+            isDefaultTheme = false;
         }
         
         console.log('3D Background: Theme check - savedTheme:', savedTheme, 'isDefaultTheme:', isDefaultTheme, 'wasDefault:', wasDefault);
         
         if (isDefaultTheme && !wasDefault) {
-            // Theme changed to default - initialize 3D background immediately
             console.log('3D Background: Switching to default theme, initializing...');
-            init3DBackground();
+            if (!shouldEnableHeavyBackground()) {
+                console.log('3D Background: Skipping on constrained network');
+                return;
+            }
+            threeJsWaitAttempts = 0;
+            waitForThree();
+            ensureThreeScripts().then(function () {
+                if (typeof THREE !== 'undefined') init3DBackground();
+            });
         } else if (!isDefaultTheme && wasDefault) {
             // Theme changed away from default - cleanup
             console.log('3D Background: Switching away from default theme, cleaning up...');
@@ -608,24 +632,30 @@
         window.removeEventListener('resize', onWindowResize);
     }
     
-    // Start preloading immediately (before DOM ready)
-    preloadModel();
-    
-    // Immediate theme check based on localStorage (doesn't require DOM)
+    // Do not preload the 10MB GLB or block startup on Three.js.
+    // Align fallback with index.html theme-instant (classic).
     function immediateThemeCheck() {
-        const savedTheme = localStorage.getItem('pos-theme') || 'default';
-        isDefaultTheme = (savedTheme === 'default' || !savedTheme);
+        const savedTheme = localStorage.getItem('pos-theme') || 'classic';
+        isDefaultTheme = savedTheme === 'default';
         console.log('3D Background: Immediate check - savedTheme:', savedTheme, 'isDefaultTheme:', isDefaultTheme);
     }
     
     // Run immediate check right away (before DOM ready)
     immediateThemeCheck();
     
-    // Initialize - wait for Three.js to load
+    function boot3dIfNeeded() {
+        if (!isDefaultTheme || !shouldEnableHeavyBackground()) {
+            console.log('3D Background: Skipping heavy assets (theme/network).');
+            return;
+        }
+        waitForThree();
+    }
+
+    // Initialize - wait for Three.js only when default theme needs it
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
             console.log('3D Background: DOM loaded, initializing...');
-            waitForThree();
+            boot3dIfNeeded();
             // Immediate theme check when body is available
             setTimeout(() => {
                 checkTheme();
@@ -637,7 +667,7 @@
         });
     } else {
         console.log('3D Background: DOM ready, initializing...');
-        waitForThree();
+        boot3dIfNeeded();
         // Immediate theme check when body is available
         setTimeout(() => {
             checkTheme();

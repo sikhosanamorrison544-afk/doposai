@@ -59,9 +59,19 @@
     }
 
     async function api(path) {
-        const res = await fetch(path, {
-            headers: { Authorization: 'Bearer ' + token },
-        });
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timeoutId = controller
+            ? setTimeout(function () { try { controller.abort(); } catch (_) {} }, 15000)
+            : null;
+        let res;
+        try {
+            res = await fetch(path, {
+                headers: { Authorization: 'Bearer ' + token },
+                signal: controller ? controller.signal : undefined,
+            });
+        } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+        }
         if (res.status === 401) {
             localStorage.removeItem('pos_token');
             localStorage.removeItem('pos_user');

@@ -25,7 +25,7 @@
         video.loop = true;
         video.playsInline = true;
         video.autoplay = true;
-        video.preload = 'auto';
+        video.preload = 'metadata';
         video.setAttribute('muted', '');
         video.setAttribute('loop', '');
         video.setAttribute('playsinline', '');

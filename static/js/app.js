@@ -2663,12 +2663,19 @@ async function restoreSession() {
     }
     
     try {
-        // Validate token (lightweight — works for all roles)
+        // Validate token (lightweight — works for all roles). Bound wait so mobile
+        // never sits on a hung /api/auth/me while the tab spinner keeps turning.
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timeoutId = controller
+            ? setTimeout(function () { try { controller.abort(); } catch (_) {} }, 12000)
+            : null;
         const response = await fetch('/api/auth/me', {
             headers: {
                 Authorization: 'Bearer ' + savedToken,
             },
+            signal: controller ? controller.signal : undefined,
         });
+        if (timeoutId) clearTimeout(timeoutId);
 
         if (!response.ok) {
             console.warn('Session expired or invalid — clearing saved login');
