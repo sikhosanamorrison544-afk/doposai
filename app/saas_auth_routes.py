@@ -6,12 +6,12 @@ import re
 import secrets
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 from jose import JWTError
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -36,6 +36,144 @@ from .http_rate_limit import rate_limit_hit as _rate_limit
 def _slug(s: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", (s or "").lower()).strip("-")
     return s[:40] or "business"
+
+
+def _mask_email(email: str) -> str:
+    """Mask an email for display on the reset page (never trust the client)."""
+    email = (email or "").strip()
+    if "@" not in email:
+        return "***"
+    local, _, domain = email.partition("@")
+    if not local:
+        return f"***@{domain}"
+    return f"{local[0]}***@{domain}"
+
+
+def _store_settings_for_token_user(db: Session, user: User) -> Optional[StoreSettings]:
+    """Tenant-scoped StoreSettings for the exact reset-token user only.
+
+    Never uses ``StoreSettings`` without a tenant predicate, never ``.first()``
+    across all stores, and never authenticated-session helpers.
+    """
+    tid = user.tenant_id
+    if tid is None:
+        settings = (
+            db.query(StoreSettings)
+            .filter(StoreSettings.tenant_id.is_(None))
+            .order_by(StoreSettings.id.asc())
+            .first()
+        )
+    else:
+        settings = (
+            db.query(StoreSettings)
+            .filter(StoreSettings.tenant_id == int(tid))
+            .order_by(StoreSettings.id.asc())
+            .first()
+        )
+    if settings is None:
+        return None
+    # Belt-and-suspenders: reject any row that does not match the token user.
+    if tid is None:
+        if settings.tenant_id is not None:
+            return None
+    elif settings.tenant_id != int(tid):
+        return None
+    return settings
+
+
+def _store_name_for_user(db: Session, user: User) -> str:
+    """Resolve store display name only from the token's user → tenant settings.
+
+    Chain: token user → tenant_id → tenant-scoped StoreSettings.store_name.
+    Missing settings fall back to that tenant's ``Tenant.name``, then the neutral
+    platform brand. Never ``STORE_NAME`` env, never another tenant's row.
+    """
+    settings = _store_settings_for_token_user(db, user)
+    if settings and (settings.store_name or "").strip():
+        return settings.store_name.strip()
+    if user.tenant_id is not None:
+        tenant = db.query(Tenant).filter(Tenant.id == int(user.tenant_id)).first()
+        if tenant and (tenant.name or "").strip():
+            return tenant.name.strip()
+    return (PLATFORM_BRAND_NAME or "Store").strip() or "Store"
+
+
+def _auth_no_store_json(payload: Dict[str, Any], status_code: int = 200) -> JSONResponse:
+    """JSON response that must never be cached (password-reset identity)."""
+    resp = JSONResponse(content=payload, status_code=status_code)
+    resp.headers["Cache-Control"] = "no-store, private"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
+
+
+def _active_users_by_email(db: Session, email: str) -> List[User]:
+    """All active users with this email (emails are app-unique; DB may still allow dupes)."""
+    if not email:
+        return []
+    return (
+        db.query(User)
+        .filter(
+            User.email.isnot(None),
+            func.lower(User.email) == email.strip().lower(),
+            User.is_active.is_(True),
+        )
+        .order_by(User.id.asc())
+        .all()
+    )
+
+
+def _invalidate_unused_reset_tokens(
+    db: Session, user_id: int, *, except_id: Optional[int] = None
+) -> None:
+    now = datetime.utcnow()
+    q = db.query(PasswordResetToken).filter(
+        PasswordResetToken.user_id == user_id,
+        PasswordResetToken.used_at.is_(None),
+    )
+    if except_id is not None:
+        q = q.filter(PasswordResetToken.id != except_id)
+    for row in q.all():
+        row.used_at = now
+
+
+def _lookup_reset_token(
+    db: Session, raw_token: str
+) -> Tuple[Optional[PasswordResetToken], Optional[User]]:
+    """Resolve token_hash → reset row → active user. No client IDs consulted."""
+    raw = (raw_token or "").strip()
+    if len(raw) < 10:
+        return None, None
+    h = auth.hash_token(raw)
+    row = (
+        db.query(PasswordResetToken)
+        .filter(PasswordResetToken.token_hash == h)
+        .first()
+    )
+    if not row:
+        return None, None
+    if row.used_at is not None:
+        return None, None
+    if row.expires_at < datetime.utcnow():
+        return None, None
+    user = db.query(User).filter(User.id == row.user_id).first()
+    if not user or not user.is_active:
+        return None, None
+    return row, user
+
+
+def _issue_reset_token_for_user(db: Session, user: User) -> str:
+    """Create a hashed reset token for one exact user; invalidate prior unused tokens."""
+    _invalidate_unused_reset_tokens(db, user.id)
+    raw = secrets.token_urlsafe(32)
+    db.add(
+        PasswordResetToken(
+            user_id=user.id,
+            token_hash=auth.hash_token(raw),
+            expires_at=datetime.utcnow() + timedelta(hours=24),
+        )
+    )
+    db.flush()
+    return raw
 
 
 class RegisterBody(BaseModel):
@@ -71,8 +209,20 @@ class ForgotPasswordBody(BaseModel):
 
 
 class ResetPasswordBody(BaseModel):
+    """Client may only send token + passwords. Extra IDs/emails are ignored."""
+
+    model_config = ConfigDict(extra="ignore")
+
     token: str = Field(..., min_length=10)
     new_password: str = Field(..., min_length=8, max_length=128)
+    confirm_password: Optional[str] = None
+
+    @field_validator("new_password")
+    @classmethod
+    def password_strength(cls, v: str) -> str:
+        if not re.search(r"[A-Za-z]", v) or not re.search(r"\d", v):
+            raise ValueError("Password must contain letters and numbers")
+        return v
 
 
 class AuthResponse(BaseModel):
@@ -394,42 +544,7 @@ def _build_reset_email(reset_url: str, owner_name: Optional[str]) -> tuple[str, 
     return subject, plain, html
 
 
-@router.post("/forgot-password")
-def auth_forgot_password(request: Request, body: ForgotPasswordBody, db: Session = Depends(get_db)):
-    """Issue a one-time reset token and email it to the account holder.
-
-    Always returns the same generic 200 response, regardless of whether
-    the email exists or whether SMTP succeeded, so callers can't enumerate
-    valid emails. The token (and any send failure) is logged server-side
-    for operator visibility.
-    """
-    _rate_limit(request, "forgot", max_calls=10, window_sec=600)
-
-    generic = {
-        "ok": True,
-        "message": "If that email exists, reset instructions were sent.",
-    }
-
-    email_norm = body.email.strip().lower()
-    user = auth.get_user_by_email(db, email_norm)
-    if not user:
-        # Spend roughly the same time as the email-issue branch so we don't
-        # leak existence via timing — cheap because hash_token is fast.
-        auth.hash_token(secrets.token_urlsafe(32))
-        return generic
-
-    raw = secrets.token_urlsafe(32)
-    db.add(
-        PasswordResetToken(
-            user_id=user.id,
-            token_hash=auth.hash_token(raw),
-            expires_at=datetime.utcnow() + timedelta(hours=24),
-        )
-    )
-    db.commit()
-
-    reset_url = f"{WEB_PUBLIC_URL}/reset-password?token={raw}"
-
+def _send_reset_email(user: User, reset_url: str) -> None:
     email_svc = EmailService()
     if email_svc.is_configured() and user.email:
         try:
@@ -456,8 +571,6 @@ def auth_forgot_password(request: Request, body: ForgotPasswordBody, db: Session
                 reset_url,
             )
     else:
-        # SMTP not configured — token is still valid; the operator can copy
-        # the URL out of the logs to share with the user manually.
         logger.warning(
             "Password reset token issued for user_id=%s but SMTP is not "
             "configured. Operator must share this URL with the user manually: %s",
@@ -465,24 +578,80 @@ def auth_forgot_password(request: Request, body: ForgotPasswordBody, db: Session
             reset_url,
         )
 
+
+@router.post("/forgot-password")
+def auth_forgot_password(request: Request, body: ForgotPasswordBody, db: Session = Depends(get_db)):
+    """Issue a one-time reset token bound to each matching active user.
+
+    Always returns the same generic 200 response, regardless of whether
+    the email exists or whether SMTP succeeded, so callers can't enumerate
+    valid emails. Each token is hashed and tied to an exact user_id.
+    """
+    _rate_limit(request, "forgot", max_calls=10, window_sec=600)
+
+    generic = {
+        "ok": True,
+        "message": "If that email exists, reset instructions were sent.",
+    }
+
+    email_norm = body.email.strip().lower()
+    users = _active_users_by_email(db, email_norm)
+    if not users:
+        # Spend roughly the same time as the email-issue branch so we don't
+        # leak existence via timing — cheap because hash_token is fast.
+        auth.hash_token(secrets.token_urlsafe(32))
+        return generic
+
+    for user in users:
+        raw = _issue_reset_token_for_user(db, user)
+        reset_url = f"{WEB_PUBLIC_URL}/reset-password?token={raw}"
+        _send_reset_email(user, reset_url)
+
+    db.commit()
     return generic
+
+
+@router.get("/reset-password/validate")
+def auth_validate_reset_token(
+    token: str = Query("", min_length=0),
+    db: Session = Depends(get_db),
+):
+    """Return masked email + store name derived only from the reset token.
+
+    Never trusts client-supplied user/store/tenant/email. Invalid/expired/used
+    tokens return valid=false with null display fields (no enumeration detail).
+    """
+    invalid = {"valid": False, "maskedEmail": None, "storeName": None}
+    row, user = _lookup_reset_token(db, token)
+    if not row or not user:
+        return _auth_no_store_json(invalid)
+    return _auth_no_store_json(
+        {
+            "valid": True,
+            "maskedEmail": _mask_email(user.email or ""),
+            "storeName": _store_name_for_user(db, user),
+        }
+    )
 
 
 @router.post("/reset-password")
 def auth_reset_password(body: ResetPasswordBody, db: Session = Depends(get_db)):
-    h = auth.hash_token(body.token.strip())
-    row = (
-        db.query(PasswordResetToken)
-        .filter(PasswordResetToken.token_hash == h, PasswordResetToken.used_at.is_(None))
-        .first()
-    )
-    if not row or row.expires_at < datetime.utcnow():
+    """Change password for the user bound to the token only.
+
+    Extra client fields (user_id, store_id, tenant_id, email) are ignored via
+    model_config extra='ignore'. Identity is never taken from the request body
+    beyond the opaque reset token.
+    """
+    if body.confirm_password is not None and body.confirm_password != body.new_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+
+    row, user = _lookup_reset_token(db, body.token)
+    if not row or not user:
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
-    user = db.query(User).filter(User.id == row.user_id).first()
-    if not user:
-        raise HTTPException(status_code=400, detail="User not found")
+
     user.password_hash = auth.get_password_hash(body.new_password)
     row.used_at = datetime.utcnow()
+    _invalidate_unused_reset_tokens(db, user.id, except_id=row.id)
     for rt in (
         db.query(RefreshToken)
         .filter(RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None))
@@ -490,4 +659,4 @@ def auth_reset_password(body: ResetPasswordBody, db: Session = Depends(get_db)):
     ):
         rt.revoked_at = datetime.utcnow()
     db.commit()
-    return {"ok": True}
+    return _auth_no_store_json({"ok": True})

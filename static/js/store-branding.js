@@ -22,7 +22,15 @@
         const clean = name.trim();
         if (!clean) return;
 
+        // Never overwrite password-reset identity elements.
+        if (document.body && document.body.classList.contains('page-reset-password')) {
+            return;
+        }
+
         document.querySelectorAll('.shop-name').forEach(function (el) {
+            if (el.id === 'reset-account-store' || el.id === 'reset-account-email') {
+                return;
+            }
             const suffix = (el.dataset && el.dataset.branding === 'suffix' && el.dataset.suffix)
                 ? el.dataset.suffix
                 : '';
@@ -148,6 +156,12 @@
         const platform = await fetchPlatformInfo();
         if (platform && platform.motto) {
             applyMotto(platform.motto);
+        }
+
+        // Password-reset identity must come from the reset-token API only.
+        // Never apply localStorage / session store / Bearer-token branding there.
+        if (document.body && document.body.classList.contains('page-reset-password')) {
+            return;
         }
 
         const cached = readCache();

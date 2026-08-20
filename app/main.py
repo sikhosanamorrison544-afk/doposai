@@ -368,6 +368,30 @@ async def favicon():
     """Return 204 No Content for favicon requests to prevent 404 errors."""
     return Response(status_code=204)
 
+
+@app.get("/sw.js", include_in_schema=False)
+async def service_worker_js():
+    """Root-scoped service worker: network-only for password-reset routes.
+
+    Served with no-store so clients always pick up CACHE_VERSION bumps.
+    """
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent.parent / "static" / "sw.js"
+    body = path.read_text(encoding="utf-8") if path.is_file() else (
+        "/* missing static/sw.js */\n"
+    )
+    return Response(
+        content=body,
+        media_type="application/javascript; charset=utf-8",
+        headers={
+            "Cache-Control": "no-store, private",
+            "Pragma": "no-cache",
+            "Service-Worker-Allowed": "/",
+        },
+    )
+
+
 class FingerprintedStaticFiles(StaticFiles):
     """Serve static assets with explicit Cache-Control.
 
@@ -413,7 +437,7 @@ def _shell_store_name() -> str:
 
 
 def _html_no_store(response: Response) -> Response:
-    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Cache-Control"] = "no-store, private, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     return response
@@ -433,9 +457,22 @@ def _shell_page(request: Request, template_name: str, **extra):
 async def html_responses_are_uncacheable(request: Request, call_next):
     """Prevent normal browser profiles from pinning HTML shells across deploys."""
     response = await call_next(request)
+    path = request.url.path or ""
+    # Password-reset HTML + auth endpoints: never cache (token / store identity).
+    if (
+        path == "/reset-password"
+        or path.startswith("/reset-password/")
+        or path.startswith("/auth/reset-password")
+    ):
+        response.headers["Cache-Control"] = "no-store, private"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     content_type = (response.headers.get("content-type") or "").lower()
     if "text/html" in content_type:
-        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Cache-Control"] = (
+            "no-store, private, no-cache, must-revalidate, max-age=0"
+        )
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
     return response
@@ -544,10 +581,15 @@ async def quotations_page(request: Request):
 async def reset_password_page(request: Request):
     """Public reset-password page; reads ?token=... from query string.
 
-    The token is NOT validated here — that happens server-side when the user
-    submits the form. We just render the page; bad tokens get a clear error.
+    Do not seed a tenant store name here — the page loads masked email and
+    store name only from GET /auth/reset-password/validate (token-scoped).
     """
-    return _shell_page(request, "reset-password.html")
+    return _html_no_store(
+        templates.TemplateResponse(
+            "reset-password.html",
+            _page_ctx(request),
+        )
+    )
 
 
 @app.get("/privacy", response_class=HTMLResponse)

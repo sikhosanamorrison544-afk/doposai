@@ -7,12 +7,20 @@
  *
  * Only clears Cache Storage entries and unregisters service workers, then
  * reloads once when the stamped HTML build id changes.
+ *
+ * Also registers a root /sw.js that forces network-only handling for
+ * password-reset routes so tokens and store identity are never cached.
  */
 (function () {
     'use strict';
 
     var BUILD_KEY = 'pos_client_build';
     var RELOAD_KEY = 'pos_client_build_reload';
+    var PASSWORD_RESET_PATH_MARKERS = [
+        '/reset-password',
+        '/auth/reset-password',
+        '/auth/reset-password/validate',
+    ];
 
     function readBuild() {
         try {
@@ -59,6 +67,92 @@
         } catch (_) { /* ignore */ }
     }
 
+    function isPasswordResetPage() {
+        try {
+            if (document.body && document.body.classList.contains('page-reset-password')) {
+                return true;
+            }
+            return /\/reset-password/i.test(window.location.pathname || '');
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function urlLooksLikePasswordReset(url) {
+        try {
+            var u = new URL(url, window.location.origin);
+            var path = u.pathname || '';
+            for (var i = 0; i < PASSWORD_RESET_PATH_MARKERS.length; i++) {
+                var p = PASSWORD_RESET_PATH_MARKERS[i];
+                if (path === p || path.indexOf(p + '/') === 0) return true;
+            }
+            if (u.searchParams && u.searchParams.has('token')) {
+                if (path.indexOf('reset-password') !== -1 || path.indexOf('/auth/') === 0) {
+                    return true;
+                }
+            }
+        } catch (_) { /* ignore */ }
+        return false;
+    }
+
+    function purgePasswordResetFromCaches() {
+        if (typeof caches === 'undefined' || !caches.keys) {
+            return Promise.resolve();
+        }
+        return caches
+            .keys()
+            .then(function (keys) {
+                return Promise.all(
+                    keys.map(function (cacheName) {
+                        return caches.open(cacheName).then(function (cache) {
+                            return cache.keys().then(function (requests) {
+                                return Promise.all(
+                                    requests.map(function (req) {
+                                        if (urlLooksLikePasswordReset(req.url)) {
+                                            return cache.delete(req);
+                                        }
+                                        return null;
+                                    })
+                                );
+                            });
+                        });
+                    })
+                );
+            })
+            .catch(function () {});
+    }
+
+    function unregisterAllServiceWorkers() {
+        if (!navigator.serviceWorker || !navigator.serviceWorker.getRegistrations) {
+            return Promise.resolve();
+        }
+        return navigator.serviceWorker
+            .getRegistrations()
+            .then(function (regs) {
+                return Promise.all(
+                    regs.map(function (r) {
+                        return r.unregister();
+                    })
+                );
+            })
+            .catch(function () {});
+    }
+
+    function registerPasswordResetSafeSw() {
+        // Reset pages must not be controlled by any SW (including an older one
+        // that still caches branding HTML). Unregister everything here.
+        if (isPasswordResetPage()) {
+            unregisterAllServiceWorkers();
+            return;
+        }
+        if (!navigator.serviceWorker || !navigator.serviceWorker.register) return;
+        try {
+            navigator.serviceWorker
+                .register('/sw.js', { scope: '/' })
+                .catch(function () { /* ignore SW registration failures */ });
+        } catch (_) { /* ignore */ }
+    }
+
     function clearAssetCaches() {
         var tasks = [];
         try {
@@ -93,7 +187,6 @@
                 );
             }
         } catch (_) { /* ignore */ }
-        // Bound wait — some WebViews hang on Cache Storage APIs.
         return new Promise(function (resolve) {
             var settled = false;
             function done() {
@@ -106,13 +199,29 @@
         });
     }
 
+    // Always scrub cached password-reset responses (tokens must never linger),
+    // even when the HTML build stamp is missing.
+    purgePasswordResetFromCaches();
+
     var build = readBuild();
-    if (!build) return;
+    if (!build) {
+        if (isPasswordResetPage()) {
+            unregisterAllServiceWorkers();
+        }
+        return;
+    }
     window.__POS_BUILD__ = build;
+
+    // On the reset page: drop any controlling SW immediately so a stale worker
+    // cannot serve old shells that still load shared store branding.
+    if (isPasswordResetPage()) {
+        unregisterAllServiceWorkers();
+    }
 
     var previous = lsGet(BUILD_KEY);
     if (previous === build) {
         ssRemove(RELOAD_KEY);
+        registerPasswordResetSafeSw();
         return;
     }
 
@@ -120,7 +229,9 @@
     // (do not reload — avoid surprising first paint). Never touch business keys.
     if (!previous) {
         lsSet(BUILD_KEY, build);
-        clearAssetCaches();
+        clearAssetCaches().then(function () {
+            registerPasswordResetSafeSw();
+        });
         return;
     }
 
@@ -130,6 +241,7 @@
         // Already reloaded for this transition; stop loops.
         lsSet(BUILD_KEY, build);
         ssRemove(RELOAD_KEY);
+        registerPasswordResetSafeSw();
         return;
     }
 
