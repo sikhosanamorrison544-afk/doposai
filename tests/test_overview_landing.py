@@ -30,6 +30,7 @@ from app.models import (
     SaleItem,
     StoreSettings,
     User,
+    Withdrawal,
 )
 from app.quotation_models import Tenant
 
@@ -170,10 +171,17 @@ def test_me_includes_landing_path(client, db_session):
 
 def test_overview_page_served(client, db_session):
     _seed_users(db_session)
+    _login(client, "ov_admin", "AdminPass1234")
     r = client.get("/overview")
     assert r.status_code == 200
     assert b"Business Overview" in r.content
     assert b"overview.js" in r.content
+
+
+def test_overview_page_requires_auth(client, db_session):
+    r = client.get("/overview", follow_redirects=False)
+    assert r.status_code in (302, 303)
+    assert "next=" in r.headers.get("location", "")
 
 
 def test_analytics_redirects_to_overview(client, db_session):
@@ -214,11 +222,17 @@ def test_overview_empty_business_zeros(client, db_session):
     assert data["business"]["name"] == "Empty Shop"
     assert data["summary"]["revenue"] == 0
     assert data["summary"]["completed_sales"] == 0
+    assert data["summary"]["cash_on_hand"] == 0
     assert data["sales_trend"] == []
     assert data["payment_methods"] == []
     assert data["top_products"] == []
     assert isinstance(data["cards"], list)
+    assert any(c["key"] == "cash_on_hand" for c in data["cards"])
     assert data["meta"]["stock_source"] == "products.stock_qty"
+    assert data["cash_on_hand_meta"]["meaning"] == "period"
+    assert data["cash_on_hand_meta"]["scope"] == "tenant"
+    assert data["cash_on_hand_meta"]["available"] is True
+    assert "Cash activity for selected period" in data["cash_on_hand_meta"]["subtitle"]
 
 
 def test_overview_rejects_invalid_date_range(client, db_session):
@@ -565,6 +579,8 @@ def test_cashier_pos_route_unchanged_markers(client, db_session):
 
 def test_overview_action_button_labels_and_classes(client, db_session):
     """Dark action controls must keep visible text labels + semantic classes."""
+    _seed_users(db_session)
+    _login(client, "ov_admin", "AdminPass1234")
     html = client.get("/overview").text
     assert "overview-button-primary" in html
     assert "overview-button-danger" in html
@@ -575,7 +591,13 @@ def test_overview_action_button_labels_and_classes(client, db_session):
     assert html.count('href="/?pos=1"') >= 2
     assert 'id="ov-refresh"' in html
     assert 'id="ov-logout"' in html
-    assert "overview.css?v=8" in html
+    assert "overview.css?v=11" in html
+    assert "page-overview" in html
+    assert "ov-fab-toggle" in html
+    assert "Management" in html
+    assert html.count('href="/admin"') == 1
+    assert "style.css" in html
+    assert html.index("style.css") < html.index("overview.css")
 
 
 def test_overview_css_primary_button_contrast():
@@ -586,10 +608,10 @@ def test_overview_css_primary_button_contrast():
     assert "overview-button-primary" in css
     assert "overview-button-danger" in css
     assert "color: #ffffff !important" in css
-    assert "background: #101828 !important" in css
-    assert "background: #dc2626 !important" in css
-    # Nuclear dark-text reset must not paint action buttons
+    assert "#667eea" in css
+    assert "background: #c75050 !important" in css
     assert ":not(.overview-button)" in css
+    assert "flex-direction: column !important" in css
 
 
 def test_overview_js_refresh_and_local_today():
@@ -603,8 +625,322 @@ def test_overview_js_refresh_and_local_today():
     assert "getFullYear()" in src
     assert "getMonth()" in src
     assert "getDate()" in src
-    # Today preset must not rely on UTC toISOString day slice
+    assert "ov-card-cash-on-hand" in src
     assert "function todayISO()" in src
     today_fn = src.split("function todayISO()")[1].split("function ")[0]
     assert "toISOString()" not in today_fn
     assert "localDateISO" in today_fn
+
+
+def test_cash_on_hand_cash_sale_increases(client, db_session):
+    admin, cashier, _ = _seed_users(db_session)
+    product = Product(
+        name="Cash Item",
+        stock_qty=20,
+        cost_price=Decimal("2"),
+        selling_price=Decimal("10"),
+        is_active=True,
+    )
+    db_session.add(product)
+    db_session.flush()
+    sale = Sale(
+        created_at=datetime.now(),
+        cashier_id=cashier.id,
+        subtotal=Decimal("10"),
+        discount_total=Decimal("0"),
+        total=Decimal("10"),
+    )
+    db_session.add(sale)
+    db_session.flush()
+    db_session.add(
+        SaleItem(
+            sale_id=sale.id,
+            product_id=product.id,
+            quantity=1,
+            unit_price=Decimal("10"),
+            discount=Decimal("0"),
+            line_total=Decimal("10"),
+        )
+    )
+    db_session.add(Payment(sale_id=sale.id, method="cash", amount=Decimal("10")))
+    db_session.commit()
+    tok = _login(client, "ov_admin", "AdminPass1234")["access_token"]
+    data = client.get("/api/overview/summary", headers=_auth(tok)).json()
+    assert data["summary"]["cash_on_hand"] == 10.0
+    assert data["summary"]["cash_payments"] == 10.0
+    card = next(c for c in data["cards"] if c["key"] == "cash_on_hand")
+    assert card["label"] == "Cash on hand"
+    assert card["value"] == 10.0
+
+
+def test_cash_on_hand_card_payment_excluded(client, db_session):
+    admin, cashier, _ = _seed_users(db_session)
+    product = Product(
+        name="Card Item",
+        stock_qty=20,
+        cost_price=Decimal("2"),
+        selling_price=Decimal("15"),
+        is_active=True,
+    )
+    db_session.add(product)
+    db_session.flush()
+    sale = Sale(
+        created_at=datetime.now(),
+        cashier_id=cashier.id,
+        subtotal=Decimal("15"),
+        discount_total=Decimal("0"),
+        total=Decimal("15"),
+    )
+    db_session.add(sale)
+    db_session.flush()
+    db_session.add(
+        SaleItem(
+            sale_id=sale.id,
+            product_id=product.id,
+            quantity=1,
+            unit_price=Decimal("15"),
+            discount=Decimal("0"),
+            line_total=Decimal("15"),
+        )
+    )
+    db_session.add(Payment(sale_id=sale.id, method="card", amount=Decimal("15")))
+    db_session.commit()
+    tok = _login(client, "ov_admin", "AdminPass1234")["access_token"]
+    data = client.get("/api/overview/summary", headers=_auth(tok)).json()
+    assert data["summary"]["cash_on_hand"] == 0.0
+    assert data["summary"]["revenue"] == 15.0
+
+
+def test_cash_on_hand_refund_and_withdrawal_reduce(client, db_session):
+    admin, cashier, _ = _seed_users(db_session)
+    product = Product(
+        name="Till Item",
+        stock_qty=20,
+        cost_price=Decimal("1"),
+        selling_price=Decimal("20"),
+        is_active=True,
+    )
+    db_session.add(product)
+    db_session.flush()
+    sale = Sale(
+        created_at=datetime.now(),
+        cashier_id=cashier.id,
+        subtotal=Decimal("20"),
+        discount_total=Decimal("0"),
+        total=Decimal("20"),
+    )
+    db_session.add(sale)
+    db_session.flush()
+    db_session.add(
+        SaleItem(
+            sale_id=sale.id,
+            product_id=product.id,
+            quantity=1,
+            unit_price=Decimal("20"),
+            discount=Decimal("0"),
+            line_total=Decimal("20"),
+        )
+    )
+    db_session.add(Payment(sale_id=sale.id, method="cash", amount=Decimal("20")))
+    db_session.add(
+        Refund(
+            sale_id=sale.id,
+            refund_number="RF-CASH-1",
+            amount=Decimal("5"),
+            status="approved",
+            reason="partial",
+            refund_type="partial",
+            refund_method="cash",
+            created_at=datetime.now(),
+            requested_by_id=cashier.id,
+        )
+    )
+    db_session.add(
+        Withdrawal(
+            cashier_id=admin.id,
+            amount=Decimal("3"),
+            reason="Float pull",
+            created_at=datetime.now(),
+        )
+    )
+    db_session.commit()
+    tok = _login(client, "ov_admin", "AdminPass1234")["access_token"]
+    data = client.get("/api/overview/summary", headers=_auth(tok)).json()
+    assert data["summary"]["cash_on_hand"] == 12.0
+    assert data["summary"]["cash_refunds"] == 5.0
+    assert data["summary"]["withdrawals_total"] == 3.0
+
+
+def test_cash_on_hand_matches_reports_summary(client, db_session):
+    admin, cashier, _ = _seed_users(db_session)
+    product = Product(
+        name="Sync Item",
+        stock_qty=10,
+        cost_price=Decimal("1"),
+        selling_price=Decimal("8"),
+        is_active=True,
+    )
+    db_session.add(product)
+    db_session.flush()
+    sale = Sale(
+        created_at=datetime.now(),
+        cashier_id=cashier.id,
+        subtotal=Decimal("8"),
+        discount_total=Decimal("0"),
+        total=Decimal("8"),
+    )
+    db_session.add(sale)
+    db_session.flush()
+    db_session.add(
+        SaleItem(
+            sale_id=sale.id,
+            product_id=product.id,
+            quantity=1,
+            unit_price=Decimal("8"),
+            discount=Decimal("0"),
+            line_total=Decimal("8"),
+        )
+    )
+    db_session.add(Payment(sale_id=sale.id, method="cash", amount=Decimal("8")))
+    db_session.add(
+        Withdrawal(
+            cashier_id=admin.id,
+            amount=Decimal("2"),
+            reason="Expense",
+            created_at=datetime.now(),
+        )
+    )
+    db_session.commit()
+    tok = _login(client, "ov_admin", "AdminPass1234")["access_token"]
+    today = date.today().isoformat()
+    ov = client.get("/api/overview/summary", headers=_auth(tok)).json()
+    rp = client.get(
+        "/api/reports/summary",
+        params={"from_date": today, "to_date": today},
+        headers=_auth(tok),
+    )
+    assert rp.status_code == 200
+    assert ov["summary"]["cash_on_hand"] == float(rp.json()["cash_on_hand"])
+
+
+def test_cash_on_hand_tenant_isolation(client, db_session):
+    t1 = Tenant(tenant_uid="t-cash-1", name="Cash A")
+    t2 = Tenant(tenant_uid="t-cash-2", name="Cash B")
+    db_session.add_all([t1, t2])
+    db_session.flush()
+    _seed_users(db_session, tenant_a=t1.id, tenant_b=t2.id)
+    admin_b = db_session.query(User).filter_by(username="ov_other_admin").one()
+    p_b = Product(
+        name="B Cash",
+        stock_qty=5,
+        cost_price=Decimal("1"),
+        selling_price=Decimal("50"),
+        is_active=True,
+        tenant_id=t2.id,
+    )
+    db_session.add(p_b)
+    db_session.flush()
+    sale_b = Sale(
+        created_at=datetime.now(),
+        cashier_id=admin_b.id,
+        subtotal=Decimal("50"),
+        discount_total=Decimal("0"),
+        total=Decimal("50"),
+        tenant_id=t2.id,
+    )
+    db_session.add(sale_b)
+    db_session.flush()
+    db_session.add(
+        SaleItem(
+            sale_id=sale_b.id,
+            product_id=p_b.id,
+            quantity=1,
+            unit_price=Decimal("50"),
+            discount=Decimal("0"),
+            line_total=Decimal("50"),
+        )
+    )
+    db_session.add(Payment(sale_id=sale_b.id, method="cash", amount=Decimal("50")))
+    db_session.commit()
+    tok_a = _login(client, "ov_admin", "AdminPass1234")["access_token"]
+    data = client.get("/api/overview/summary", headers=_auth(tok_a)).json()
+    assert data["summary"]["cash_on_hand"] == 0.0
+
+
+def test_cash_on_hand_branch_excludes_other_branch_cash(client, db_session):
+    t = Tenant(tenant_uid="t-cash-br", name="Cash Branch Biz")
+    db_session.add(t)
+    db_session.flush()
+    b1 = Branch(tenant_id=t.id, name="North Till", is_active=True)
+    b2 = Branch(tenant_id=t.id, name="South Till", is_active=True)
+    db_session.add_all([b1, b2])
+    db_session.flush()
+    admin = User(
+        username="cash_br_admin",
+        password_hash=_hash("AdminPass1234"),
+        role="admin",
+        is_active=True,
+        tenant_id=t.id,
+    )
+    db_session.add(admin)
+    db_session.flush()
+    product = Product(
+        name="Branch Cash Item",
+        stock_qty=20,
+        cost_price=Decimal("1"),
+        selling_price=Decimal("10"),
+        is_active=True,
+        tenant_id=t.id,
+    )
+    db_session.add(product)
+    db_session.flush()
+    for branch, amt in ((b1, Decimal("10")), (b2, Decimal("30"))):
+        sale = Sale(
+            created_at=datetime.now(),
+            cashier_id=admin.id,
+            subtotal=amt,
+            discount_total=Decimal("0"),
+            total=amt,
+            tenant_id=t.id,
+            branch_id=branch.id,
+        )
+        db_session.add(sale)
+        db_session.flush()
+        db_session.add(
+            SaleItem(
+                sale_id=sale.id,
+                product_id=product.id,
+                quantity=1,
+                unit_price=amt,
+                discount=Decimal("0"),
+                line_total=amt,
+            )
+        )
+        db_session.add(Payment(sale_id=sale.id, method="cash", amount=amt))
+    db_session.commit()
+    tok = _login(client, "cash_br_admin", "AdminPass1234")["access_token"]
+    all_data = client.get("/api/overview/summary", headers=_auth(tok)).json()
+    assert all_data["summary"]["cash_on_hand"] == 40.0
+    assert all_data["cash_on_hand_meta"]["withdrawals_included"] is True
+    north = client.get(
+        "/api/overview/summary",
+        params={"branch_id": b1.id},
+        headers=_auth(tok),
+    ).json()
+    assert north["summary"]["cash_on_hand"] is None
+    assert north["cash_on_hand_meta"]["scope"] == "branch"
+    assert north["cash_on_hand_meta"]["available"] is False
+    assert north["cash_on_hand_meta"]["withdrawals_included"] is False
+    assert "Withdrawals" in (north["cash_on_hand_meta"].get("reason") or "")
+    cash_card = next(c for c in north["cards"] if c["key"] == "cash_on_hand")
+    assert cash_card["available"] is False
+    assert cash_card["value"] is None
+    assert cash_card["display"] == "Unavailable"
+
+
+def test_style_css_excludes_overview_from_white_text():
+    path = os.path.join(
+        os.path.dirname(__file__), "..", "static", "css", "style.css"
+    )
+    css = open(path, encoding="utf-8").read()
+    assert ":not(.page-overview):not(.overview-page)" in css

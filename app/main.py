@@ -568,13 +568,11 @@ async def login_for_access_token(
 
 
 @app.post("/api/auth/logout")
-
 async def logout_clear_session():
     """Clear the HttpOnly POS access cookie (Bearer token remains client-managed)."""
     response = JSONResponse(content={"ok": True})
     auth.clear_access_cookie(response)
     return response
-
 
 
 class UserMeRead(BaseModel):
@@ -864,16 +862,14 @@ async def get_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
 ):
-    product = tenant_scope.require_product(db, product_id, current_user)
+    return tenant_scope.require_product(db, product_id, current_user)
 
 
-@app.put("/api/products/{product_id}", response_model=ProductRead)
 class ProductRestockRequest(BaseModel):
     quantity_added: float = Field(..., gt=0, description="Quantity received (increment, not new total)")
     reason: Optional[str] = Field(default="stock_received", max_length=80)
     notes: Optional[str] = Field(default=None, max_length=500)
     cost_price: Optional[Decimal] = None
-
 
 
 class ProductRestockResponse(BaseModel):
@@ -888,7 +884,6 @@ class ProductRestockResponse(BaseModel):
 
 
 @app.post("/api/products/{product_id}/restock", response_model=ProductRestockResponse)
-
 async def restock_product(
     product_id: int,
     body: ProductRestockRequest,
@@ -954,7 +949,6 @@ async def restock_product(
 
 
 @app.put("/api/products/{product_id}", response_model=ProductRead)
-
 async def update_product(
     product_id: int,
     product: ProductCreate,
@@ -2760,50 +2754,16 @@ async def report_summary(
         lifetime_withdrawals += Decimal(str(withdrawal.amount))
     expected_profit -= lifetime_withdrawals
 
-    # Cash on hand for the selected period:
-    # cash payments − withdrawals − approved cash refunds
-    cash_pay_q = (
-        db.query(func.coalesce(func.sum(Payment.amount), 0))
-        .join(Sale, Payment.sale_id == Sale.id)
-        .filter(
-            Payment.method == "cash",
-            Sale.created_at >= range_start,
-            Sale.created_at <= range_end,
-        )
-    )
-    if current_user.tenant_id is None:
-        cash_pay_q = cash_pay_q.filter(Sale.tenant_id.is_(None))
-    else:
-        cash_pay_q = cash_pay_q.filter(Sale.tenant_id == current_user.tenant_id)
-    cash_payments = Decimal(str(cash_pay_q.scalar() or 0))
+    from .cash_on_hand import compute_cash_on_hand
 
-    wd_q = (
-        tenant_scope.filter_withdrawals(db, current_user)
-        .filter(
-            Withdrawal.created_at >= range_start,
-            Withdrawal.created_at <= range_end,
-        )
-        .with_entities(func.coalesce(func.sum(Withdrawal.amount), 0))
+    till = compute_cash_on_hand(
+        db, current_user, range_start, range_end, branch_id=None
     )
-    withdrawals_total = Decimal(str(wd_q.scalar() or 0))
+    cash_payments = till["cash_payments"]
+    withdrawals_total = till["withdrawals_total"]
+    cash_refunds = till["cash_refunds"]
+    cash_on_hand = till["cash_on_hand"]
 
-    refund_q = (
-        db.query(func.coalesce(func.sum(Refund.amount), 0))
-        .filter(
-            Refund.status == "approved",
-            Refund.refund_method == "cash",
-            Refund.created_at >= range_start,
-            Refund.created_at <= range_end,
-        )
-    )
-    if current_user.tenant_id is None:
-        refund_q = refund_q.filter(Refund.tenant_id.is_(None))
-    else:
-        refund_q = refund_q.filter(Refund.tenant_id == current_user.tenant_id)
-    cash_refunds = Decimal(str(refund_q.scalar() or 0))
-
-    cash_on_hand = cash_payments - withdrawals_total - cash_refunds
-    
     return ReportSummary(
         from_date=from_date,
         to_date=to_date,

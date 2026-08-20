@@ -15,6 +15,7 @@ from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
 from . import tenant_scope
+from .cash_on_hand import compute_cash_on_hand
 from .enterprise_models import Branch
 from .models import (
     Customer,
@@ -429,16 +430,41 @@ def build_business_overview(
     prev_net = prev["gross_profit"] - prev_expenses
     inv = _inventory_stats(db, user)
     credit = _outstanding_credit(db, user)
+    till = compute_cash_on_hand(
+        db, user, start, end, branch_id=effective_branch
+    )
+    prev_till = compute_cash_on_hand(
+        db, user, prev_start, prev_end, branch_id=effective_branch
+    )
 
     def card(
         key: str,
         label: str,
-        value: Decimal,
-        prev_value: Decimal,
+        value: Optional[Decimal],
+        prev_value: Optional[Decimal],
         href: Optional[str],
         money: bool = True,
         compare: bool = True,
+        subtitle: Optional[str] = None,
+        *,
+        available: bool = True,
+        unavailable_label: Optional[str] = None,
     ):
+        if not available:
+            return {
+                "key": key,
+                "label": label,
+                "value": None,
+                "previous_value": None,
+                "change_pct": None,
+                "direction": "neutral",
+                "money": money,
+                "href": href,
+                "subtitle": subtitle,
+                "available": False,
+                "display": unavailable_label or "Unavailable",
+            }
+        assert value is not None and prev_value is not None
         change = _pct_change(value, prev_value) if compare else None
         direction = "neutral"
         if compare:
@@ -458,10 +484,26 @@ def build_business_overview(
             "direction": direction,
             "money": money,
             "href": href,
+            "subtitle": subtitle,
+            "available": True,
         }
+
+    cash_available = bool(till.get("available", True))
+    cash_card = card(
+        "cash_on_hand",
+        "Cash on hand",
+        till["cash_on_hand"] if cash_available else None,
+        prev_till["cash_on_hand"] if cash_available and prev_till.get("available", True) else Decimal("0"),
+        "/withdrawals/history" if cash_available else None,
+        subtitle=till["subtitle"],
+        compare=cash_available,
+        available=cash_available,
+        unavailable_label="Unavailable",
+    )
 
     summary_cards = [
         card("revenue", "Sales revenue", cur["revenue"], prev["revenue"], "/admin"),
+        cash_card,
         card(
             "completed_sales",
             "Completed sales",
@@ -548,6 +590,10 @@ def build_business_overview(
         },
         "summary": {
             "revenue": _f(cur["revenue"]),
+            "cash_on_hand": _f(till["cash_on_hand"]) if till.get("available", True) else None,
+            "cash_payments": _f(till["cash_payments"]),
+            "cash_refunds": _f(till["cash_refunds"]),
+            "withdrawals_total": _f(till["withdrawals_total"]),
             "completed_sales": cur["completed_sales"],
             "gross_profit": _f(cur["gross_profit"]),
             "expenses": _f(expenses),
@@ -558,6 +604,17 @@ def build_business_overview(
             "stock_value": _f(inv["stock_value"]),
             "outstanding_credit": _f(credit),
             "refunds": _f(cur["refunds"]),
+        },
+        "cash_on_hand_meta": {
+            "as_of_start": till["as_of_start"],
+            "as_of_end": till["as_of_end"],
+            "scope": till["scope"],
+            "subtitle": till["subtitle"],
+            "note": till["note"],
+            "withdrawals_included": till["withdrawals_included"],
+            "available": bool(till.get("available", True)),
+            "reason": till.get("reason"),
+            "meaning": till.get("meaning", "period"),
         },
         "cards": summary_cards,
         "sales_trend": _sales_trend(
