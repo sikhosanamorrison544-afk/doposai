@@ -678,7 +678,14 @@ window.startEditProduct = async function startEditProduct(id) {
         // Set editing state and populate form fields
     editingProductId = id;
     document.getElementById('prod-name').value = p.name;
-    document.getElementById('prod-barcode').value = p.barcode || '';
+    document.getElementById('prod-barcode').value = p.barcode || 'Assigned after save';
+    document.getElementById('prod-barcode').readOnly = true;
+    const stockCreate = document.getElementById('prod-stock-create-wrap');
+    const stockEdit = document.getElementById('prod-stock-edit-wrap');
+    if (stockCreate) stockCreate.style.display = 'none';
+    if (stockEdit) stockEdit.style.display = 'block';
+    const stockDisp = document.getElementById('prod-stock-display');
+    if (stockDisp) stockDisp.textContent = String(Math.round(p.stock_qty) || 0);
     document.getElementById('prod-stock').value = Math.round(p.stock_qty) || 0;
     document.getElementById('prod-cost').value = p.cost_price;
     document.getElementById('prod-price').value = p.selling_price;
@@ -777,11 +784,17 @@ function showProductForm() {
     editingProductId = null;
     document.getElementById('prod-name').value = '';
     document.getElementById('prod-barcode').value = '';
+    document.getElementById('prod-barcode').placeholder = 'Automatically assigned after saving';
+    document.getElementById('prod-barcode').readOnly = true;
+    const stockCreate = document.getElementById('prod-stock-create-wrap');
+    const stockEdit = document.getElementById('prod-stock-edit-wrap');
+    if (stockCreate) stockCreate.style.display = 'block';
+    if (stockEdit) stockEdit.style.display = 'none';
     document.getElementById('prod-stock').value = '0';
     document.getElementById('prod-cost').value = '';
     document.getElementById('prod-price').value = '';
     document.getElementById('prod-expiry').value = '';
-    document.getElementById('prod-message').textContent = 'Add new product';
+    document.getElementById('prod-message').textContent = 'Add new product — barcode is assigned automatically';
     
     // Force show the form
     formCard.style.removeProperty('display');
@@ -869,11 +882,19 @@ function clearProductForm() {
     editingProductId = null;
     document.getElementById('prod-name').value = '';
     document.getElementById('prod-barcode').value = '';
+    document.getElementById('prod-barcode').placeholder = 'Automatically assigned after saving';
+    document.getElementById('prod-barcode').readOnly = true;
+    const stockCreate = document.getElementById('prod-stock-create-wrap');
+    const stockEdit = document.getElementById('prod-stock-edit-wrap');
+    if (stockCreate) stockCreate.style.display = 'block';
+    if (stockEdit) stockEdit.style.display = 'none';
     document.getElementById('prod-stock').value = '0';
     document.getElementById('prod-cost').value = '';
     document.getElementById('prod-price').value = '';
     document.getElementById('prod-expiry').value = '';
     document.getElementById('prod-message').textContent = '';
+    const restockModal = document.getElementById('restock-modal');
+    if (restockModal) restockModal.hidden = true;
     // Hide the product form panel after clearing
     const formCard = document.getElementById('product-form-card');
     if (formCard) {
@@ -898,7 +919,6 @@ async function saveProduct() {
     const msg = document.getElementById('prod-message');
     msg.textContent = '';
     const name = document.getElementById('prod-name').value.trim();
-    const barcode = document.getElementById('prod-barcode').value.trim() || null;
     const stock = Math.max(0, Math.round(parseFloat(document.getElementById('prod-stock').value) || 0));
     const cost = parseFloat(document.getElementById('prod-cost').value) || 0;
     const price = parseFloat(document.getElementById('prod-price').value) || 0;
@@ -910,12 +930,12 @@ async function saveProduct() {
 
     const expiryInput = document.getElementById('prod-expiry').value;
     const expiryDate = expiryInput ? expiryInput : null;
-    
+
+    // Never send a client-chosen barcode; server assigns AUTO-XXXXXX.
     const payload = {
         name,
-        barcode,
+        barcode: null,
         category_id: null,
-        stock_qty: stock,
         cost_price: cost,
         selling_price: price,
         is_active: true,
@@ -924,17 +944,28 @@ async function saveProduct() {
 
     try {
         if (editingProductId) {
-            await adminApi(`/api/products/${editingProductId}`, {
+            // Keep existing barcode on the wire only if unchanged (server rejects changes).
+            const existing = document.getElementById('prod-barcode').value.trim();
+            if (existing && existing !== 'Assigned after save') {
+                payload.barcode = existing;
+            }
+            // Do not send stock_qty on edit — restock uses POST .../restock.
+            const updated = await adminApi(`/api/products/${editingProductId}`, {
                 method: 'PUT',
                 body: JSON.stringify(payload),
             });
-            msg.textContent = 'Product updated';
+            msg.textContent = 'Product updated' + (updated && updated.barcode ? ' · Barcode ' + updated.barcode : '');
         } else {
-            await adminApi('/api/products', {
+            payload.stock_qty = stock;
+            const created = await adminApi('/api/products', {
                 method: 'POST',
                 body: JSON.stringify(payload),
             });
-            msg.textContent = 'Product created';
+            msg.textContent =
+                'Product created · Barcode ' + ((created && created.barcode) || 'assigned');
+            if (created && created.barcode) {
+                document.getElementById('prod-barcode').value = created.barcode;
+            }
         }
         await loadAdminProducts();
         // Show success message briefly, then hide form
@@ -943,7 +974,80 @@ async function saveProduct() {
         }, 1500);
     } catch (e) {
         console.error(e);
-        msg.textContent = 'Save failed';
+        msg.textContent = (e && e.message) ? e.message : 'Save failed';
+    }
+}
+
+function openRestockModal() {
+    if (!editingProductId) return;
+    const modal = document.getElementById('restock-modal');
+    if (!modal) return;
+    const name = document.getElementById('prod-name').value;
+    const barcode = document.getElementById('prod-barcode').value;
+    const current = Math.round(parseFloat(document.getElementById('prod-stock-display')?.textContent) ||
+        parseFloat(document.getElementById('prod-stock').value) || 0);
+    document.getElementById('restock-product-name').textContent = name;
+    document.getElementById('restock-barcode').textContent = barcode || '—';
+    document.getElementById('restock-current').textContent = String(current);
+    document.getElementById('restock-qty').value = '1';
+    document.getElementById('restock-notes').value = '';
+    document.getElementById('restock-preview').textContent = String(current + 1);
+    document.getElementById('restock-message').textContent = '';
+    modal.hidden = false;
+}
+
+function updateRestockPreview() {
+    const current = Math.round(parseFloat(document.getElementById('restock-current')?.textContent) || 0);
+    const add = Math.max(0, Math.round(parseFloat(document.getElementById('restock-qty')?.value) || 0));
+    const prev = document.getElementById('restock-preview');
+    if (prev) prev.textContent = String(current + add);
+}
+
+let restockInFlight = false;
+
+async function submitRestock() {
+    const msg = document.getElementById('restock-message');
+    const saveBtn = document.getElementById('btn-restock-save');
+    if (!editingProductId || restockInFlight) return;
+    const qty = Math.round(parseFloat(document.getElementById('restock-qty').value) || 0);
+    if (qty <= 0) {
+        msg.textContent = 'Enter a positive quantity received';
+        return;
+    }
+    const notes = document.getElementById('restock-notes').value.trim();
+    restockInFlight = true;
+    if (saveBtn) saveBtn.disabled = true;
+    try {
+        const result = await adminApi(`/api/products/${editingProductId}/restock`, {
+            method: 'POST',
+            body: JSON.stringify({
+                quantity_added: qty,
+                reason: 'stock_received',
+                notes: notes || null,
+            }),
+        });
+        msg.textContent =
+            'Received ' +
+            result.quantity_added +
+            ' · Stock now ' +
+            result.resulting_qty;
+        const stockDisp = document.getElementById('prod-stock-display');
+        if (stockDisp) stockDisp.textContent = String(Math.round(result.resulting_qty));
+        document.getElementById('restock-current').textContent = String(
+            Math.round(result.resulting_qty)
+        );
+        document.getElementById('prod-stock').value = String(Math.round(result.resulting_qty));
+        await loadAdminProducts();
+        setTimeout(() => {
+            const modal = document.getElementById('restock-modal');
+            if (modal) modal.hidden = true;
+        }, 1200);
+    } catch (e) {
+        console.error(e);
+        msg.textContent = (e && e.message) ? e.message : 'Restock failed';
+    } finally {
+        restockInFlight = false;
+        if (saveBtn) saveBtn.disabled = false;
     }
 }
 
@@ -3032,13 +3136,33 @@ function setupAdminEvents() {
     const btnAdminPos = document.getElementById('btn-admin-pos');
     if (btnAdminPos) {
         btnAdminPos.addEventListener('click', () => {
-            window.location.href = '/?pos=1';
+            window.location.href = '/overview';
         });
     }
     
     const btnSaveProduct = document.getElementById('btn-save-product');
     if (btnSaveProduct) {
         btnSaveProduct.addEventListener('click', saveProduct);
+    }
+
+    const btnAddStock = document.getElementById('btn-add-stock');
+    if (btnAddStock) {
+        btnAddStock.addEventListener('click', openRestockModal);
+    }
+    const restockQty = document.getElementById('restock-qty');
+    if (restockQty) {
+        restockQty.addEventListener('input', updateRestockPreview);
+    }
+    const btnRestockSave = document.getElementById('btn-restock-save');
+    if (btnRestockSave) {
+        btnRestockSave.addEventListener('click', submitRestock);
+    }
+    const btnRestockCancel = document.getElementById('btn-restock-cancel');
+    if (btnRestockCancel) {
+        btnRestockCancel.addEventListener('click', () => {
+            const modal = document.getElementById('restock-modal');
+            if (modal) modal.hidden = true;
+        });
     }
     
     const btnClearProduct = document.getElementById('btn-clear-product');
@@ -3213,25 +3337,11 @@ function setupAdminEvents() {
         });
     }
     
-    // Floating icon toggles
-    const btnToggleSettings = document.getElementById('btn-toggle-settings');
+    // Floating icon toggles (Settings/Notifications/Theme live on /overview FAB)
     const btnToggleReport = document.getElementById('btn-toggle-report');
     // btn-close-settings removed - settings are now on a dedicated page
     const btnCloseReport = document.getElementById('btn-close-report');
     const backdrop = document.getElementById('panel-backdrop');
-    
-    if (btnToggleSettings) {
-        // Settings button now navigates to /store-settings page (panel removed)
-        console.log('Setting up settings button for page navigation');
-        btnToggleSettings.onclick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log('Settings button clicked - navigating to /store-settings');
-            window.location.href = '/store-settings';
-            return false;
-        };
-    }
-    // Note: btn-toggle-settings only exists on /admin page, not on /store-settings page
     
     if (btnToggleReport) {
         btnToggleReport.onclick = function(e) {
@@ -3328,7 +3438,6 @@ window.addEventListener('load', async () => {
     const reportPanel = document.getElementById('summary-report-panel');
     const importModal = document.getElementById('import-inventory-modal');
     const backdrop = document.getElementById('panel-backdrop');
-    const btnSettings = document.getElementById('btn-toggle-settings');
     const btnReport = document.getElementById('btn-toggle-report');
     const btnImport = document.getElementById('btn-import-inventory');
     
@@ -3340,7 +3449,6 @@ window.addEventListener('load', async () => {
         reportPanel: !!reportPanel,
         importModal: !!importModal,
         backdrop: !!backdrop,
-        btnSettings: !!btnSettings,
         btnReport: !!btnReport,
         btnImport: !!btnImport
     });
@@ -3359,36 +3467,7 @@ window.addEventListener('load', async () => {
         backdrop.style.setProperty('display', 'none', 'important');
     }
     
-    // Set up click handlers directly
-    if (btnSettings) {
-        btnSettings.onclick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log('Settings button clicked directly');
-            if (settingsPanel && backdrop) {
-                const isVisible = window.getComputedStyle(settingsPanel).display !== 'none';
-                console.log('Settings panel visible?', isVisible);
-                if (isVisible) {
-                    settingsPanel.style.setProperty('display', 'none', 'important');
-                    backdrop.style.setProperty('display', 'none', 'important');
-                } else {
-                    // Close report panel if open
-                    if (reportPanel) {
-                        reportPanel.style.setProperty('display', 'none', 'important');
-                    }
-                    // Show settings panel
-                    settingsPanel.style.setProperty('display', 'block', 'important');
-                    settingsPanel.style.setProperty('visibility', 'visible', 'important');
-                    settingsPanel.style.setProperty('opacity', '1', 'important');
-                    backdrop.style.setProperty('display', 'block', 'important');
-                    backdrop.style.setProperty('visibility', 'visible', 'important');
-                    console.log('Settings panel should be visible now');
-                }
-            }
-            return false;
-        };
-        console.log('Settings button handler attached');
-    }
+    // Settings / Notifications / Theme are on /overview FAB — not on /admin.
     
     if (btnReport) {
         btnReport.onclick = function(e) {

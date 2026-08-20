@@ -61,7 +61,6 @@
         <div id="admin-mobile-user" class="admin-mobile-user"></div>
     </header>
     <nav class="admin-mobile-actions" aria-label="Admin shortcuts">
-        <button type="button" class="admin-mobile-action" id="admin-action-settings"><span class="icon">⚙️</span>Settings</button>
         <button type="button" class="admin-mobile-action" id="admin-action-analytics"><span class="icon">📈</span>Overview</button>
         <button type="button" class="admin-mobile-action" id="admin-action-refunds" onclick="window.location.href='/refunds'"><span class="icon">↩️</span>Refunds</button>
         <button type="button" class="admin-mobile-action" id="admin-action-withdrawals"><span class="icon">💵</span>Cash out</button>
@@ -96,14 +95,11 @@
         </div>
         <span id="admin-user-info"></span>
         <div class="top-bar-right" style="position: relative;">
-            <button id="btn-admin-pos" class="small" style="margin-right: 60px;">Back to POS</button>
-            <!-- Floating Icons -->
+            <button id="btn-admin-pos" class="small" style="margin-right: 60px;">Back to Overview</button>
+            <!-- Floating Icons — inventory/ops only; Notifications/Settings/Theme live on /overview -->
             <div class="floating-icons">
                 <button type="button" class="floating-icon more-button" title="More">
                     ⋮
-                </button>
-                <button type="button" id="btn-toggle-settings" class="floating-icon" title="Store Settings" onclick="window.location.href='/store-settings'; return false;" onmousedown="event.stopPropagation();">
-                    ⚙️
                 </button>
                 <button type="button" id="btn-toggle-withdrawals" class="floating-icon" title="Withdrawal History" style="background: rgba(239, 68, 68, 0.8);" onclick="window.location.href='/withdrawals/history'; return false;" onmousedown="event.stopPropagation();">
                     💵
@@ -188,11 +184,19 @@
                     </div>
                     <div>
                         <label for="prod-barcode">Barcode</label>
-                        <input type="text" id="prod-barcode" name="prod-barcode">
+                        <input type="text" id="prod-barcode" name="prod-barcode" readonly
+                               placeholder="Automatically assigned after saving"
+                               title="Barcodes are assigned automatically by the server"
+                               aria-readonly="true">
                     </div>
-                    <div>
-                        <label for="prod-stock">Stock</label>
+                    <div id="prod-stock-create-wrap">
+                        <label for="prod-stock">Initial stock</label>
                         <input type="number" id="prod-stock" name="prod-stock" step="1" min="0" value="0">
+                    </div>
+                    <div id="prod-stock-edit-wrap" style="display:none;">
+                        <label>Current stock</label>
+                        <div id="prod-stock-display" class="info" style="padding:6px 0;">—</div>
+                        <button type="button" id="btn-add-stock" class="small primary">Add stock</button>
                     </div>
                     <div>
                         <label for="prod-cost">Cost</label>
@@ -212,6 +216,22 @@
                     </div>
                 </div>
                 <div id="prod-message" class="info" style="margin-top:4px;"></div>
+            </div>
+            <div id="restock-modal" class="card product-form-card" hidden style="max-width:420px;margin:8px 0;padding:12px;">
+                <h3 style="margin:0 0 8px 0;font-size:14px;">Add stock</h3>
+                <p id="restock-product-name" style="margin:0 0 4px 0;font-weight:600;"></p>
+                <p class="info" style="margin:0 0 8px 0;">Barcode: <span id="restock-barcode">—</span></p>
+                <p class="info" style="margin:0 0 8px 0;">Current stock: <strong id="restock-current">0</strong></p>
+                <label for="restock-qty">Quantity received</label>
+                <input type="number" id="restock-qty" min="1" step="1" value="1">
+                <p class="info" style="margin:6px 0;">After receiving: <strong id="restock-preview">1</strong></p>
+                <label for="restock-notes">Notes (optional)</label>
+                <input type="text" id="restock-notes" maxlength="200" placeholder="Supplier / reference">
+                <div style="display:flex;gap:8px;margin-top:10px;">
+                    <button type="button" id="btn-restock-save" class="primary small">Receive stock</button>
+                    <button type="button" id="btn-restock-cancel" class="small">Cancel</button>
+                </div>
+                <div id="restock-message" class="info" style="margin-top:6px;"></div>
             </div>
             <div id="products-mobile-list" class="admin-mobile-only" role="list" aria-label="Products"></div>
             <div id="products-table" style="margin-top:8px;overflow-y:auto;overflow-x:auto;flex:1;min-height:0;display:block;">

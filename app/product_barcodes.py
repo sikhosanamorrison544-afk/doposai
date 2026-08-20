@@ -1,14 +1,21 @@
-"""Auto-assigned product barcodes (AUTO-XXXXXX), per-tenant sequence."""
+"""Auto-assigned product barcodes (AUTO-XXXXXX).
+
+Uniqueness: database enforces global ``Product.barcode`` unique. Generation
+scans the current tenant sequence then verifies no global collision before
+insert. Concurrent creates retry on IntegrityError.
+"""
 from __future__ import annotations
 
 from typing import Optional, Set
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .models import Product, User
 from . import tenant_scope
 
 _AUTO_PREFIX = "AUTO-"
+_MAX_ATTEMPTS = 50
 
 
 def _max_auto_number(barcodes: list) -> int:
@@ -25,8 +32,12 @@ def _max_auto_number(barcodes: list) -> int:
     return max_num
 
 
+def _barcode_taken_globally(db: Session, code: str) -> bool:
+    return db.query(Product.id).filter(Product.barcode == code).first() is not None
+
+
 def generate_unique_barcode(db: Session, user: User) -> str:
-    """Generate a unique auto-assigned barcode in format AUTO-XXXXXX (per-tenant scan)."""
+    """Generate a unique auto-assigned barcode in format AUTO-XXXXXX."""
     existing_auto_barcodes = (
         tenant_scope.filter_products(db, user)
         .with_entities(Product.barcode)
@@ -34,22 +45,23 @@ def generate_unique_barcode(db: Session, user: User) -> str:
         .all()
     )
     next_num = _max_auto_number(existing_auto_barcodes) + 1
-    new_barcode = f"{_AUTO_PREFIX}{next_num:06d}"
 
-    existing = (
-        tenant_scope.filter_products(db, user)
-        .filter(Product.barcode == new_barcode)
-        .first()
-    )
-    while existing:
-        next_num += 1
+    for _ in range(_MAX_ATTEMPTS):
         new_barcode = f"{_AUTO_PREFIX}{next_num:06d}"
-        existing = (
-            tenant_scope.filter_products(db, user)
-            .filter(Product.barcode == new_barcode)
-            .first()
-        )
-    return new_barcode
+        if not _barcode_taken_globally(db, new_barcode):
+            return new_barcode
+        next_num += 1
+
+    raise RuntimeError("Unable to allocate a unique product barcode")
+
+
+def ensure_product_barcode(db: Session, product: Product, user: User) -> str:
+    """Assign AUTO-* barcode if the product has none (legacy backfill on edit/restock)."""
+    if product.barcode and str(product.barcode).strip():
+        return str(product.barcode).strip()
+    code = generate_unique_barcode(db, user)
+    product.barcode = code
+    return code
 
 
 class AutoBarcodeAllocator:
@@ -78,13 +90,17 @@ class AutoBarcodeAllocator:
             key = code.lower()
             if key in self._reserved:
                 continue
-            hit = (
-                tenant_scope.filter_products(self._db, self._user)
-                .filter(Product.barcode == code)
-                .first()
-            )
-            if hit:
+            if _barcode_taken_globally(self._db, code):
                 self._reserved.add(key)
                 continue
             self._reserved.add(key)
             return code
+
+
+# Re-export for callers that catch IntegrityError on insert races
+__all__ = [
+    "generate_unique_barcode",
+    "ensure_product_barcode",
+    "AutoBarcodeAllocator",
+    "IntegrityError",
+]

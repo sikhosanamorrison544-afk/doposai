@@ -733,21 +733,52 @@ async def create_product(
     # Ensure stock_qty is non-negative (Pydantic validation should catch this, but extra safeguard)
     if product.stock_qty < 0:
         raise HTTPException(status_code=400, detail="Stock quantity cannot be negative")
-    
-    # Auto-assign barcode if not provided
+
+    # Barcodes are assigned only by the server for normal product APIs.
+    if product.barcode is not None and str(product.barcode).strip():
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Manual barcodes are not accepted. Leave barcode empty; "
+                "the server assigns AUTO-XXXXXX automatically. "
+                "CSV import may still supply barcodes."
+            ),
+        )
+
     product_dict = product.dict()
-    if not product_dict.get('barcode') or not product_dict['barcode'].strip():
-        new_barcode = generate_unique_barcode(db, current_admin)
-        product_dict['barcode'] = new_barcode
-        logging.info(f"Auto-assigned barcode {new_barcode} to product: {product_dict.get('name', 'Unknown')}")
-    
-    db_product = Product(**product_dict, tenant_id=tenant_scope.tenant_id_for_row(current_admin))
-    # Extra safeguard: ensure stock_qty is non-negative
-    if db_product.stock_qty < 0:
-        db_product.stock_qty = 0.0
-    db.add(db_product)
-    db.commit()
-    db.refresh(db_product)
+    product_dict["barcode"] = None
+    last_err: Optional[Exception] = None
+    db_product = None
+    for _attempt in range(8):
+        product_dict["barcode"] = generate_unique_barcode(db, current_admin)
+        db_product = Product(
+            **product_dict, tenant_id=tenant_scope.tenant_id_for_row(current_admin)
+        )
+        if db_product.stock_qty < 0:
+            db_product.stock_qty = 0.0
+        db.add(db_product)
+        try:
+            db.commit()
+            db.refresh(db_product)
+            last_err = None
+            break
+        except Exception as e:
+            db.rollback()
+            last_err = e
+            # Concurrent AUTO-* collision — try next code
+            if "barcode" not in str(e).lower() and "unique" not in str(e).lower():
+                raise
+    if last_err is not None or db_product is None:
+        raise HTTPException(
+            status_code=500, detail="Could not assign a unique barcode; please retry"
+        ) from last_err
+
+    logging.info(
+        "Auto-assigned barcode %s to product: %s",
+        db_product.barcode,
+        db_product.name,
+    )
+
     if product.stock_qty:
         movement = InventoryMovement(
             product_id=db_product.id,
@@ -756,7 +787,7 @@ async def create_product(
         )
         db.add(movement)
         db.commit()
-    
+
     # Sync to Google Sheets backup
     try:
         backup_service = get_backup_service()
@@ -764,7 +795,7 @@ async def create_product(
             backup_service.sync_product_create(db, db_product)
     except Exception as e:
         logging.error(f"Error syncing product to backup: {e}")
-    
+
     # Check for expiring products after product creation
     try:
         from .notification_service import NotificationService
@@ -773,7 +804,7 @@ async def create_product(
         notification_service.check_expiring_products_and_send_email(days_ahead=7)
     except Exception as e:
         logging.warning(f"Error checking expiring products: {e}")
-    
+
     return db_product
 
 
@@ -787,53 +818,137 @@ async def get_product(
 
 
 @app.put("/api/products/{product_id}", response_model=ProductRead)
+class ProductRestockRequest(BaseModel):
+    quantity_added: float = Field(..., gt=0, description="Quantity received (increment, not new total)")
+    reason: Optional[str] = Field(default="stock_received", max_length=80)
+    notes: Optional[str] = Field(default=None, max_length=500)
+    cost_price: Optional[Decimal] = None
+
+
+
+class ProductRestockResponse(BaseModel):
+    product_id: int
+    barcode: Optional[str]
+    name: str
+    previous_qty: float
+    quantity_added: float
+    resulting_qty: float
+    reason: str
+    movement_id: Optional[int] = None
+
+
+@app.post("/api/products/{product_id}/restock", response_model=ProductRestockResponse)
+
+async def restock_product(
+    product_id: int,
+    body: ProductRestockRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(auth.get_current_admin_user),
+):
+    """
+    Receive stock for an existing product.
+
+    Clients must send ``quantity_added`` (amount received), never a replacement total.
+    Stock and inventory movement are committed in one atomic transaction.
+    """
+    from .enterprise.inventory_ops import apply_product_stock_change
+    from .product_barcodes import ensure_product_barcode
+
+    qty = float(body.quantity_added)
+    if qty <= 0:
+        raise HTTPException(status_code=400, detail="quantity_added must be greater than zero")
+    # Stock quantities are whole units in the admin UI; reject fractional for consistency.
+    if abs(qty - round(qty)) > 1e-9:
+        raise HTTPException(status_code=400, detail="quantity_added must be a whole number")
+    qty = float(round(qty))
+
+    db_product = tenant_scope.require_product(db, product_id, current_admin)
+    ensure_product_barcode(db, db_product, current_admin)
+    reason = (body.reason or "stock_received").strip() or "stock_received"
+    if body.notes:
+        reason = f"{reason}: {body.notes.strip()[:60]}"
+
+    try:
+        result = apply_product_stock_change(
+            db,
+            db_product.id,
+            qty,
+            reason[:80],
+            update_cost=float(body.cost_price) if body.cost_price is not None else None,
+        )
+        db.commit()
+        db.refresh(result.product)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        db.rollback()
+        raise
+
+    try:
+        from .notification_service import NotificationService
+        NotificationService(db).check_low_stock(result.product)
+    except Exception as e:
+        logging.warning(f"Error checking low stock after restock: {e}")
+
+    return ProductRestockResponse(
+        product_id=result.product.id,
+        barcode=result.product.barcode,
+        name=result.product.name,
+        previous_qty=result.previous_qty,
+        quantity_added=result.change_qty,
+        resulting_qty=result.resulting_qty,
+        reason=reason[:80],
+        movement_id=result.movement_id,
+    )
+
+
+@app.put("/api/products/{product_id}", response_model=ProductRead)
+
 async def update_product(
     product_id: int,
     product: ProductCreate,
     db: Session = Depends(get_db),
     current_admin: User = Depends(auth.get_current_admin_user),
 ):
+    from .product_barcodes import ensure_product_barcode
+
     db_product = tenant_scope.require_product(db, product_id, current_admin)
-    
-    # Ensure stock_qty is non-negative
-    if product.stock_qty < 0:
-        raise HTTPException(status_code=400, detail="Stock quantity cannot be negative")
-    
-    old_stock = db_product.stock_qty
-    
-    for field, value in product.dict().items():
-        setattr(db_product, field, value)
-    
-    # Extra safeguard: ensure stock_qty is non-negative
-    if db_product.stock_qty < 0:
-        db_product.stock_qty = 0.0
-    
+
+    if product.barcode is not None and str(product.barcode).strip():
+        incoming = str(product.barcode).strip()
+        existing = (db_product.barcode or "").strip()
+        if incoming != existing:
+            raise HTTPException(
+                status_code=400,
+                detail="Product barcode cannot be changed. It is assigned automatically.",
+            )
+
+    # Descriptive fields only — stock changes go through POST .../restock
+    db_product.name = product.name
+    db_product.category_id = product.category_id
+    db_product.cost_price = product.cost_price
+    db_product.selling_price = product.selling_price
+    db_product.is_active = product.is_active
+    db_product.expiry_date = product.expiry_date
+    # Preserve reserved_qty unless explicitly needed; do not overwrite stock_qty
+    if product.reserved_qty is not None:
+        db_product.reserved_qty = product.reserved_qty
+
+    ensure_product_barcode(db, db_product, current_admin)
+
     db.commit()
     db.refresh(db_product)
-    
-    new_stock = db_product.stock_qty
 
-    diff = new_stock - old_stock
-    if diff:
-        movement = InventoryMovement(
-            product_id=db_product.id,
-            change_qty=diff,
-            reason="Stock adjustment",
-        )
-        db.add(movement)
-        db.commit()
-    
-    # Check for low stock after stock update
+    # Check for low stock / expiry (stock unchanged on edit, still useful)
     try:
         from .notification_service import NotificationService
         notification_service = NotificationService(db)
         notification_service.check_low_stock(db_product)
-        # Send batch email with all low-stock products
         notification_service.check_all_products_low_stock()
     except Exception as e:
         logging.warning(f"Error checking low stock for product {db_product.id}: {e}")
-    
-    # Check for expiring products after product update
+
     try:
         from .notification_service import NotificationService
         notification_service = NotificationService(db)
@@ -841,15 +956,14 @@ async def update_product(
         notification_service.check_expiring_products_and_send_email(days_ahead=7)
     except Exception as e:
         logging.warning(f"Error checking expiring products: {e}")
-    
-    # Sync to Google Sheets backup
+
     try:
         backup_service = get_backup_service()
         if backup_service.is_enabled():
             backup_service.sync_product_update(db, db_product)
     except Exception as e:
         logging.error(f"Error syncing product update to backup: {e}")
-    
+
     return db_product
 
 
