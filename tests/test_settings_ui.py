@@ -115,7 +115,7 @@ def test_cashier_pos_does_not_load_settings_css():
 
 
 def test_store_settings_template_markers():
-    assert 'href="/static/css/settings.css?v=2"' in STORE_SETTINGS_HTML
+    assert 'href="/static/css/settings.css?v=3"' in STORE_SETTINGS_HTML
     assert 'class="store-settings-page-content settings-page-container"' in STORE_SETTINGS_HTML
     assert "settings-page-title" in STORE_SETTINGS_HTML
     assert "settings-form-grid" in STORE_SETTINGS_HTML
@@ -131,6 +131,8 @@ def test_store_settings_template_markers():
     assert 'data-settings-chrome="compact"' in STORE_SETTINGS_HTML
     assert "settings-top-bar" in STORE_SETTINGS_HTML
     assert 'data-branding="suffix"' in STORE_SETTINGS_HTML
+    assert "Back to Overview" in STORE_SETTINGS_HTML
+    assert 'href=\'/overview\'' in STORE_SETTINGS_HTML or 'href="/overview"' in STORE_SETTINGS_HTML or "location.href='/overview'" in STORE_SETTINGS_HTML
     assert 'id="backup-api-key"' in STORE_SETTINGS_HTML
     assert 'type="password" id="backup-api-key"' in STORE_SETTINGS_HTML or re.search(
         r'id="backup-api-key"[^>]*type="password"|type="password"[^>]*id="backup-api-key"',
@@ -173,7 +175,7 @@ def test_admin_store_settings_page_loads_scoped_assets(client, db_session):
     r = client.get("/store-settings")
     assert r.status_code == 200
     html = r.text
-    assert "settings.css?v=2" in html
+    assert "settings.css?v=3" in html
     assert "settings-page-container" in html
     assert "settings-form-grid" in html
     assert "password-toggle.js" in html
@@ -181,6 +183,8 @@ def test_admin_store_settings_page_loads_scoped_assets(client, db_session):
     assert 'id="cashier-password"' in html
     assert 'name="viewport"' in html
     assert 'data-settings-chrome="compact"' in html
+    assert "Back to Overview" in html
+    assert "location.href='/overview'" in html
 
 
 def test_billing_loads_settings_css(client, db_session):
@@ -188,17 +192,18 @@ def test_billing_loads_settings_css(client, db_session):
     _login(client, "settings_admin", "AdminPass1234")
     r = client.get("/billing")
     assert r.status_code == 200
-    assert "settings.css?v=1" in r.text or "settings.css?v=2" in r.text
+    assert "settings.css?v=3" in r.text
     assert "settings-page-container" in r.text
 
 
 def test_static_settings_css_served(client):
-    r = client.get("/static/css/settings.css?v=2")
+    r = client.get("/static/css/settings.css?v=3")
     assert r.status_code == 200
     assert ".settings-page-container" in r.text
     assert "page-store-settings" in r.text
     assert "min-height: 3rem" in r.text
     assert "--settings-max: 920px" in r.text
+    assert "must-revalidate" in (r.headers.get("cache-control") or "")
 
 
 def test_settings_css_compact_header_rules():

@@ -863,6 +863,7 @@ body.page-store-settings #app .top-bar .top-bar-right {
 }
 
 body.page-store-settings .top-bar-right .small,
+body.page-store-settings #btn-back-to-overview,
 body.page-store-settings #btn-back-to-admin {
   min-height: 2.5rem !important;
   height: auto !important;
@@ -876,6 +877,7 @@ body.page-store-settings #btn-back-to-admin {
 }
 
 body.theme-light.page-store-settings .top-bar-right .small,
+body.theme-light.page-store-settings #btn-back-to-overview,
 body.theme-light.page-store-settings #btn-back-to-admin {
   color: #0f172a !important;
   background: rgba(255, 255, 255, 0.96) !important;

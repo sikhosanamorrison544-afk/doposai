@@ -359,7 +359,28 @@ async def favicon():
     """Return 204 No Content for favicon requests to prevent 404 errors."""
     return Response(status_code=204)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+class FingerprintedStaticFiles(StaticFiles):
+    """Serve static assets with explicit Cache-Control.
+
+    Cloudflare was caching ``/static/css/settings.css?v=2`` for 4 hours after a
+    deploy race filled the edge with the pre-deploy body. Explicit short
+    ``must-revalidate`` headers keep edge/browser caches from trapping an old
+    file behind an already-bumped query string.
+    """
+
+    def file_response(self, full_path, stat_result, scope, status_code: int = 200):
+        response = super().file_response(full_path, stat_result, scope, status_code=status_code)
+        path = str(full_path).replace("\\", "/").lower()
+        if path.endswith((".css", ".js")):
+            response.headers["Cache-Control"] = "public, max-age=120, must-revalidate"
+        elif path.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".woff2", ".woff")):
+            response.headers["Cache-Control"] = "public, max-age=86400, must-revalidate"
+        else:
+            response.headers["Cache-Control"] = "public, max-age=300, must-revalidate"
+        return response
+
+
+app.mount("/static", FingerprintedStaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 templates.env.globals["platform_motto"] = PLATFORM_MOTTO
 
