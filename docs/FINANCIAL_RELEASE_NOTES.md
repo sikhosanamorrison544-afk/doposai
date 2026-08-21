@@ -1,6 +1,7 @@
 # Financial accuracy release — closed notes
 
-**Workstream status: FINANCIAL RELEASE CLOSED**  
+**Workstream status: FINANCIAL RELEASE CLOSED**
+
 **Production acceptance:** PASSED on build `34fa2036dc4e`
 
 This document closes the financial accuracy / refund integrity release. It records identifiers, accounting rules, production evidence, limitations, and handoff notes for multi-branch and GlazzerX. No application behaviour is defined here beyond what already shipped.
