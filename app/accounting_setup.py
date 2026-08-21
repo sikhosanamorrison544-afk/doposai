@@ -18,11 +18,13 @@ ZIMBABWE_COA = [
     {"code": "1010", "name": "EcoCash Clearing Account", "type": "ASSET", "parent": None},
     {"code": "1011", "name": "OneMoney Clearing Account", "type": "ASSET", "parent": None},
     {"code": "1020", "name": "Bank Account", "type": "ASSET", "parent": None},
+    {"code": "1050", "name": "Cash Transfers / In Transit", "type": "ASSET", "parent": None},
     {"code": "1100", "name": "Accounts Receivable", "type": "ASSET", "parent": None},
     {"code": "1200", "name": "Inventory", "type": "ASSET", "parent": None},
     {"code": "1300", "name": "Fixed Assets", "type": "ASSET", "parent": None},
     {"code": "1301", "name": "Accumulated Depreciation", "type": "ASSET", "parent": "1300"},
     {"code": "1400", "name": "Prepaid Expenses", "type": "ASSET", "parent": None},
+    {"code": "1450", "name": "Cash Disbursement Clearing", "type": "ASSET", "parent": None},
     
     # LIABILITIES (2000-2999)
     {"code": "2000", "name": "Accounts Payable", "type": "LIABILITY", "parent": None},
@@ -35,6 +37,7 @@ ZIMBABWE_COA = [
     {"code": "3000", "name": "Owner's Equity", "type": "EQUITY", "parent": None},
     {"code": "3100", "name": "Retained Earnings", "type": "EQUITY", "parent": None},
     {"code": "3200", "name": "Current Year Earnings", "type": "EQUITY", "parent": None},
+    {"code": "3300", "name": "Owner Drawings", "type": "EQUITY", "parent": None},
     
     # INCOME (4000-4999)
     {"code": "4000", "name": "Sales Revenue", "type": "INCOME", "parent": None},

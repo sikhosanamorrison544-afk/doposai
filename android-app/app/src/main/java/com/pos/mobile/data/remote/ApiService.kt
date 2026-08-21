@@ -511,6 +511,7 @@ data class LaybyPaymentDto(
 data class WithdrawalCreateDto(
     val amount: Double,
     val reason: String,
+    val purpose: String? = null,
     val notes: String? = null,
     val salary_details: Map<String, String>? = null,
 )
@@ -520,6 +521,7 @@ data class WithdrawalDto(
     val cashier_name: String,
     val amount: Double,
     val reason: String,
+    val purpose: String? = null,
     val receipt_number: String? = null,
     val notes: String? = null,
 )

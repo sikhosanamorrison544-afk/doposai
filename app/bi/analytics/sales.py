@@ -8,6 +8,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ... import tenant_scope
+from ...finance_service import payment_method_net_totals, product_period_metrics
 from ...models import Payment, Product, Sale, SaleItem, User
 
 
@@ -84,16 +85,8 @@ def sales_metrics(
     sales_last = _revenue(prev_start, prev_end)
     change_pct = _pct_change(sales_this, sales_last)
 
-    payment_mix = (
-        db.query(Payment.method, func.sum(Payment.amount).label("amt"))
-        .join(Sale, Payment.sale_id == Sale.id)
-        .filter(
-            Sale.created_at >= start,
-            Sale.created_at < end,
-            tenant_scope.sale_tenant_match(user),
-        )
-        .group_by(Payment.method)
-        .all()
+    payment_mix = payment_method_net_totals(
+        db, user, start, end, end_exclusive=True
     )
 
     top_products = _top_products(db, user, start, end, limit=10, order="desc")
@@ -122,7 +115,7 @@ def sales_metrics(
         "transactions_this_period": _tx_count(start, end),
         "transactions_last_period": _tx_count(prev_start, prev_end),
         "average_ticket": round(sales_this / max(_tx_count(start, end), 1), 2),
-        "payment_mix": {r.method: float(r.amt or 0) for r in payment_mix},
+        "payment_mix": {k: float(v) for k, v in payment_mix.items()},
         "top_products": top_products,
         "worst_sellers": worst_products,
         "daily_revenue": [
@@ -141,39 +134,21 @@ def _top_products(
     limit: int,
     order: str,
 ) -> List[Dict[str, Any]]:
-    q = (
-        db.query(
-            Product.id,
-            Product.name,
-            Product.barcode,
-            func.sum(SaleItem.quantity).label("qty"),
-            func.sum(SaleItem.line_total).label("revenue"),
-        )
-        .join(SaleItem, SaleItem.product_id == Product.id)
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(
-            Sale.created_at >= start,
-            Sale.created_at < end,
-            Product.is_active == True,  # noqa: E712
-            tenant_scope.sale_tenant_match(user),
-            tenant_scope.product_tenant_match(user),
-        )
-        .group_by(Product.id, Product.name, Product.barcode)
+    rows = product_period_metrics(
+        db, user, start, end, end_exclusive=True, active_only=True
     )
-    if order == "desc":
-        q = q.order_by(func.sum(SaleItem.line_total).desc())
-    else:
-        q = q.order_by(func.sum(SaleItem.line_total).asc())
-    rows = q.limit(limit).all()
+    ranked = [r for r in rows if r.gross_units > 0 or r.net_units > 0]
+    reverse = order == "desc"
+    ranked.sort(key=lambda r: (r.net_revenue, r.net_units), reverse=reverse)
     return [
         {
-            "product_id": r.id,
+            "product_id": r.product_id,
             "name": r.name,
             "barcode": r.barcode,
-            "quantity_sold": float(r.qty or 0),
-            "revenue": float(r.revenue or 0),
+            "quantity_sold": float(r.net_units),
+            "revenue": float(r.net_revenue),
         }
-        for r in rows
+        for r in ranked[:limit]
     ]
 
 

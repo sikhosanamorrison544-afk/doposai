@@ -911,22 +911,20 @@ def reorder_suggestions(
     db: Session = Depends(get_db),
     user: User = Depends(dep_perm(Perm.VIEW_INVENTORY)),
 ):
-    from ..models import SaleItem
+    from ..finance_service import product_period_metrics
 
-    since = datetime.utcnow() - timedelta(days=days)
+    end = datetime.utcnow()
+    since = end - timedelta(days=days)
+    net_by_product = {
+        r.product_id: float(r.net_units)
+        for r in product_period_metrics(
+            db, user, since, end, end_exclusive=False, active_only=True
+        )
+    }
     products = filter_by_tenant(db.query(Product), Product, user).filter(Product.is_active == True).all()
     suggestions = []
     for p in products:
-        sold = (
-            db.query(func.coalesce(func.sum(SaleItem.quantity), 0))
-            .join(Sale, Sale.id == SaleItem.sale_id)
-            .filter(SaleItem.product_id == p.id, Sale.created_at >= since)
-        )
-        if user.tenant_id is not None:
-            sold = sold.filter(Sale.tenant_id == user.tenant_id)
-        else:
-            sold = sold.filter(Sale.tenant_id.is_(None))
-        total_sold = int(sold.scalar() or 0)
+        total_sold = int(net_by_product.get(p.id, 0))
         daily = total_sold / max(days, 1)
         weekly = daily * 7
         monthly = daily * 30

@@ -16,16 +16,22 @@ from sqlalchemy.orm import Session
 
 from . import tenant_scope
 from .cash_on_hand import compute_cash_on_hand
+from .currency_util import normalize_currency
 from .enterprise_models import Branch
+from .finance_service import (
+    approved_expenses_total,
+    approved_refunds_total,
+    payment_method_net_totals,
+    product_period_metrics,
+    refund_aware_gross_profit,
+)
 from .models import (
     Customer,
     Payment,
     Product,
-    Refund,
     Sale,
     SaleItem,
     User,
-    Withdrawal,
 )
 
 
@@ -111,38 +117,11 @@ def _sales_totals(db: Session, user: User, start: datetime, end: datetime, branc
     )
     revenue, discounts, count = _d(row[0]), _d(row[1]), int(row[2] or 0)
 
-    profit_row = (
-        db.query(
-            func.coalesce(
-                func.sum(SaleItem.line_total - (SaleItem.quantity * Product.cost_price)),
-                0,
-            )
-        )
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .join(Product, SaleItem.product_id == Product.id)
-        .filter(filt)
-        .filter(tenant_scope.product_tenant_match(user))
-        .scalar()
+    gross_profit = refund_aware_gross_profit(
+        db, user, start, end, branch_id=branch_id, sale_filter=filt
     )
-    gross_profit = _d(profit_row)
 
-    refund_q = (
-        db.query(func.coalesce(func.sum(Refund.amount), 0))
-        .join(Sale, Refund.sale_id == Sale.id)
-        .filter(
-            Refund.status == "approved",
-            Refund.created_at >= start,
-            Refund.created_at <= end,
-            tenant_scope.sale_tenant_match(user),
-        )
-    )
-    if user.tenant_id is None:
-        refund_q = refund_q.filter(Refund.tenant_id.is_(None))
-    else:
-        refund_q = refund_q.filter(Refund.tenant_id == user.tenant_id)
-    if branch_id is not None:
-        refund_q = refund_q.filter(Sale.branch_id == branch_id)
-    refunds = _d(refund_q.scalar())
+    refunds = approved_refunds_total(db, user, start, end, branch_id=branch_id)
 
     net_revenue = revenue - refunds
     return {
@@ -156,11 +135,10 @@ def _sales_totals(db: Session, user: User, start: datetime, end: datetime, branc
     }
 
 
-def _expenses(db: Session, user: User, start: datetime, end: datetime) -> Decimal:
-    q = tenant_scope.filter_withdrawals(db, user).filter(
-        Withdrawal.created_at >= start, Withdrawal.created_at <= end
-    )
-    return _d(q.with_entities(func.coalesce(func.sum(Withdrawal.amount), 0)).scalar())
+def _expenses(
+    db: Session, user: User, start: datetime, end: datetime, branch_id: Optional[int]
+) -> Decimal:
+    return approved_expenses_total(db, user, start, end, branch_id=branch_id)
 
 
 def _inventory_stats(db: Session, user: User) -> dict:
@@ -274,15 +252,13 @@ def _sales_trend(
 def _payment_breakdown(
     db: Session, user: User, start: datetime, end: datetime, branch_id: Optional[int]
 ) -> List[dict]:
-    filt = _sale_base_filter(user, start, end, branch_id)
-    rows = (
-        db.query(Payment.method, func.coalesce(func.sum(Payment.amount), 0))
-        .join(Sale, Payment.sale_id == Sale.id)
-        .filter(filt)
-        .group_by(Payment.method)
-        .all()
+    totals = payment_method_net_totals(
+        db, user, start, end, branch_id=branch_id, end_exclusive=False
     )
-    return [{"method": (r[0] or "unknown"), "amount": _f(r[1])} for r in rows]
+    return [
+        {"method": method, "amount": _f(amt)}
+        for method, amt in sorted(totals.items(), key=lambda x: x[0])
+    ]
 
 
 def _top_products(
@@ -293,31 +269,25 @@ def _top_products(
     branch_id: Optional[int],
     limit: int = 8,
 ) -> List[dict]:
-    filt = _sale_base_filter(user, start, end, branch_id)
-    rows = (
-        db.query(
-            Product.id,
-            Product.name,
-            func.coalesce(func.sum(SaleItem.quantity), 0),
-            func.coalesce(func.sum(SaleItem.line_total), 0),
-        )
-        .join(SaleItem, SaleItem.product_id == Product.id)
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(filt)
-        .filter(tenant_scope.product_tenant_match(user))
-        .group_by(Product.id, Product.name)
-        .order_by(func.sum(SaleItem.line_total).desc())
-        .limit(limit)
-        .all()
+    rows = product_period_metrics(
+        db,
+        user,
+        start,
+        end,
+        branch_id=branch_id,
+        end_exclusive=False,
+        active_only=True,
     )
+    ranked = [r for r in rows if r.gross_units > 0 or r.net_units > 0]
+    ranked.sort(key=lambda r: (r.net_revenue, r.net_units), reverse=True)
     return [
         {
-            "product_id": r[0],
-            "name": r[1],
-            "quantity": int(r[2] or 0),
-            "revenue": _f(r[3]),
+            "product_id": r.product_id,
+            "name": r.name,
+            "quantity": int(r.net_units),
+            "revenue": _f(r.net_revenue),
         }
-        for r in rows
+        for r in ranked[:limit]
     ]
 
 
@@ -406,7 +376,7 @@ def build_business_overview(
     to_date: Optional[str] = None,
     branch_id: Optional[int] = None,
 ) -> Dict[str, Any]:
-    today = date.today()
+    today = datetime.utcnow().date()
     to_d = _parse_date(to_date, today)
     from_d = _parse_date(from_date, today)
     if from_d > to_d:
@@ -421,11 +391,12 @@ def build_business_overview(
 
     store = tenant_scope.filter_store_settings(db, user).first()
     business_name = store.store_name if store else "Business"
+    currency = normalize_currency(getattr(store, "currency", None) if store else None)
 
     cur = _sales_totals(db, user, start, end, effective_branch)
     prev = _sales_totals(db, user, prev_start, prev_end, effective_branch)
-    expenses = _expenses(db, user, start, end)
-    prev_expenses = _expenses(db, user, prev_start, prev_end)
+    expenses = _expenses(db, user, start, end, effective_branch)
+    prev_expenses = _expenses(db, user, prev_start, prev_end, effective_branch)
     net = cur["gross_profit"] - expenses
     prev_net = prev["gross_profit"] - prev_expenses
     inv = _inventory_stats(db, user)
@@ -521,12 +492,12 @@ def build_business_overview(
         ),
         card(
             "expenses",
-            "Expenses (withdrawals)",
+            "Operating expenses",
             expenses,
             prev_expenses,
-            "/withdrawals/history",
+            "/expenses",
         ),
-        card("net_result", "Net operating result", net, prev_net, "/accounting"),
+        card("net_result", "Net profit", net, prev_net, "/accounting"),
         card(
             "atv",
             "Average transaction",
@@ -574,7 +545,7 @@ def build_business_overview(
         "business": {
             "name": business_name,
             "branch_name": branch_label,
-            "currency": "USD",
+            "currency": currency,
         },
         "period": {
             "from": from_d.isoformat(),
@@ -594,10 +565,12 @@ def build_business_overview(
             "cash_payments": _f(till["cash_payments"]),
             "cash_refunds": _f(till["cash_refunds"]),
             "withdrawals_total": _f(till["withdrawals_total"]),
+            "cash_expense_outflows": _f(till.get("cash_expense_outflows") or 0),
             "completed_sales": cur["completed_sales"],
             "gross_profit": _f(cur["gross_profit"]),
             "expenses": _f(expenses),
             "net_result": _f(net),
+            "net_profit": _f(net),
             "average_transaction_value": _f(cur["average_transaction_value"]),
             "low_stock_count": inv["low_stock_count"],
             "out_of_stock_count": inv["out_of_stock_count"],

@@ -306,6 +306,20 @@ async function processWithdrawal() {
             body: JSON.stringify({
                 amount: amount,
                 reason: finalReason,
+                purpose: (function () {
+                    const map = {
+                        'Owner draw': 'owner_draw',
+                        'Bank deposit': 'bank_deposit',
+                        'Cash transfer': 'cash_transfer',
+                        'Expense payment': 'expense_payment',
+                        'Cash adjustment': 'cash_adjustment',
+                        'Buying company assets': 'other',
+                        'Salary': 'expense_payment',
+                        'Daily expenses': 'expense_payment',
+                        'Other': 'other',
+                    };
+                    return map[reason] || null;
+                })(),
                 notes: notes || null,
                 salary_details: salaryDetails
             })

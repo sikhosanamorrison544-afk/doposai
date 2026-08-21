@@ -161,12 +161,19 @@ function filterAndRenderWithdrawals() {
         // Determine reason badge color
         let reasonBadgeColor = 'rgba(107, 114, 128, 0.3)';
         let reasonTextColor = '#9ca3af';
-        if (w.reason === 'Daily expenses') {
+        const purpose = w.purpose || '';
+        if (purpose === 'expense_payment' || w.reason === 'Daily expenses' || w.reason === 'Salary' || w.reason === 'Expense payment') {
             reasonBadgeColor = 'rgba(245, 158, 11, 0.3)';
             reasonTextColor = '#f59e0b';
         } else if (w.reason === 'Buying company assets') {
             reasonBadgeColor = 'rgba(59, 130, 246, 0.3)';
             reasonTextColor = '#3b82f6';
+        } else if (purpose === 'owner_draw') {
+            reasonBadgeColor = 'rgba(168, 85, 247, 0.3)';
+            reasonTextColor = '#a855f7';
+        } else if (purpose === 'bank_deposit') {
+            reasonBadgeColor = 'rgba(34, 197, 94, 0.3)';
+            reasonTextColor = '#22c55e';
         }
         
         tr.innerHTML = `
@@ -195,8 +202,11 @@ function filterAndRenderWithdrawals() {
 function updateWithdrawalTotals(withdrawals) {
     const totalCount = withdrawals.length;
     const totalAmount = withdrawals.reduce((sum, w) => sum + parseFloat(w.amount || 0), 0);
+    const expenseReasons = new Set([
+        'Daily expenses', 'Expense payment', 'Salary', 'Rent', 'Utilities',
+    ]);
     const expensesTotal = withdrawals
-        .filter(w => w.reason === 'Daily expenses')
+        .filter(w => w.purpose === 'expense_payment' || expenseReasons.has(w.reason))
         .reduce((sum, w) => sum + parseFloat(w.amount || 0), 0);
     const assetsTotal = withdrawals
         .filter(w => w.reason === 'Buying company assets')

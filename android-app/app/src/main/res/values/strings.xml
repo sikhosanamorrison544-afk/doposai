@@ -199,14 +199,14 @@
     <string name="withdrawal_title">Withdrawal</string>
     <string name="withdrawal_subtitle">Record a cash withdrawal from the till</string>
     <string name="withdrawal_amount">Amount</string>
-    <string name="withdrawal_reason">Reason</string>
+    <string name="withdrawal_reason">Purpose</string>
     <string name="withdrawal_other_reason">Specify reason</string>
     <string name="withdrawal_process_btn">Process withdrawal</string>
     <string name="withdrawal_history">View withdrawal history</string>
     <string name="withdrawal_requires_network">Withdrawals require an internet connection</string>
-    <string name="withdrawal_select_reason">Select reason…</string>
+    <string name="withdrawal_select_reason">Select purpose…</string>
     <string name="withdrawal_invalid_amount">Enter a valid amount</string>
-    <string name="withdrawal_reason_required">Select a reason</string>
+    <string name="withdrawal_reason_required">Select a purpose</string>
     <string name="withdrawal_other_required">Specify the reason</string>
     <string name="withdrawal_employee_required">Enter employee name</string>
     <string name="withdrawal_period_required">Enter salary period</string>

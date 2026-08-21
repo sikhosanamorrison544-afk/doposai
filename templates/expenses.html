@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="pos-build" content="{{ pos_build }}">
+    <script>window.__POS_BUILD__={{ pos_build|tojson }};</script>
+    <script src="/static/js/pos-client-boot.js?v={{ pos_build }}"></script>
+    <title>Expense Ledger - {{ store_name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="platform-motto" content="{{ platform_motto or 'Pecunia Non Olet' }}">
+    <link rel="stylesheet" href="/static/css/style.css?v=20260820u">
+    <link rel="stylesheet" href="/static/css/settings.css?v=3">
+    <style>
+        .expense-layout { max-width: 1100px; margin: 0 auto; padding: 16px; }
+        .expense-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+        @media (min-width: 900px) {
+            .expense-grid { grid-template-columns: 340px 1fr; }
+        }
+        .expense-card {
+            background: rgba(255,255,255,0.92);
+            border: 1px solid rgba(15,23,42,0.12);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .expense-card h2 { margin: 0 0 12px; font-size: 1.1rem; }
+        .expense-form label { display: block; margin: 10px 0 4px; font-size: 0.9rem; }
+        .expense-form input, .expense-form select, .expense-form textarea {
+            width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #cbd5e1;
+            box-sizing: border-box;
+        }
+        .expense-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+        .expense-table th, .expense-table td {
+            padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left;
+        }
+        .expense-table th { font-size: 0.8rem; color: #475569; }
+        .expense-status {
+            display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;
+            text-transform: uppercase; letter-spacing: 0.03em;
+        }
+        .expense-status.approved { background: #dcfce7; color: #166534; }
+        .expense-status.draft, .expense-status.pending { background: #fef9c3; color: #854d0e; }
+        .expense-status.rejected, .expense-status.voided { background: #fee2e2; color: #991b1b; }
+        .expense-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+        .expense-note { font-size: 0.85rem; color: #64748b; margin: 0 0 12px; }
+        #expense-message { margin-top: 10px; min-height: 1.2em; }
+    </style>
+</head>
+<body class="page-expenses" data-settings-chrome="compact">
+<video id="light-theme-video" autoplay loop muted playsinline preload="none" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; pointer-events: none; display: none;">
+    <source src="/static/background-web.mp4" type="video/mp4">
+</video>
+<script src="/static/js/light-theme-video.js?v=4"></script>
+<div id="app" class="screen active">
+    <header class="top-bar settings-top-bar">
+        <div class="top-bar-brand">
+            <div class="shop-name break-long">{{ store_name }} — Expenses</div>
+            <span class="platform-motto">{{ platform_motto or 'Pecunia Non Olet' }}</span>
+        </div>
+        <div class="top-bar-right">
+            <button class="small" type="button" onclick="window.location.href='/overview'">Back to Overview</button>
+        </div>
+    </header>
+    <main class="expense-layout">
+        <p class="expense-note">
+            Record operating costs (rent, utilities, wages, etc.). Cash withdrawals remain on
+            <a href="/withdrawals/history">Withdrawal history</a> and are not treated as P&amp;L expenses.
+            Stock purchases belong in inventory / COGS, not here.
+        </p>
+        <div class="expense-grid">
+            <section class="expense-card">
+                <h2>Add expense</h2>
+                <form id="expense-form" class="expense-form">
+                    <label for="expense-date">Date</label>
+                    <input type="date" id="expense-date" required>
+                    <label for="expense-category">Category</label>
+                    <select id="expense-category" required></select>
+                    <label for="expense-description">Description</label>
+                    <input type="text" id="expense-description" maxlength="500" required>
+                    <label for="expense-amount">Amount</label>
+                    <input type="number" id="expense-amount" min="0.01" step="0.01" required>
+                    <label for="expense-method">Payment method</label>
+                    <select id="expense-method">
+                        <option value="cash">Cash</option>
+                        <option value="mobile_money">Mobile money</option>
+                        <option value="card">Card</option>
+                        <option value="bank_transfer">Bank transfer</option>
+                        <option value="other">Other</option>
+                    </select>
+                    <label for="expense-payee">Supplier / payee (optional)</label>
+                    <input type="text" id="expense-payee" maxlength="200">
+                    <label for="expense-reference">Reference (optional)</label>
+                    <input type="text" id="expense-reference" maxlength="120">
+                    <label for="expense-notes">Notes (optional)</label>
+                    <textarea id="expense-notes" rows="2"></textarea>
+                    <div class="expense-actions">
+                        <button type="submit" class="primary small" id="btn-save-expense">Save &amp; approve</button>
+                    </div>
+                    <div id="expense-message" class="info" role="status"></div>
+                </form>
+            </section>
+            <section class="expense-card">
+                <h2>Ledger</h2>
+                <div class="expense-actions" style="margin-top:0;">
+                    <label for="expense-filter-status" style="margin:0;">Status</label>
+                    <select id="expense-filter-status" style="width:auto;min-width:140px;">
+                        <option value="">All</option>
+                        <option value="approved" selected>Approved</option>
+                        <option value="draft">Draft</option>
+                        <option value="voided">Voided</option>
+                        <option value="rejected">Rejected</option>
+                    </select>
+                    <button type="button" class="small" id="btn-refresh-expenses">Refresh</button>
+                </div>
+                <div style="overflow-x:auto;margin-top:12px;">
+                    <table class="expense-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Category</th>
+                                <th>Description</th>
+                                <th style="text-align:right;">Amount</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="expenses-body"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+<script src="/static/js/store-branding.js?v=2"></script>
+<script src="/static/js/expenses.js?v=1"></script>
+</body>
+</html>

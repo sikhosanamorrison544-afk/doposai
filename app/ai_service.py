@@ -423,70 +423,45 @@ class AIService:
             # Aggregate current period data
             current_total = sum(float(sale.total) for sale in current_sales)
             current_count = len(current_sales)
-            current_items_q = (
-                db.query(
-                SaleItem.product_id,
-                Product.name,
-                func.sum(SaleItem.quantity).label('total_qty'),
-                func.sum(SaleItem.line_total).label('total_revenue')
-            ).join(
-                Product, SaleItem.product_id == Product.id
-            ).join(
-                Sale, SaleItem.sale_id == Sale.id
-            ).filter(
-                and_(
-                    Sale.created_at >= start_date,
-                    Sale.created_at < end_date
-                )
-            )
-            )
+            # Refund-aware product rankings (same contract as dashboard analytics).
+            from .finance_service import product_period_metrics
+
             if user is not None:
-                current_items_q = current_items_q.filter(
-                    tenant_scope.sale_tenant_match(user),
-                    tenant_scope.product_tenant_match(user),
+                current_metrics = product_period_metrics(
+                    db,
+                    user,
+                    start_date,
+                    end_date,
+                    end_exclusive=True,
+                    active_only=True,
                 )
-            current_items = (
-                current_items_q.group_by(
-                SaleItem.product_id, Product.name
-            ).order_by(
-                desc('total_revenue')
-            ).limit(20).all()
-            )
+                current_metrics.sort(
+                    key=lambda r: (r.net_revenue, r.net_units), reverse=True
+                )
+                current_items = current_metrics[:20]
+            else:
+                current_items = []
             
             # Aggregate previous period data
             previous_total = sum(float(sale.total) for sale in previous_sales)
             previous_count = len(previous_sales)
             
-            # Get top products from previous period
-            previous_items_q = (
-                db.query(
-                SaleItem.product_id,
-                Product.name,
-                func.sum(SaleItem.quantity).label('total_qty'),
-                func.sum(SaleItem.line_total).label('total_revenue')
-            ).join(
-                Product, SaleItem.product_id == Product.id
-            ).join(
-                Sale, SaleItem.sale_id == Sale.id
-            ).filter(
-                and_(
-                    Sale.created_at >= comparison_start,
-                    Sale.created_at < start_date
-                )
-            )
-            )
+            # Get top products from previous period (refund-aware)
             if user is not None:
-                previous_items_q = previous_items_q.filter(
-                    tenant_scope.sale_tenant_match(user),
-                    tenant_scope.product_tenant_match(user),
+                previous_metrics = product_period_metrics(
+                    db,
+                    user,
+                    comparison_start,
+                    start_date,
+                    end_exclusive=True,
+                    active_only=True,
                 )
-            previous_items = (
-                previous_items_q.group_by(
-                SaleItem.product_id, Product.name
-            ).order_by(
-                desc('total_revenue')
-            ).limit(20).all()
-            )
+                previous_metrics.sort(
+                    key=lambda r: (r.net_revenue, r.net_units), reverse=True
+                )
+                previous_items = previous_metrics[:20]
+            else:
+                previous_items = []
             
             # Get withdrawals (expenses)
             wd_q = db.query(Withdrawal).filter(
@@ -506,12 +481,12 @@ class AIService:
             
             total_withdrawals = sum(float(w.amount) for w in withdrawals)
             
-            # Format data for AI
+            # Format data for AI (net units/revenue after approved refunds)
             current_products = [
                 {
                     "name": item.name,
-                    "quantity": int(item.total_qty),
-                    "revenue": float(item.total_revenue)
+                    "quantity": int(item.net_units),
+                    "revenue": float(item.net_revenue),
                 }
                 for item in current_items
             ]
@@ -519,8 +494,8 @@ class AIService:
             previous_products = [
                 {
                     "name": item.name,
-                    "quantity": int(item.total_qty),
-                    "revenue": float(item.total_revenue)
+                    "quantity": int(item.net_units),
+                    "revenue": float(item.net_revenue),
                 }
                 for item in previous_items
             ]
@@ -957,54 +932,48 @@ Be thorough, specific, and provide actionable insights based on the actual data 
         previous_revenue = float(prev_sales_data.revenue or 0)
         revenue_growth = ((revenue - previous_revenue) / previous_revenue * 100) if previous_revenue > 0 else 0
         
-        # 5. Top products with cost_price for profit calculation
-        top_q = (
-            db.query(
-            SaleItem.product_id,
-            Product.name,
-            func.sum(SaleItem.quantity).label('total_qty'),
-            func.sum(SaleItem.line_total).label('total_revenue'),
-            Product.selling_price,
-            Product.cost_price,
-            Product.stock_qty
-        ).join(
-            Product, SaleItem.product_id == Product.id
-        ).join(
-            Sale, SaleItem.sale_id == Sale.id
-        ).filter(
-            and_(Sale.created_at >= start_date, Sale.created_at < end_date)
-        )
-        )
-        if user is not None:
-            top_q = top_q.filter(
-                tenant_scope.sale_tenant_match(user),
-                tenant_scope.product_tenant_match(user),
-            )
-        top_products_query = (
-            top_q.group_by(
-            SaleItem.product_id, Product.name, Product.selling_price, Product.cost_price, Product.stock_qty
-        ).order_by(
-            desc('total_revenue')
-        ).limit(15).all()
-        )
-        
+        # 5. Top products — refund-aware nets + catalog prices for stock context only
+        from .finance_service import product_period_metrics
+
         all_products_data = []
-        for item in top_products_query:
-            selling_price = float(item.selling_price or 0)
-            cost_price = float(item.cost_price or 0)
-            profit_per_unit = selling_price - cost_price
-            profit_percentage = (profit_per_unit / selling_price * 100) if selling_price > 0 else 0
-            
-            all_products_data.append({
-                "name": item.name,
-                "selling_price": selling_price,
-                "cost_price": cost_price,
-                "profit_per_unit": profit_per_unit,
-                "profit_percentage": profit_percentage,
-                "stock_qty": float(item.stock_qty or 0),
-                "quantity_sold": float(item.total_qty or 0),
-                "total_revenue": float(item.total_revenue or 0)
-            })
+        if user is not None:
+            metrics = product_period_metrics(
+                db,
+                user,
+                start_date,
+                end_date,
+                end_exclusive=True,
+                active_only=True,
+            )
+            metrics.sort(key=lambda r: (r.net_revenue, r.net_units), reverse=True)
+            product_ids = [r.product_id for r in metrics[:15]]
+            catalog = {
+                p.id: p
+                for p in db.query(Product).filter(Product.id.in_(product_ids)).all()
+            } if product_ids else {}
+            for r in metrics[:15]:
+                p = catalog.get(r.product_id)
+                selling_price = float(p.selling_price or 0) if p else 0.0
+                cost_price = float(p.cost_price or 0) if p else 0.0
+                # Unit margin from catalog is stock/pricing context; sold profit uses nets.
+                profit_per_unit = selling_price - cost_price
+                profit_percentage = (
+                    (profit_per_unit / selling_price * 100) if selling_price > 0 else 0
+                )
+                all_products_data.append(
+                    {
+                        "name": r.name,
+                        "selling_price": selling_price,
+                        "cost_price": cost_price,
+                        "profit_per_unit": profit_per_unit,
+                        "profit_percentage": profit_percentage,
+                        "stock_qty": float(p.stock_qty or 0) if p else 0.0,
+                        "quantity_sold": float(r.net_units),
+                        "total_revenue": float(r.net_revenue),
+                        "net_gross_profit": float(r.net_gross_profit),
+                        "basis": "net_after_approved_refunds",
+                    }
+                )
         
         # 6. All product names for matching
         ap_q = db.query(Product.name).filter(Product.is_active == True)  # noqa: E712

@@ -14,7 +14,7 @@ from .accounting_models import (
     ChartOfAccount, JournalEntry, JournalEntryLine, AccountingPeriod,
     ExpenseAccountMapping, FixedAsset, AssetDepreciationSchedule
 )
-from .models import Sale, SaleItem, Payment, Product, Withdrawal, Refund
+from .models import Expense, Payment, Product, Refund, Sale, SaleItem, Withdrawal
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +161,8 @@ class AccountingEngine:
             )
             self.db.add(entry_line)
 
+        self.db.flush()
+        self.db.refresh(journal_entry)
         logger.info(f"Created journal entry {entry_number}: {description}")
         return journal_entry
 
@@ -256,8 +258,11 @@ class AccountingEngine:
             for item in sale_items:
                 product = self.db.get(Product, item.product_id)
                 if product:
-                    # Weighted Average Cost method
-                    cogs_per_unit = product.cost_price
+                    # Prefer historical unit_cost snapshot on the sale line
+                    if getattr(item, "unit_cost", None) is not None:
+                        cogs_per_unit = Decimal(str(item.unit_cost))
+                    else:
+                        cogs_per_unit = Decimal(str(product.cost_price))
                     cogs_for_item = cogs_per_unit * Decimal(str(item.quantity))
                     total_cogs += cogs_for_item
 
@@ -297,49 +302,78 @@ class AccountingEngine:
 
     def post_withdrawal(self, withdrawal: Withdrawal) -> JournalEntry:
         """
-        Post a withdrawal/expense transaction to accounting.
-        
-        Journal Entries:
-        - Dr. Expense Account (based on reason mapping)
-        - Cr. Cash
+        Post a cash withdrawal by purpose — not every removal is an owner drawing.
+
+        Always: Cr Cash (1000)
+        Debit depends on purpose (see withdrawal_purpose.PURPOSE_DEBIT_ACCOUNT):
+          owner_draw       → 3300 Owner Drawings
+          bank_deposit     → 1020 Bank
+          cash_transfer    → 1050 Cash Transfers
+          expense_payment  → 1450 Clearing (not P&L — use Expense ledger for costs)
+          cash_adjustment  → 1450 Clearing
+          other/unclassified → 1450 Clearing
         """
+        from .withdrawal_purpose import (
+            PURPOSE_LABELS,
+            debit_account_for_purpose,
+            resolve_purpose,
+        )
+
         try:
-            # Get expense account for this withdrawal reason
-            mapping = self.db.query(ExpenseAccountMapping).filter(
-                ExpenseAccountMapping.reason == withdrawal.reason
-            ).first()
+            purpose = resolve_purpose(
+                purpose=getattr(withdrawal, "purpose", None),
+                reason=withdrawal.reason,
+            )
+            # Persist resolved purpose when missing (historical / omitted)
+            if not getattr(withdrawal, "purpose", None):
+                withdrawal.purpose = purpose
 
-            if not mapping:
-                # Default to "Operating Expenses" if no mapping found
-                expense_account = self.get_account_by_code("6000")
-                if not expense_account:
-                    raise ValueError("Default expense account (6000) not found. Please initialize Chart of Accounts.")
-            else:
-                expense_account = mapping.account
+            debit_code = debit_account_for_purpose(purpose)
+            debit_account = self.get_account_by_code(debit_code)
+            if not debit_account:
+                # Fallbacks if CoA not fully migrated
+                fallbacks = {
+                    "3300": "3000",
+                    "1050": "1020",
+                    "1450": "1400",
+                }
+                alt = fallbacks.get(debit_code)
+                debit_account = self.get_account_by_code(alt) if alt else None
+            if not debit_account:
+                raise ValueError(
+                    f"Account {debit_code} not found for withdrawal purpose '{purpose}'. "
+                    "Initialize or migrate Chart of Accounts."
+                )
 
+            purpose_label = PURPOSE_LABELS.get(purpose, purpose)
             lines = [
                 {
-                    "account_code": expense_account.code,
+                    "account_code": debit_account.code,
                     "debit": withdrawal.amount,
                     "credit": 0,
-                    "description": f"{withdrawal.reason} - {withdrawal.notes or ''}"
+                    "description": (
+                        f"{purpose_label}: {withdrawal.reason}"
+                        + (f" — {withdrawal.notes}" if withdrawal.notes else "")
+                    ).strip(),
                 },
                 {
-                    "account_code": "1000",  # Cash
+                    "account_code": "1000",
                     "debit": 0,
                     "credit": withdrawal.amount,
-                    "description": f"Cash withdrawal for {withdrawal.reason}"
-                }
+                    "description": f"Cash removed from till ({purpose_label})",
+                },
             ]
 
-            description = f"Withdrawal #{withdrawal.id} - {withdrawal.reason}"
+            description = (
+                f"Withdrawal #{withdrawal.id} [{purpose}] — {withdrawal.reason}"
+            )
             journal_entry = self.create_journal_entry(
                 entry_date=withdrawal.created_at,
                 description=description,
                 lines=lines,
                 reference_type="WITHDRAWAL",
                 reference_id=withdrawal.id,
-                created_by=withdrawal.cashier_id
+                created_by=withdrawal.cashier_id,
             )
 
             return journal_entry
@@ -348,17 +382,125 @@ class AccountingEngine:
             logger.error(f"Error posting withdrawal {withdrawal.id} to accounting: {e}", exc_info=True)
             raise
 
+    def post_expense(self, expense: Expense) -> JournalEntry:
+        """
+        Post an approved operating Expense to P&L.
+
+        Journal:
+        - Dr. Expense account (by category)
+        - Cr. Cash / Bank / Clearing based on payment_method
+        """
+        from .expense_service import account_code_for_category
+
+        try:
+            expense_code = account_code_for_category(expense.category)
+            expense_account = self.get_account_by_code(expense_code) or self.get_account_by_code(
+                "6000"
+            )
+            if not expense_account:
+                raise ValueError("Expense account not found. Initialize Chart of Accounts.")
+
+            credit_map = {
+                "cash": "1000",
+                "mobile_money": "1010",
+                "card": "1020",
+                "bank_transfer": "1020",
+                "other": "1000",
+            }
+            credit_code = credit_map.get(expense.payment_method, "1000")
+            if not self.get_account_by_code(credit_code):
+                credit_code = "1000"
+
+            lines = [
+                {
+                    "account_code": expense_account.code,
+                    "debit": expense.amount,
+                    "credit": 0,
+                    "description": f"{expense.category}: {expense.description}",
+                },
+                {
+                    "account_code": credit_code,
+                    "debit": 0,
+                    "credit": expense.amount,
+                    "description": f"Payment for expense #{expense.id}",
+                },
+            ]
+
+            return self.create_journal_entry(
+                entry_date=expense.expense_date or datetime.utcnow(),
+                description=f"Expense #{expense.id} — {expense.description}",
+                lines=lines,
+                reference_type="EXPENSE",
+                reference_id=expense.id,
+                created_by=expense.created_by,
+            )
+        except Exception as e:
+            logger.error(f"Error posting expense {expense.id} to accounting: {e}", exc_info=True)
+            raise
+
+    def reverse_expense(self, expense: Expense, *, created_by: Optional[int] = None) -> JournalEntry:
+        """
+        Reverse a previously posted EXPENSE journal (void).
+
+        Swaps debits/credits of the original entry. Idempotency is enforced by the caller
+        checking for an existing EXPENSE_VOID reference.
+        """
+        original = (
+            self.db.query(JournalEntry)
+            .filter(
+                JournalEntry.reference_type == "EXPENSE",
+                JournalEntry.reference_id == expense.id,
+            )
+            .first()
+        )
+        if not original:
+            raise ValueError(f"No EXPENSE journal found to reverse for expense {expense.id}")
+
+        lines = []
+        for line in original.lines:
+            code = line.account.code if line.account else None
+            if not code:
+                acc = self.db.get(ChartOfAccount, line.account_id)
+                code = acc.code if acc else None
+            if not code:
+                continue
+            lines.append(
+                {
+                    "account_code": code,
+                    "debit": line.credit_amount,
+                    "credit": line.debit_amount,
+                    "description": f"Void expense #{expense.id}",
+                }
+            )
+        if not lines:
+            raise ValueError(f"Original expense journal {original.id} has no lines")
+
+        return self.create_journal_entry(
+            entry_date=datetime.utcnow(),
+            description=f"Void expense #{expense.id} — {expense.description}",
+            lines=lines,
+            reference_type="EXPENSE_VOID",
+            reference_id=expense.id,
+            created_by=created_by or expense.approved_by or expense.created_by,
+        )
+
     def post_refund(self, refund: Refund) -> JournalEntry:
         """
         Post an approved refund — reverse of sale for the refunded amount/items.
 
-        Journal Entries:
-        - Cr. Cash/Bank/Mobile Money (money returned to customer)
-        - Dr. Sales Revenue
-        - Dr. Output VAT (if applicable)
-        - Dr. Inventory
-        - Cr. COGS
+        Idempotent: if a REFUND journal already exists for this refund id, return it.
         """
+        existing = (
+            self.db.query(JournalEntry)
+            .filter(
+                JournalEntry.reference_type == "REFUND",
+                JournalEntry.reference_id == refund.id,
+            )
+            .first()
+        )
+        if existing is not None:
+            return existing
+
         try:
             if hasattr(refund, "items") and refund.items:
                 refund_items = refund.items
@@ -398,9 +540,13 @@ class AccountingEngine:
 
             total_cogs = Decimal("0")
             for item in refund_items:
-                product = self.db.get(Product, item.product_id)
-                if product:
-                    total_cogs += Decimal(str(product.cost_price)) * Decimal(str(item.quantity))
+                sale_item = self.db.get(SaleItem, item.sale_item_id) if item.sale_item_id else None
+                if sale_item is not None and getattr(sale_item, "unit_cost", None) is not None:
+                    unit_cost = Decimal(str(sale_item.unit_cost))
+                else:
+                    product = self.db.get(Product, item.product_id)
+                    unit_cost = Decimal(str(product.cost_price)) if product else Decimal("0")
+                total_cogs += unit_cost * Decimal(str(item.quantity))
 
             if total_cogs > 0:
                 lines.append(

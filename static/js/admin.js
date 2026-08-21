@@ -1151,6 +1151,28 @@ function applyStoreSettingsToForm(settings) {
     if (defaultLowStockThresholdEl) {
         defaultLowStockThresholdEl.value = settings.default_low_stock_threshold || 10;
     }
+
+    const currency = (settings.currency || 'USD').toUpperCase();
+    const currencySel = document.getElementById('store-currency');
+    const currencyCustom = document.getElementById('store-currency-custom');
+    if (currencySel) {
+        const known = Array.from(currencySel.options).some(function (o) {
+            return o.value === currency;
+        });
+        if (known) {
+            currencySel.value = currency;
+            if (currencyCustom) {
+                currencyCustom.style.display = 'none';
+                currencyCustom.value = '';
+            }
+        } else {
+            currencySel.value = 'other';
+            if (currencyCustom) {
+                currencyCustom.style.display = '';
+                currencyCustom.value = currency;
+            }
+        }
+    }
 }
 
 function applyStoreSettingsGlobally(settings) {
@@ -1199,6 +1221,21 @@ async function saveStoreSettings() {
     const lowStockEmailEnabled = document.getElementById('low-stock-email-enabled').checked;
     const defaultLowStockThreshold = parseFloat(document.getElementById('default-low-stock-threshold').value) || 10.0;
 
+    let currency = 'USD';
+    const currencySel = document.getElementById('store-currency');
+    const currencyCustom = document.getElementById('store-currency-custom');
+    if (currencySel) {
+        if (currencySel.value === 'other') {
+            currency = ((currencyCustom && currencyCustom.value) || '').trim().toUpperCase();
+        } else {
+            currency = currencySel.value;
+        }
+    }
+    if (!/^[A-Z]{3}$/.test(currency)) {
+        msg.textContent = 'Currency must be a 3-letter code (e.g. USD, ZAR)';
+        return;
+    }
+
     const payload = {
         store_name: storeName,
         store_phone: storePhone,
@@ -1206,6 +1243,7 @@ async function saveStoreSettings() {
         notification_email: notificationEmail,
         low_stock_email_enabled: lowStockEmailEnabled,
         default_low_stock_threshold: defaultLowStockThreshold,
+        currency: currency,
     };
 
     try {
@@ -2148,8 +2186,11 @@ function filterAndRenderWithdrawals() {
 function updateWithdrawalTotals(withdrawals) {
     const totalCount = withdrawals.length;
     const totalAmount = withdrawals.reduce((sum, w) => sum + parseFloat(w.amount || 0), 0);
+    const expenseReasons = new Set([
+        'Daily expenses', 'Expense payment', 'Salary', 'Rent', 'Utilities',
+    ]);
     const expensesTotal = withdrawals
-        .filter(w => w.reason === 'Daily expenses')
+        .filter(w => w.purpose === 'expense_payment' || expenseReasons.has(w.reason))
         .reduce((sum, w) => sum + parseFloat(w.amount || 0), 0);
     const assetsTotal = withdrawals
         .filter(w => w.reason === 'Buying company assets')
@@ -3179,6 +3220,13 @@ function setupAdminEvents() {
     const btnSaveSettings = document.getElementById('btn-save-settings');
     if (btnSaveSettings) {
         btnSaveSettings.addEventListener('click', saveStoreSettings);
+    }
+    const currencySel = document.getElementById('store-currency');
+    const currencyCustom = document.getElementById('store-currency-custom');
+    if (currencySel && currencyCustom) {
+        currencySel.addEventListener('change', function () {
+            currencyCustom.style.display = currencySel.value === 'other' ? '' : 'none';
+        });
     }
     
     const btnAddCashier = document.getElementById('btn-add-cashier');

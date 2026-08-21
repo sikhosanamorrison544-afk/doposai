@@ -235,6 +235,7 @@ class AccountingReports:
             JournalEntry, JournalEntryLine.journal_entry_id == JournalEntry.id
         ).filter(
             ChartOfAccount.account_type == "EXPENSE",
+            ChartOfAccount.code != "5000",  # COGS counted separately — avoid double-counting in net
             ChartOfAccount.is_active == True,
             JournalEntry.is_posted == True,
             JournalEntry.entry_date >= start_date,

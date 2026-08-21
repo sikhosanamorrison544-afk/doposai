@@ -38,7 +38,11 @@ class WithdrawalActivity : BaseNativeActivity() {
 
         val reasons = listOf(
             getString(R.string.withdrawal_select_reason),
-            "Daily expenses",
+            "Owner draw",
+            "Bank deposit",
+            "Cash transfer",
+            "Expense payment",
+            "Cash adjustment",
             "Buying company assets",
             "Salary",
             "Other",
@@ -93,6 +97,15 @@ class WithdrawalActivity : BaseNativeActivity() {
 
     private fun submitWithdrawal(amount: Double, reasonLabel: String, otherReason: String, notes: String?) {
         val finalReason = if (reasonLabel == "Other") otherReason else reasonLabel
+        val purpose = when (reasonLabel) {
+            "Owner draw" -> "owner_draw"
+            "Bank deposit" -> "bank_deposit"
+            "Cash transfer" -> "cash_transfer"
+            "Expense payment", "Salary", "Daily expenses" -> "expense_payment"
+            "Cash adjustment" -> "cash_adjustment"
+            "Buying company assets" -> "other"
+            else -> "other"
+        }
         val salaryDetails = if (reasonLabel == "Salary") {
             mapOf(
                 "employee_name" to findViewById<TextInputEditText>(R.id.salary_employee_name).text.toString().trim(),
@@ -123,6 +136,7 @@ class WithdrawalActivity : BaseNativeActivity() {
                         WithdrawalCreateDto(
                             amount = amount,
                             reason = finalReason,
+                            purpose = purpose,
                             notes = notes?.ifBlank { null },
                             salary_details = salaryDetails,
                         ),

@@ -21,7 +21,8 @@ COPY alembic ./alembic
 COPY static ./static
 COPY templates ./templates
 COPY scripts ./scripts
-COPY migrate_billing_paynow.py ./migrate_billing_paynow.py
+# Startup migrations (see scripts/render_start.sh) — must be present in the image.
+COPY migrate_*.py ./
 
 RUN chmod +x scripts/render_start.sh
 RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
@@ -29,4 +30,5 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]
+# Prefer render_start.sh so background migrations run before workers bind.
+CMD ["sh", "scripts/render_start.sh"]

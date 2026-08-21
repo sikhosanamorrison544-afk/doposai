@@ -7,9 +7,11 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Query, Session, aliased
 
 from .models import (
+    CashMovement,
     CashierShift,
     Category,
     Customer,
+    Expense,
     LaybyCustomer,
     LaybyTransaction,
     Notification,
@@ -66,6 +68,14 @@ def filter_shifts(db: Session, user: User) -> Query:
 
 def filter_withdrawals(db: Session, user: User) -> Query:
     return filter_by_tenant(db.query(Withdrawal), Withdrawal, user)
+
+
+def filter_expenses(db: Session, user: User) -> Query:
+    return filter_by_tenant(db.query(Expense), Expense, user)
+
+
+def filter_cash_movements(db: Session, user: User) -> Query:
+    return filter_by_tenant(db.query(CashMovement), CashMovement, user)
 
 
 def filter_refunds(db: Session, user: User) -> Query:

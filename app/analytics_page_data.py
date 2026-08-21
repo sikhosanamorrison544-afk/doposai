@@ -1,4 +1,4 @@
-"""Analytics page queries — one round-trip, bounded work, Postgres statement timeout."""
+"""Analytics page queries — refund-aware product rankings and revenue."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -9,6 +9,7 @@ from sqlalchemy import and_, exists, func, select, text
 from sqlalchemy.orm import Session
 
 from app import tenant_scope
+from app.finance_service import product_period_metrics
 from app.models import Product, Sale, SaleItem
 
 
@@ -37,29 +38,11 @@ def _recent_sale_exists(cutoff: datetime, current_user: Any):
     )
 
 
-def _product_sales_agg(db: Session, current_user: Any, cutoff: datetime):
-    return (
-        db.query(
-            Product.id,
-            Product.name,
-            Product.barcode,
-            func.sum(SaleItem.quantity).label("total_quantity"),
-            func.sum(SaleItem.line_total).label("total_revenue"),
-            func.sum(
-                SaleItem.line_total - (SaleItem.quantity * Product.cost_price)
-            ).label("total_profit"),
-        )
-        .join(SaleItem, SaleItem.product_id == Product.id)
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(Sale.created_at >= cutoff)
-        .filter(
-            and_(
-                tenant_scope.sale_tenant_match(current_user),
-                tenant_scope.product_tenant_match(current_user),
-            )
-        )
-        .filter(Product.is_active == True)  # noqa: E712
-        .group_by(Product.id, Product.name, Product.barcode)
+def _period_product_rows(db: Session, current_user: Any, cutoff: datetime):
+    """Refund-aware product metrics from cutoff → now (closed end)."""
+    now = datetime.utcnow()
+    return product_period_metrics(
+        db, current_user, cutoff, now, end_exclusive=False, active_only=True
     )
 
 
@@ -68,24 +51,22 @@ def build_dashboard_summary(
 ) -> dict:
     """fast=True skips full-table counts (used by /api/analytics/bootstrap on Render)."""
     cutoff = _cutoff(days)
-    sale_filters = and_(
-        Sale.created_at >= cutoff,
-        tenant_scope.sale_tenant_match(current_user),
+    rows = _period_product_rows(db, current_user, cutoff)
+
+    with_sales = [r for r in rows if r.gross_units > 0 or r.net_units > 0]
+    top_product = (
+        max(with_sales, key=lambda r: (r.net_units, r.net_revenue))
+        if with_sales
+        else None
+    )
+    least_product = (
+        min(with_sales, key=lambda r: (r.net_units, r.net_revenue))
+        if with_sales
+        else None
     )
 
-    totals = (
-        db.query(
-            func.coalesce(func.sum(SaleItem.line_total), 0).label("total_revenue"),
-            func.count(func.distinct(SaleItem.product_id)).label("products_sold"),
-        )
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(sale_filters)
-        .first()
-    )
-
-    agg = _product_sales_agg(db, current_user, cutoff)
-    top_product = agg.order_by(func.sum(SaleItem.quantity).desc()).first()
-    least_product = agg.order_by(func.sum(SaleItem.quantity).asc()).first()
+    total_revenue = sum((r.net_revenue for r in rows), Decimal("0"))
+    products_sold = sum(1 for r in rows if r.net_units > 0)
 
     zero_sales_count = None
     total_active_products = None
@@ -108,22 +89,22 @@ def build_dashboard_summary(
     return {
         "period_days": days,
         "top_selling": {
-            "product_id": top_product.id if top_product else None,
+            "product_id": top_product.product_id if top_product else None,
             "product_name": top_product.name if top_product else None,
             "barcode": top_product.barcode if top_product else None,
-            "quantity_sold": int(top_product.total_quantity or 0) if top_product else 0,
-            "revenue": float(top_product.total_revenue or 0) if top_product else 0.0,
+            "quantity_sold": int(top_product.net_units) if top_product else 0,
+            "revenue": float(top_product.net_revenue) if top_product else 0.0,
         },
         "least_selling": {
-            "product_id": least_product.id if least_product else None,
+            "product_id": least_product.product_id if least_product else None,
             "product_name": least_product.name if least_product else None,
             "barcode": least_product.barcode if least_product else None,
-            "quantity_sold": int(least_product.total_quantity or 0) if least_product else 0,
-            "revenue": float(least_product.total_revenue or 0) if least_product else 0.0,
+            "quantity_sold": int(least_product.net_units) if least_product else 0,
+            "revenue": float(least_product.net_revenue) if least_product else 0.0,
         },
         "summary": {
-            "total_revenue": float(totals.total_revenue or 0) if totals else 0.0,
-            "total_products_sold": int(totals.products_sold or 0) if totals else 0,
+            "total_revenue": float(total_revenue),
+            "total_products_sold": int(products_sold),
             "total_active_products": total_active_products or 0,
             "zero_sales_count": zero_sales_count or 0,
         },
@@ -134,45 +115,24 @@ def fetch_revenue_per_product_rows(
     db: Session, current_user: Any, days: int, limit: int
 ) -> List[dict]:
     cutoff = _cutoff(days)
-    results = (
-        db.query(
-            Product.id,
-            Product.name,
-            Product.barcode,
-            func.sum(SaleItem.quantity).label("total_quantity"),
-            func.sum(SaleItem.line_total).label("total_revenue"),
-            func.sum(
-                SaleItem.line_total - (SaleItem.quantity * Product.cost_price)
-            ).label("total_profit"),
-            func.count(SaleItem.id).label("sale_count"),
+    rows = _period_product_rows(db, current_user, cutoff)
+    rows.sort(key=lambda r: r.net_revenue, reverse=True)
+    out: List[dict] = []
+    for r in rows[:limit]:
+        if r.gross_units <= 0 and r.refunded_units <= 0:
+            continue
+        out.append(
+            {
+                "product_id": r.product_id,
+                "product_name": r.name,
+                "barcode": r.barcode,
+                "total_quantity_sold": int(r.net_units),
+                "total_revenue": r.net_revenue,
+                "total_profit": r.net_gross_profit,
+                "sale_count": int(r.sale_line_count),
+            }
         )
-        .join(SaleItem, SaleItem.product_id == Product.id)
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(Sale.created_at >= cutoff)
-        .filter(
-            and_(
-                tenant_scope.sale_tenant_match(current_user),
-                tenant_scope.product_tenant_match(current_user),
-            )
-        )
-        .filter(Product.is_active == True)  # noqa: E712
-        .group_by(Product.id, Product.name, Product.barcode)
-        .order_by(func.sum(SaleItem.line_total).desc())
-        .limit(limit)
-        .all()
-    )
-    return [
-        {
-            "product_id": r.id,
-            "product_name": r.name,
-            "barcode": r.barcode,
-            "total_quantity_sold": int(r.total_quantity or 0),
-            "total_revenue": Decimal(str(r.total_revenue or 0)),
-            "total_profit": Decimal(str(r.total_profit or 0)),
-            "sale_count": int(r.sale_count or 0),
-        }
-        for r in results
-    ]
+    return out
 
 
 def fetch_zero_sales_rows(

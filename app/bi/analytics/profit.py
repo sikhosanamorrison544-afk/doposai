@@ -1,14 +1,22 @@
 """Profitability aggregates for BI."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ... import tenant_scope
-from ...models import Product, Sale, SaleItem, User, Withdrawal
+from ...finance_service import (
+    approved_expenses_total,
+    approved_refunds_total,
+    product_period_metrics,
+    refund_aware_gross_profit,
+    refund_gross_profit_reversal,
+    unit_cost_expr,
+)
+from ...models import Product, Sale, SaleItem, User
 
 
 def profit_metrics(
@@ -20,7 +28,9 @@ def profit_metrics(
     prev_end: datetime,
 ) -> Dict[str, Any]:
     def _profit(s: datetime, e: datetime) -> Dict[str, float]:
-        revenue = (
+        # BI windows are half-open [s, e); finance helpers use closed end.
+        end_closed = e - timedelta(microseconds=1) if e > s else e
+        revenue_gross = float(
             db.query(func.coalesce(func.sum(SaleItem.line_total), 0))
             .join(Sale, SaleItem.sale_id == Sale.id)
             .filter(
@@ -29,11 +39,12 @@ def profit_metrics(
                 tenant_scope.sale_tenant_match(user),
             )
             .scalar()
+            or 0
         )
-        cogs = (
+        cogs_gross = float(
             db.query(
                 func.coalesce(
-                    func.sum(SaleItem.quantity * Product.cost_price),
+                    func.sum(SaleItem.quantity * unit_cost_expr()),
                     0,
                 )
             )
@@ -46,28 +57,32 @@ def profit_metrics(
                 tenant_scope.product_tenant_match(user),
             )
             .scalar()
+            or 0
         )
-        rev = float(revenue or 0)
-        cost = float(cogs or 0)
+        refunds = float(approved_refunds_total(db, user, s, end_closed, branch_id=None))
+        # Margin reversed on refunds ≈ revenue reverse − remaining COGS reverse
+        gp = float(refund_aware_gross_profit(db, user, s, end_closed, branch_id=None))
+        gp_reversal = float(
+            refund_gross_profit_reversal(db, user, s, end_closed, branch_id=None)
+        )
+        # refund COGS ≈ refund revenue − margin reversal (may exceed gross COGS
+        # in a refund-only window — negative net COGS is valid).
+        refund_cogs = refunds - gp_reversal
+        rev = revenue_gross - refunds
+        cost = cogs_gross - refund_cogs
         return {
-            "revenue": rev,
-            "cogs": cost,
-            "gross_profit": round(rev - cost, 2),
-            "gross_margin_percent": round((rev - cost) / rev * 100, 2) if rev > 0 else 0.0,
+            "revenue": round(rev, 2),
+            "cogs": round(cost, 2),
+            "gross_profit": round(gp, 2),
+            "gross_margin_percent": round(gp / rev * 100, 2) if rev > 0 else 0.0,
         }
 
     current = _profit(start, end)
     previous = _profit(prev_start, prev_end)
-    expenses = (
-        db.query(func.coalesce(func.sum(Withdrawal.amount), 0))
-        .filter(
-            Withdrawal.created_at >= start,
-            Withdrawal.created_at < end,
-            tenant_scope.withdrawal_tenant_match(user),
-        )
-        .scalar()
+    end_closed = end - timedelta(microseconds=1) if end > start else end
+    expenses_f = float(
+        approved_expenses_total(db, user, start, end_closed, branch_id=None)
     )
-    expenses_f = float(expenses or 0)
 
     margin_products = _margin_leaders(db, user, start, end)
 
@@ -79,7 +94,8 @@ def profit_metrics(
         "profit_change_percent": _pct_change(
             current["gross_profit"], previous["gross_profit"]
         ),
-        "operating_expenses_withdrawals": expenses_f,
+        "operating_expenses": expenses_f,
+        "operating_expenses_withdrawals": expenses_f,  # legacy alias → approved expenses
         "estimated_net_after_expenses": round(current["gross_profit"] - expenses_f, 2),
         "highest_margin_products": margin_products["high"],
         "lowest_margin_products": margin_products["low"],
@@ -89,38 +105,24 @@ def profit_metrics(
 def _margin_leaders(
     db: Session, user: User, start: datetime, end: datetime
 ) -> Dict[str, List[Dict[str, Any]]]:
-    rows = (
-        db.query(
-            Product.id,
-            Product.name,
-            func.sum(SaleItem.line_total).label("revenue"),
-            func.sum(SaleItem.quantity * Product.cost_price).label("cost"),
-        )
-        .join(SaleItem, SaleItem.product_id == Product.id)
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(
-            Sale.created_at >= start,
-            Sale.created_at < end,
-            Product.is_active == True,  # noqa: E712
-            tenant_scope.sale_tenant_match(user),
-            tenant_scope.product_tenant_match(user),
-        )
-        .group_by(Product.id, Product.name)
-        .having(func.sum(SaleItem.line_total) > 0)
-        .all()
+    rows = product_period_metrics(
+        db, user, start, end, end_exclusive=True, active_only=True
     )
     scored: List[Dict[str, Any]] = []
     for r in rows:
-        rev = float(r.revenue or 0)
-        cost = float(r.cost or 0)
-        margin_pct = round((rev - cost) / rev * 100, 1) if rev > 0 else 0.0
+        rev = float(r.net_revenue)
+        if rev <= 0:
+            continue
+        cost = float(r.net_cogs)
+        gp = float(r.net_gross_profit)
+        margin_pct = round(gp / rev * 100, 1) if rev > 0 else 0.0
         scored.append(
             {
-                "product_id": r.id,
+                "product_id": r.product_id,
                 "name": r.name,
                 "revenue": rev,
                 "margin_percent": margin_pct,
-                "gross_profit": round(rev - cost, 2),
+                "gross_profit": round(gp, 2),
             }
         )
     scored.sort(key=lambda x: x["margin_percent"], reverse=True)

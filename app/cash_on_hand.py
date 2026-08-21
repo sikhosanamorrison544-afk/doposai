@@ -1,21 +1,21 @@
 """
 Authoritative cash activity for a selected reporting date range.
 
-Same formula as ``GET /api/reports/summary`` when scope is the whole tenant:
-
-    cash_on_hand = cash_payments − withdrawals_total − cash_refunds
+    cash_on_hand = cash_payments − withdrawals − cash_expense_outflows − cash_refunds
 
 Where:
-  * cash_payments  — Payment.method == \"cash\", sale created in range, tenant-scoped
-  * withdrawals    — all Withdrawal rows in range, tenant-scoped (no branch column)
-  * cash_refunds   — Refund status approved + refund_method cash, in range, tenant-scoped
+  * cash_payments          — Payment.method == \"cash\", sale created in range, tenant-scoped
+  * withdrawals            — Withdrawal rows in range (cash drawer removals, not P&L expenses)
+  * cash_expense_outflows  — CashMovement outflows for **approved** Expenses paid in cash
+  * cash_refunds           — Refund status approved + refund_method cash, in range
 
-This is a **period** balance for the selected reporting dates, not a live drawer
-snapshot and not shift ``starting_cash``.
+Withdrawals and expense cash movements are separate ledgers so the same cash exit
+is never counted twice (expenses do not create Withdrawal rows). Voided expenses
+are excluded from cash_expense_outflows via join on Expense.status == approved.
 
-Branch note: Withdrawal has no ``branch_id``. Individual-branch Cash on hand is
-therefore **unavailable** (not a partial figure), so Overview never presents an
-overstated branch till balance that omits withdrawals.
+Clearing note: a standalone expense_payment Withdrawal reduces cash via Withdrawals
+only; it does not create an Expense. Do not also book a cash Expense for the same
+physical payment (see withdrawal_purpose module docstring).
 """
 from __future__ import annotations
 
@@ -27,7 +27,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from . import tenant_scope
-from .models import Payment, Refund, Sale, User, Withdrawal
+from .finance_service import refund_effective_at_expr
+from .models import CashMovement, Expense, Payment, Refund, Sale, User, Withdrawal
 
 
 def _d(v: Any) -> Decimal:
@@ -61,6 +62,7 @@ def compute_cash_on_hand(
             "cash_on_hand": None,
             "cash_payments": Decimal("0"),
             "withdrawals_total": Decimal("0"),
+            "cash_expense_outflows": Decimal("0"),
             "cash_refunds": Decimal("0"),
             "withdrawals_included": False,
             "available": False,
@@ -95,8 +97,8 @@ def compute_cash_on_hand(
         .filter(
             Refund.status == "approved",
             Refund.refund_method == "cash",
-            Refund.created_at >= start,
-            Refund.created_at <= end,
+            refund_effective_at_expr() >= start,
+            refund_effective_at_expr() <= end,
             tenant_scope.sale_tenant_match(user),
         )
     )
@@ -113,20 +115,44 @@ def compute_cash_on_hand(
     )
     withdrawals_total = _d(wd_q.scalar())
 
-    cash_on_hand = cash_payments - withdrawals_total - cash_refunds
+    # Only cash movements for *currently approved* expenses — voided expenses
+    # drop out so cash is not permanently reduced after void (no second Withdrawal).
+    exp_cash_q = (
+        tenant_scope.filter_cash_movements(db, user)
+        .join(
+            Expense,
+            (CashMovement.source_id == Expense.id)
+            & (CashMovement.source_type == "expense"),
+        )
+        .filter(
+            CashMovement.direction == "out",
+            CashMovement.payment_method == "cash",
+            CashMovement.movement_date >= start,
+            CashMovement.movement_date <= end,
+            Expense.status == "approved",
+        )
+        .with_entities(func.coalesce(func.sum(CashMovement.amount), 0))
+    )
+    cash_expense_outflows = _d(exp_cash_q.scalar())
+
+    cash_on_hand = (
+        cash_payments - withdrawals_total - cash_expense_outflows - cash_refunds
+    )
 
     return {
         "cash_on_hand": cash_on_hand,
         "cash_payments": cash_payments,
         "withdrawals_total": withdrawals_total,
+        "cash_expense_outflows": cash_expense_outflows,
         "cash_refunds": cash_refunds,
         "withdrawals_included": True,
         "available": True,
         "scope": "tenant",
         "subtitle": "Cash activity for selected period",
         "note": (
-            "cash payments − withdrawals − approved cash refunds "
-            "(same as /api/reports/summary); not a live drawer count"
+            "cash payments − withdrawals − approved cash expense outflows − cash refunds; "
+            "expense CashMovements and Withdrawals are separate (never both for one payment); "
+            "not a live drawer count"
         ),
         "reason": None,
         "as_of_start": start.isoformat(),

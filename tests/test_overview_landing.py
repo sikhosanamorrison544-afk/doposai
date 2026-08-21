@@ -259,7 +259,7 @@ def test_overview_sales_and_payments(client, db_session):
     )
     db_session.add(product)
     db_session.flush()
-    today = datetime.now()
+    today = datetime.utcnow()
     sale = Sale(
         created_at=today,
         cashier_id=cashier.id,
@@ -289,8 +289,8 @@ def test_overview_sales_and_payments(client, db_session):
     r = client.get(
         "/api/overview/summary",
         params={
-            "from_date": date.today().isoformat(),
-            "to_date": date.today().isoformat(),
+            "from_date": datetime.utcnow().date().isoformat(),
+            "to_date": datetime.utcnow().date().isoformat(),
         },
         headers=_auth(tok),
     )
@@ -318,7 +318,7 @@ def test_overview_approved_refunds_reduce_revenue(client, db_session):
     db_session.add(product)
     db_session.flush()
     sale = Sale(
-        created_at=datetime.now(),
+        created_at=datetime.utcnow(),
         cashier_id=cashier.id,
         subtotal=Decimal("5.00"),
         discount_total=Decimal("0"),
@@ -345,7 +345,7 @@ def test_overview_approved_refunds_reduce_revenue(client, db_session):
             reason="return",
             refund_type="full",
             refund_method="cash",
-            created_at=datetime.now(),
+            created_at=datetime.utcnow(),
             requested_by_id=cashier.id,
         )
     )
@@ -355,6 +355,7 @@ def test_overview_approved_refunds_reduce_revenue(client, db_session):
     assert r.status_code == 200
     assert r.json()["summary"]["revenue"] == 0.0
     assert r.json()["summary"]["refunds"] == 5.0
+    assert r.json()["summary"]["gross_profit"] == 0.0
 
 
 def test_overview_stock_counts(client, db_session):
@@ -426,7 +427,7 @@ def test_overview_tenant_isolation(client, db_session):
     db_session.add_all([p_a, p_b])
     db_session.flush()
     sale_b = Sale(
-        created_at=datetime.now(),
+        created_at=datetime.utcnow(),
         cashier_id=admin_b.id,
         subtotal=Decimal("10"),
         discount_total=Decimal("0"),
@@ -484,7 +485,7 @@ def test_overview_branch_filter(client, db_session):
     db_session.flush()
     for branch, total in ((b1, Decimal("8")), (b2, Decimal("16"))):
         sale = Sale(
-            created_at=datetime.now(),
+            created_at=datetime.utcnow(),
             cashier_id=admin.id,
             subtotal=total,
             discount_total=Decimal("0"),
@@ -644,7 +645,7 @@ def test_cash_on_hand_cash_sale_increases(client, db_session):
     db_session.add(product)
     db_session.flush()
     sale = Sale(
-        created_at=datetime.now(),
+        created_at=datetime.utcnow(),
         cashier_id=cashier.id,
         subtotal=Decimal("10"),
         discount_total=Decimal("0"),
@@ -685,7 +686,7 @@ def test_cash_on_hand_card_payment_excluded(client, db_session):
     db_session.add(product)
     db_session.flush()
     sale = Sale(
-        created_at=datetime.now(),
+        created_at=datetime.utcnow(),
         cashier_id=cashier.id,
         subtotal=Decimal("15"),
         discount_total=Decimal("0"),
@@ -723,7 +724,7 @@ def test_cash_on_hand_refund_and_withdrawal_reduce(client, db_session):
     db_session.add(product)
     db_session.flush()
     sale = Sale(
-        created_at=datetime.now(),
+        created_at=datetime.utcnow(),
         cashier_id=cashier.id,
         subtotal=Decimal("20"),
         discount_total=Decimal("0"),
@@ -751,7 +752,7 @@ def test_cash_on_hand_refund_and_withdrawal_reduce(client, db_session):
             reason="partial",
             refund_type="partial",
             refund_method="cash",
-            created_at=datetime.now(),
+            created_at=datetime.utcnow(),
             requested_by_id=cashier.id,
         )
     )
@@ -760,7 +761,7 @@ def test_cash_on_hand_refund_and_withdrawal_reduce(client, db_session):
             cashier_id=admin.id,
             amount=Decimal("3"),
             reason="Float pull",
-            created_at=datetime.now(),
+            created_at=datetime.utcnow(),
         )
     )
     db_session.commit()
@@ -783,7 +784,7 @@ def test_cash_on_hand_matches_reports_summary(client, db_session):
     db_session.add(product)
     db_session.flush()
     sale = Sale(
-        created_at=datetime.now(),
+        created_at=datetime.utcnow(),
         cashier_id=cashier.id,
         subtotal=Decimal("8"),
         discount_total=Decimal("0"),
@@ -807,12 +808,12 @@ def test_cash_on_hand_matches_reports_summary(client, db_session):
             cashier_id=admin.id,
             amount=Decimal("2"),
             reason="Expense",
-            created_at=datetime.now(),
+            created_at=datetime.utcnow(),
         )
     )
     db_session.commit()
     tok = _login(client, "ov_admin", "AdminPass1234")["access_token"]
-    today = date.today().isoformat()
+    today = datetime.utcnow().date().isoformat()
     ov = client.get("/api/overview/summary", headers=_auth(tok)).json()
     rp = client.get(
         "/api/reports/summary",
@@ -841,7 +842,7 @@ def test_cash_on_hand_tenant_isolation(client, db_session):
     db_session.add(p_b)
     db_session.flush()
     sale_b = Sale(
-        created_at=datetime.now(),
+        created_at=datetime.utcnow(),
         cashier_id=admin_b.id,
         subtotal=Decimal("50"),
         discount_total=Decimal("0"),
@@ -896,7 +897,7 @@ def test_cash_on_hand_branch_excludes_other_branch_cash(client, db_session):
     db_session.flush()
     for branch, amt in ((b1, Decimal("10")), (b2, Decimal("30"))):
         sale = Sale(
-            created_at=datetime.now(),
+            created_at=datetime.utcnow(),
             cashier_id=admin.id,
             subtotal=amt,
             discount_total=Decimal("0"),

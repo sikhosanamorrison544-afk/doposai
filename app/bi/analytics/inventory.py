@@ -100,27 +100,14 @@ def _product_row(p: Product) -> Dict[str, Any]:
 
 
 def _inventory_turnover(db: Session, user: User, days: int) -> float:
-    """Approximate turnover: COGS / average inventory value."""
+    """Approximate turnover: net sold COGS / average inventory value."""
     from datetime import datetime, timedelta
 
-    start = datetime.utcnow() - timedelta(days=days)
-    cogs = (
-        db.query(
-            func.coalesce(
-                func.sum(SaleItem.quantity * Product.cost_price),
-                0,
-            )
-        )
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .join(Product, SaleItem.product_id == Product.id)
-        .filter(
-            Sale.created_at >= start,
-            tenant_scope.sale_tenant_match(user),
-            tenant_scope.product_tenant_match(user),
-        )
-        .scalar()
-        or 0
-    )
+    from ...finance_service import sold_cogs_net
+
+    end = datetime.utcnow()
+    start = end - timedelta(days=days)
+    cogs = sold_cogs_net(db, user, start, end, end_exclusive=False)
     inv_val = (
         tenant_scope.filter_products(db, user)
         .filter(Product.is_active == True)  # noqa: E712

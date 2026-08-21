@@ -129,6 +129,30 @@ def _ensure_sales_client_sale_id_column() -> None:
         logging.warning("Could not ensure sales.client_sale_id: %s", e)
 
 
+def _backfill_withdrawal_purposes(conn) -> None:
+    """Delegate to shared financial_schema helper."""
+    from .financial_schema import backfill_withdrawal_purposes
+
+    backfill_withdrawal_purposes(conn)
+
+
+def _ensure_coa_accounts(conn) -> None:
+    """Delegate to shared financial_schema helper."""
+    from .financial_schema import ensure_coa_accounts
+
+    ensure_coa_accounts(conn)
+
+
+def _ensure_financial_accuracy_schema() -> None:
+    """Best-effort startup safety net — prefer migrate_financial_accuracy.py pre-deploy."""
+    from .financial_schema import ensure_financial_accuracy_schema
+
+    try:
+        ensure_financial_accuracy_schema(engine, create_missing_tables=False)
+    except Exception as e:
+        logging.warning("Could not ensure financial accuracy schema: %s", e)
+
+
 def _deferred_db_bootstrap() -> None:
     """Run after bind so Render sees an open PORT before slow Postgres work."""
     try:
@@ -142,6 +166,10 @@ def _deferred_db_bootstrap() -> None:
         _ensure_sales_client_sale_id_column()
     except Exception as e:
         logging.warning("client_sale_id bootstrap failed: %s", e)
+    try:
+        _ensure_financial_accuracy_schema()
+    except Exception as e:
+        logging.warning("financial accuracy schema bootstrap failed: %s", e)
     try:
         ImportJob.__table__.create(bind=engine, checkfirst=True)
     except Exception as e:
@@ -214,6 +242,7 @@ from .whatsapp.routes import (
 )
 from .whatsapp import models as _whatsapp_models  # noqa: F401 — register ORM tables
 from .bi.routes import router as bi_router
+from .expense_routes import router as expense_router
 
 app.include_router(saas_auth_router)
 app.include_router(subscriptions_router)
@@ -224,6 +253,7 @@ app.include_router(enterprise_router)
 app.include_router(whatsapp_webhook_router)
 app.include_router(whatsapp_api_router)
 app.include_router(bi_router)
+app.include_router(expense_router)
 
 # Background task to periodically process offline backup queue
 async def process_backup_queue_periodically():
@@ -1898,6 +1928,7 @@ async def create_sale(
             unit_price=item.unit_price,
             discount=item.discount,
             line_total=line_total,
+            unit_cost=Decimal(str(product.cost_price)),
         )
         db.add(sale_item)
 
@@ -2178,6 +2209,20 @@ async def reject_refund_route(
     return _refund_to_read(db, refund, current_user)
 
 
+@app.post("/api/refunds/{refund_id}/cancel", response_model=RefundRead)
+async def cancel_refund_route(
+    refund_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(dep_perm(Perm.REQUEST_REFUNDS)),
+):
+    """Cancel a pending refund (requester or any user with request permission who owns it /
+    approvers via service-layer check)."""
+    from .refund_service import cancel_refund
+
+    refund = cancel_refund(db, current_user, refund_id)
+    return _refund_to_read(db, refund, current_user)
+
+
 @app.put("/api/sales/{sale_id}/mark-collected", response_model=SaleRead)
 async def mark_sale_collected(
     sale_id: int,
@@ -2404,6 +2449,7 @@ class StoreSettingsRead(BaseModel):
     notification_email: Optional[str]
     low_stock_email_enabled: bool
     default_low_stock_threshold: float
+    currency: str = "USD"
     updated_at: datetime
 
     class Config:
@@ -2417,6 +2463,7 @@ class StoreSettingsUpdate(BaseModel):
     notification_email: Optional[str] = None
     low_stock_email_enabled: bool = False
     default_low_stock_threshold: float = 10.0
+    currency: Optional[str] = "USD"
 
 
 @app.get("/api/store-settings", response_model=StoreSettingsRead)
@@ -2427,17 +2474,24 @@ async def get_store_settings(
 ):
     """Get store settings. Creates default if none exists."""
     response.headers["Cache-Control"] = "no-store"
+    from .currency_util import normalize_currency
+
     settings = tenant_scope.filter_store_settings(db, current_user).first()
     if not settings:
         settings = StoreSettings(
             store_name=STORE_NAME,
             store_phone=STORE_PHONE if STORE_PHONE else None,
             store_location=STORE_LOCATION if STORE_LOCATION else None,
+            currency="USD",
             tenant_id=tenant_scope.tenant_id_for_row(current_user),
         )
         db.add(settings)
         db.commit()
         db.refresh(settings)
+    # Ensure older rows without currency still serialize
+    if not getattr(settings, "currency", None):
+        settings.currency = "USD"
+    settings.currency = normalize_currency(settings.currency)
     return settings
 
 
@@ -2450,12 +2504,20 @@ async def update_store_settings(
 ):
     """Update store settings. Admin only."""
     response.headers["Cache-Control"] = "no-store"
+    from .currency_util import validate_currency
+
+    try:
+        currency = validate_currency(settings_data.currency or "USD")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     settings = tenant_scope.filter_store_settings(db, current_user).first()
     if not settings:
         settings = StoreSettings(
             store_name=settings_data.store_name,
             store_phone=settings_data.store_phone,
             store_location=settings_data.store_location,
+            currency=currency,
             tenant_id=tenant_scope.tenant_id_for_row(current_user),
         )
         db.add(settings)
@@ -2466,6 +2528,7 @@ async def update_store_settings(
         settings.notification_email = settings_data.notification_email
         settings.low_stock_email_enabled = settings_data.low_stock_email_enabled
         settings.default_low_stock_threshold = settings_data.default_low_stock_threshold
+        settings.currency = currency
         settings.updated_at = datetime.utcnow()
     
     db.commit()
@@ -2763,13 +2826,18 @@ class ReportSummary(BaseModel):
     discounts: Decimal
     net_sales: Decimal
     profit: Decimal
+    refunds: Decimal = Decimal("0.00")
+    expenses: Decimal = Decimal("0.00")
+    net_profit: Decimal = Decimal("0.00")
     total_stock_value: Decimal
     expected_profit: Decimal
     # Till cash for the selected date range (defaults to today in admin UI)
     cash_payments: Decimal = Decimal("0.00")
     withdrawals_total: Decimal = Decimal("0.00")
+    cash_expense_outflows: Decimal = Decimal("0.00")
     cash_refunds: Decimal = Decimal("0.00")
     cash_on_hand: Decimal = Decimal("0.00")
+    currency: str = "USD"
 
 
 @app.get("/api/reports/summary", response_model=ReportSummary)
@@ -2779,6 +2847,14 @@ async def report_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(dep_perm(Perm.VIEW_REPORTS)),
 ):
+    from .currency_util import normalize_currency
+    from .finance_service import (
+        approved_expenses_total,
+        approved_refunds_total,
+        lifetime_approved_expenses,
+        refund_aware_gross_profit,
+    )
+
     range_start = datetime.combine(from_date, datetime.min.time())
     range_end = datetime.combine(to_date, datetime.max.time())
 
@@ -2797,32 +2873,18 @@ async def report_summary(
         sales_q = sales_q.filter(Sale.tenant_id == current_user.tenant_id)
     sales_count, gross_sales, discounts, net_sales = sales_q.one()
 
-    # Profit: sum over (line_total - cost * qty)
-    profit_q = (
-        db.query(
-            func.coalesce(
-                func.sum(
-                    SaleItem.line_total
-                    - (SaleItem.quantity * Product.cost_price)
-                ),
-                0,
-            )
-        )
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .join(Product, SaleItem.product_id == Product.id)
-        .filter(
-            Sale.created_at >= range_start,
-            Sale.created_at <= range_end,
-        )
+    refunds = approved_refunds_total(
+        db, current_user, range_start, range_end, branch_id=None
     )
-    if current_user.tenant_id is None:
-        profit_q = profit_q.filter(Sale.tenant_id.is_(None), Product.tenant_id.is_(None))
-    else:
-        profit_q = profit_q.filter(
-            Sale.tenant_id == current_user.tenant_id,
-            Product.tenant_id == current_user.tenant_id,
-        )
-    (profit,) = profit_q.one()
+    net_sales_after_refunds = Decimal(str(net_sales or 0)) - refunds
+
+    profit = refund_aware_gross_profit(
+        db, current_user, range_start, range_end, branch_id=None
+    )
+    expenses = approved_expenses_total(
+        db, current_user, range_start, range_end, branch_id=None
+    )
+    net_profit = profit - expenses
     
     # Calculate total stock value (sum of stock_qty * cost_price for all products with stock > 0)
     # Use Python calculation instead of SQL aggregation to handle Numeric types correctly
@@ -2849,11 +2911,8 @@ async def report_summary(
         # Add to expected profit (selling_price - cost_price) * stock_qty
         expected_profit += stock_qty * (selling_price - cost_price)
     
-    # Deduct all-time withdrawals from expected profit (stock projection, not till cash)
-    lifetime_withdrawals = Decimal("0.00")
-    for withdrawal in tenant_scope.filter_withdrawals(db, current_user).all():
-        lifetime_withdrawals += Decimal(str(withdrawal.amount))
-    expected_profit -= lifetime_withdrawals
+    # Deduct lifetime approved operating expenses from stock projection (not withdrawals)
+    expected_profit -= lifetime_approved_expenses(db, current_user)
 
     from .cash_on_hand import compute_cash_on_hand
 
@@ -2862,8 +2921,12 @@ async def report_summary(
     )
     cash_payments = till["cash_payments"]
     withdrawals_total = till["withdrawals_total"]
+    cash_expense_outflows = till.get("cash_expense_outflows") or Decimal("0")
     cash_refunds = till["cash_refunds"]
     cash_on_hand = till["cash_on_hand"]
+
+    store = tenant_scope.filter_store_settings(db, current_user).first()
+    currency = normalize_currency(getattr(store, "currency", None) if store else None)
 
     return ReportSummary(
         from_date=from_date,
@@ -2871,14 +2934,19 @@ async def report_summary(
         sales_count=sales_count,
         gross_sales=gross_sales,
         discounts=discounts,
-        net_sales=net_sales,
+        net_sales=net_sales_after_refunds,
         profit=profit,
+        refunds=refunds,
+        expenses=expenses,
+        net_profit=net_profit,
         total_stock_value=total_stock_value,
         expected_profit=expected_profit,
         cash_payments=cash_payments,
         withdrawals_total=withdrawals_total,
+        cash_expense_outflows=cash_expense_outflows,
         cash_refunds=cash_refunds,
         cash_on_hand=cash_on_hand,
+        currency=currency,
     )
 
 
@@ -2929,43 +2997,26 @@ async def get_top_selling_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(dep_perm(Perm.VIEW_REPORTS)),
 ):
-    """Get the top-selling product by quantity sold in the specified period."""
+    """Get the top-selling product by net quantity sold (refund-aware) in the period."""
+    from .finance_service import product_period_metrics
+
     cutoff_date = datetime.utcnow() - timedelta(days=days)
-    
-    result = (
-        db.query(
-            Product.id,
-            Product.name,
-            Product.barcode,
-            func.sum(SaleItem.quantity).label('total_quantity'),
-            func.sum(SaleItem.line_total).label('total_revenue'),
-            func.sum(SaleItem.line_total - (SaleItem.quantity * Product.cost_price)).label('total_profit')
-        )
-        .join(SaleItem, SaleItem.product_id == Product.id)
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(Sale.created_at >= cutoff_date)
-        .filter(
-            and_(
-                tenant_scope.sale_tenant_match(current_user),
-                tenant_scope.product_tenant_match(current_user),
-            )
-        )
-        .filter(Product.is_active == True)
-        .group_by(Product.id, Product.name, Product.barcode)
-        .order_by(func.sum(SaleItem.quantity).desc())
-        .first()
+    now = datetime.utcnow()
+    rows = product_period_metrics(
+        db, current_user, cutoff_date, now, end_exclusive=False, active_only=True
     )
-    
-    if not result:
+    candidates = [r for r in rows if r.gross_units > 0 or r.net_units > 0]
+    if not candidates:
         raise HTTPException(status_code=404, detail="No sales found in the specified period")
-    
+    result = max(candidates, key=lambda r: (r.net_units, r.net_revenue, r.net_gross_profit))
+
     return TopProductResponse(
-        product_id=result.id,
+        product_id=result.product_id,
         product_name=result.name,
         barcode=result.barcode,
-        total_quantity_sold=int(result.total_quantity or 0),
-        total_revenue=Decimal(str(result.total_revenue or 0)),
-        total_profit=Decimal(str(result.total_profit or 0))
+        total_quantity_sold=int(result.net_units),
+        total_revenue=result.net_revenue,
+        total_profit=result.net_gross_profit,
     )
 
 
@@ -2975,43 +3026,26 @@ async def get_least_selling_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(dep_perm(Perm.VIEW_REPORTS)),
 ):
-    """Get the least-selling product by quantity sold in the specified period (among products with sales)."""
+    """Least-selling product by net quantity (among products with period sales/refunds)."""
+    from .finance_service import product_period_metrics
+
     cutoff_date = datetime.utcnow() - timedelta(days=days)
-    
-    result = (
-        db.query(
-            Product.id,
-            Product.name,
-            Product.barcode,
-            func.sum(SaleItem.quantity).label('total_quantity'),
-            func.sum(SaleItem.line_total).label('total_revenue'),
-            func.sum(SaleItem.line_total - (SaleItem.quantity * Product.cost_price)).label('total_profit')
-        )
-        .join(SaleItem, SaleItem.product_id == Product.id)
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(Sale.created_at >= cutoff_date)
-        .filter(
-            and_(
-                tenant_scope.sale_tenant_match(current_user),
-                tenant_scope.product_tenant_match(current_user),
-            )
-        )
-        .filter(Product.is_active == True)
-        .group_by(Product.id, Product.name, Product.barcode)
-        .order_by(func.sum(SaleItem.quantity).asc())
-        .first()
+    now = datetime.utcnow()
+    rows = product_period_metrics(
+        db, current_user, cutoff_date, now, end_exclusive=False, active_only=True
     )
-    
-    if not result:
+    candidates = [r for r in rows if r.gross_units > 0]
+    if not candidates:
         raise HTTPException(status_code=404, detail="No sales found in the specified period")
-    
+    result = min(candidates, key=lambda r: (r.net_units, r.net_revenue))
+
     return TopProductResponse(
-        product_id=result.id,
+        product_id=result.product_id,
         product_name=result.name,
         barcode=result.barcode,
-        total_quantity_sold=int(result.total_quantity or 0),
-        total_revenue=Decimal(str(result.total_revenue or 0)),
-        total_profit=Decimal(str(result.total_profit or 0))
+        total_quantity_sold=int(result.net_units),
+        total_revenue=result.net_revenue,
+        total_profit=result.net_gross_profit,
     )
 
 
@@ -3773,8 +3807,22 @@ async def outstanding_debts_page(request: Request):
 
 @app.get("/withdrawals/history", response_class=HTMLResponse)
 async def withdrawal_history_page(request: Request):
-    """Withdrawal history page."""
+    """Withdrawal history page (cash removals — not the expense ledger)."""
     return _shell_page(request, "withdrawal_history.html")
+
+
+@app.get("/expenses", response_class=HTMLResponse)
+async def expenses_page(request: Request, db: Session = Depends(get_db)):
+    """Operating expense ledger."""
+    from .page_auth import gate_page, is_redirect
+    from .permissions import Perm
+
+    gated = gate_page(
+        request, db, any_of=(Perm.VIEW_EXPENSES, Perm.MANAGE_EXPENSES)
+    )
+    if is_redirect(gated):
+        return gated
+    return _shell_page(request, "expenses.html")
 
 
 @app.get("/refunds", response_class=HTMLResponse)
@@ -4519,6 +4567,10 @@ async def get_layby_payments(
 class WithdrawalCreate(BaseModel):
     amount: Decimal = Field(gt=0, description="Withdrawal amount must be greater than 0")
     reason: str = Field(..., min_length=1, max_length=200, description="Reason for withdrawal")
+    purpose: Optional[str] = Field(
+        None,
+        description="owner_draw|bank_deposit|cash_transfer|expense_payment|cash_adjustment|other",
+    )
     notes: Optional[str] = None
     salary_details: Optional[dict] = None  # Employee details for salary withdrawals
 
@@ -4529,6 +4581,7 @@ class WithdrawalRead(BaseModel):
     cashier_name: str
     amount: Decimal
     reason: str
+    purpose: Optional[str] = None
     receipt_number: Optional[str]
     created_at: datetime
     notes: Optional[str]
@@ -4547,7 +4600,9 @@ async def create_withdrawal(
     require_permission(current_user, Perm.PROCESS_WITHDRAWALS)
     import random
     import string
-    
+
+    from .withdrawal_purpose import is_fixed_asset_reason, resolve_purpose
+
     # Generate receipt number
     receipt_number = f"WD{''.join(random.choices(string.digits, k=8))}"
     
@@ -4572,11 +4627,14 @@ async def create_withdrawal(
         }
         salary_json = json.dumps(salary_info)
         notes_to_store = f"SALARY_DETAILS:{salary_json}" + (f"\n\nAdditional Notes: {withdrawal.notes}" if withdrawal.notes else "")
+
+    purpose = resolve_purpose(purpose=withdrawal.purpose, reason=withdrawal.reason)
     
     db_withdrawal = Withdrawal(
         cashier_id=current_user.id,
         amount=withdrawal.amount,
         reason=withdrawal.reason,
+        purpose=purpose,
         receipt_number=receipt_number,
         notes=notes_to_store,
         tenant_id=tenant_scope.tenant_id_for_row(current_user),
@@ -4589,8 +4647,8 @@ async def create_withdrawal(
         if verify_chart_of_accounts(db):
             accounting_engine = AccountingEngine(db)
             
-            # If reason is "Buying company assets", create FixedAsset instead of posting as expense
-            if withdrawal.reason == "Buying company assets":
+            # Fixed-asset purchase from till — balance sheet, not drawings/expense
+            if is_fixed_asset_reason(withdrawal.reason):
                 try:
                     # Generate unique asset code
                     last_asset = (
@@ -4638,9 +4696,10 @@ async def create_withdrawal(
                         detail=f"Error creating asset from withdrawal: {str(asset_error)}"
                     )
             else:
-                # For other withdrawal reasons, post as normal expense
                 accounting_engine.post_withdrawal(db_withdrawal)
-                logging.info(f"Posted withdrawal {db_withdrawal.id} to accounting")
+                logging.info(
+                    f"Posted withdrawal {db_withdrawal.id} purpose={purpose} to accounting"
+                )
         else:
             logging.debug("Chart of Accounts not initialized. Skipping accounting post.")
     except Exception as e:
@@ -4699,6 +4758,7 @@ async def create_withdrawal(
         cashier_name=current_user.full_name or current_user.username,
         amount=db_withdrawal.amount,
         reason=db_withdrawal.reason,
+        purpose=db_withdrawal.purpose,
         receipt_number=db_withdrawal.receipt_number,
         created_at=db_withdrawal.created_at,
         notes=db_withdrawal.notes,
@@ -4729,6 +4789,7 @@ async def list_withdrawals(
             cashier_name=(cashier.full_name or cashier.username) if cashier else "Unknown",
             amount=w.amount,
             reason=w.reason,
+            purpose=w.purpose,
             receipt_number=w.receipt_number,
             created_at=w.created_at,
             notes=w.notes,
@@ -4752,6 +4813,7 @@ async def get_withdrawal(
         cashier_name=(cashier.full_name or cashier.username) if cashier else "Unknown",
         amount=withdrawal.amount,
         reason=withdrawal.reason,
+        purpose=withdrawal.purpose,
         receipt_number=withdrawal.receipt_number,
         created_at=withdrawal.created_at,
         notes=withdrawal.notes,
@@ -4999,7 +5061,7 @@ async def end_shift(
     if shift.end_time:
         raise HTTPException(status_code=400, detail="Shift is already ended")
     
-    # Calculate shift totals from sales
+    # Calculate shift totals from sales, then net approved refunds on this shift.
     sales = tenant_scope.filter_sales(db, current_user).filter(Sale.shift_id == shift.id).all()
     
     total_sales = sum(Decimal(str(sale.total)) for sale in sales)
@@ -5022,6 +5084,29 @@ async def end_shift(
                 total_card += amount
             elif payment.method == "credit":
                 total_credit += amount
+
+    # Net approved refunds for sales on this shift (by refund_method).
+    from .models import Refund
+
+    sale_ids = [s.id for s in sales]
+    if sale_ids:
+        approved_refunds = (
+            db.query(Refund)
+            .filter(Refund.sale_id.in_(sale_ids), Refund.status == "approved")
+            .all()
+        )
+        for refund in approved_refunds:
+            amt = Decimal(str(refund.amount or 0))
+            total_sales -= amt
+            method = (refund.refund_method or "").strip()
+            if method == "cash":
+                total_cash -= amt
+            elif method == "mobile_money":
+                total_mobile_money -= amt
+            elif method == "card":
+                total_card -= amt
+            elif method == "credit":
+                total_credit -= amt
     
     # Update shift
     shift.end_time = datetime.utcnow()

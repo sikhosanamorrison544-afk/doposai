@@ -79,40 +79,36 @@ def _linear_forecast(series: List[float], horizon: int) -> Dict[str, Any]:
 
 
 def _stockout_predictions(db: Session, user: User, *, limit: int = 15) -> List[Dict[str, Any]]:
-    """Products likely to run out based on recent velocity vs stock."""
-    cutoff = datetime.utcnow() - timedelta(days=14)
-    velocity = (
-        db.query(
-            Product.id,
-            Product.name,
-            Product.stock_qty,
-            func.sum(SaleItem.quantity).label("sold"),
-        )
-        .join(SaleItem, SaleItem.product_id == Product.id)
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .filter(
-            Sale.created_at >= cutoff,
-            Product.is_active == True,  # noqa: E712
-            tenant_scope.sale_tenant_match(user),
-            tenant_scope.product_tenant_match(user),
-        )
-        .group_by(Product.id, Product.name, Product.stock_qty)
-        .all()
+    """Products likely to run out based on recent net velocity vs stock."""
+    from ..finance_service import product_period_metrics
+
+    end = datetime.utcnow()
+    cutoff = end - timedelta(days=14)
+    metrics = product_period_metrics(
+        db, user, cutoff, end, end_exclusive=False, active_only=True
     )
+    stock_by_id = {
+        int(p.id): float(p.stock_qty or 0)
+        for p in (
+            tenant_scope.filter_products(db, user)
+            .filter(Product.is_active == True)  # noqa: E712
+            .all()
+        )
+    }
     out: List[Dict[str, Any]] = []
-    for r in velocity:
-        sold = float(r.sold or 0)
+    for r in metrics:
+        sold = float(r.net_units)
         if sold <= 0:
             continue
         daily_rate = sold / 14.0
-        stock = float(r.stock_qty or 0)
+        stock = float(stock_by_id.get(r.product_id, 0))
         if daily_rate <= 0:
             continue
         days_left = stock / daily_rate
         if days_left <= 14:
             out.append(
                 {
-                    "product_id": r.id,
+                    "product_id": r.product_id,
                     "name": r.name,
                     "stock_qty": stock,
                     "avg_daily_sales": round(daily_rate, 2),

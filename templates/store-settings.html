@@ -91,6 +91,25 @@
                             <input type="text" id="store-name" name="store-name" placeholder="Store Name" autocomplete="organization">
                         </div>
                         <div>
+                            <label class="settings-label" for="store-currency">Business currency</label>
+                            <select id="store-currency" name="store-currency">
+                                <option value="USD">USD — US Dollar</option>
+                                <option value="ZAR">ZAR — South African Rand</option>
+                                <option value="ZWG">ZWG — Zimbabwe Gold</option>
+                                <option value="ZWL">ZWL — Zimbabwe Dollar</option>
+                                <option value="BWP">BWP — Botswana Pula</option>
+                                <option value="MWK">MWK — Malawi Kwacha</option>
+                                <option value="MZN">MZN — Mozambique Metical</option>
+                                <option value="NAD">NAD — Namibian Dollar</option>
+                                <option value="KES">KES — Kenyan Shilling</option>
+                                <option value="EUR">EUR — Euro</option>
+                                <option value="GBP">GBP — British Pound</option>
+                                <option value="other">Other (enter ISO code)…</option>
+                            </select>
+                            <input type="text" id="store-currency-custom" name="store-currency-custom" maxlength="3" placeholder="e.g. GHS" style="display:none;margin-top:8px;" autocomplete="off">
+                            <small class="help-text settings-help">Used for Overview, reports, and money formatting. Does not convert historical amounts.</small>
+                        </div>
+                        <div>
                             <label class="settings-label" for="store-phone">Phone Number</label>
                             <input type="tel" id="store-phone" name="store-phone" placeholder="Phone Number" inputmode="tel" autocomplete="tel">
                         </div>

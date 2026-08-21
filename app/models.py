@@ -151,6 +151,8 @@ class SaleItem(Base):
     unit_price: Mapped[Numeric] = mapped_column(Numeric(10, 2))
     discount: Mapped[Numeric] = mapped_column(Numeric(10, 2), default=0)
     line_total: Mapped[Numeric] = mapped_column(Numeric(10, 2))
+    # Cost snapshot at sale time — profit uses this, not live Product.cost_price.
+    unit_cost: Mapped[Optional[Numeric]] = mapped_column(Numeric(10, 2), nullable=True)
 
     sale: Mapped[Sale] = relationship("Sale", back_populates="items")
     product: Mapped[Product] = relationship("Product", back_populates="sale_items")
@@ -194,6 +196,8 @@ class StoreSettings(Base):
     notification_email: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)  # Email for low-stock notifications
     low_stock_email_enabled: Mapped[bool] = mapped_column(Boolean, default=False)  # Enable/disable email alerts
     default_low_stock_threshold: Mapped[float] = mapped_column(Float, default=10.0)  # Global default threshold
+    # ISO 4217 business display/reporting currency (not SaaS billing currency).
+    currency: Mapped[str] = mapped_column(String(3), default="USD")
     tenant_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("tenants.id"), nullable=True, index=True
     )
@@ -265,12 +269,16 @@ class LaybyPayment(Base):
 
 
 class Withdrawal(Base):
+    """Cash drawer removal. Not an operating expense — use Expense for P&L costs."""
+
     __tablename__ = "withdrawals"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     cashier_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     amount: Mapped[Numeric] = mapped_column(Numeric(10, 2))
-    reason: Mapped[str] = mapped_column(String(200))  # e.g., "Daily expenses", "Buying company assets"
+    reason: Mapped[str] = mapped_column(String(200))  # human label / free text
+    # Accounting classification — see withdrawal_purpose.WITHDRAWAL_PURPOSES
+    purpose: Mapped[Optional[str]] = mapped_column(String(40), nullable=True, index=True)
     receipt_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -280,6 +288,69 @@ class Withdrawal(Base):
     )
 
     cashier: Mapped[User] = relationship("User")
+
+
+class CashMovement(Base):
+    """Ledger of cash in/out for consistency with till activity (not full double-entry)."""
+
+    __tablename__ = "cash_movements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("tenants.id"), nullable=True, index=True
+    )
+    branch_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("branches.id"), nullable=True, index=True
+    )
+    movement_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    direction: Mapped[str] = mapped_column(String(10))  # in | out
+    amount: Mapped[Numeric] = mapped_column(Numeric(10, 2))
+    payment_method: Mapped[str] = mapped_column(String(30), default="cash")
+    source_type: Mapped[str] = mapped_column(String(40), index=True)  # expense, withdrawal, …
+    source_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    created_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class Expense(Base):
+    """Business operating expense (P&L). Distinct from cash Withdrawals."""
+
+    __tablename__ = "expenses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("tenants.id"), nullable=True, index=True
+    )
+    branch_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("branches.id"), nullable=True, index=True
+    )
+    expense_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    category: Mapped[str] = mapped_column(String(80), index=True)
+    description: Mapped[str] = mapped_column(String(500))
+    amount: Mapped[Numeric] = mapped_column(Numeric(10, 2))
+    payment_method: Mapped[str] = mapped_column(String(30), default="cash")
+    supplier_or_payee: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    reference: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # draft → approved → voided (legacy pending ≈ draft); rejected = cancelled before approve
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    approved_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    cash_movement_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("cash_movements.id"), nullable=True, index=True
+    )
+
+    creator: Mapped[User] = relationship("User", foreign_keys=[created_by])
+    approver: Mapped[Optional[User]] = relationship("User", foreign_keys=[approved_by])
+    cash_movement: Mapped[Optional["CashMovement"]] = relationship(
+        "CashMovement", foreign_keys=[cash_movement_id]
+    )
 
 
 class Refund(Base):
