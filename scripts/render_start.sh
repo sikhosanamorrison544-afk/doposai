@@ -21,6 +21,9 @@ _run_migrations() {
     python3 migrate_refunds.py || {
       echo "WARN: migrate_refunds.py failed (non-fatal)"
     }
+    python3 migrate_financial_accuracy.py --verify || {
+      echo "WARN: migrate_financial_accuracy.py failed (non-fatal)"
+    }
     python3 migrate_import_jobs.py || {
       echo "WARN: migrate_import_jobs.py failed (non-fatal)"
     }
