@@ -11,7 +11,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from fastapi import BackgroundTasks, Body, Depends, FastAPI, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import BackgroundTasks, Body, Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
@@ -235,7 +235,10 @@ from .billing.routes import billing_router, payments_router, subscriptions_route
 from .platform_routes import router as platform_router
 from .saas_auth_routes import router as saas_auth_router
 from .enterprise.routes import router as enterprise_router
+from .branch_routes import router as branch_router
+from .branch_routes import users_router as branch_users_router
 from . import enterprise_models  # noqa: F401 — register enterprise ORM tables
+from . import branch_models  # noqa: F401 — register UserBranch / transfer status constants
 from .whatsapp.routes import (
     api_router as whatsapp_api_router,
     webhook_router as whatsapp_webhook_router,
@@ -250,6 +253,8 @@ app.include_router(payments_router)
 app.include_router(billing_router)
 app.include_router(platform_router)
 app.include_router(enterprise_router)
+app.include_router(branch_router)
+app.include_router(branch_users_router)
 app.include_router(whatsapp_webhook_router)
 app.include_router(whatsapp_api_router)
 app.include_router(bi_router)
@@ -555,6 +560,22 @@ async def accounting_page(request: Request):
     return _shell_page(request, "accounting.html")
 
 
+@app.get("/admin/branches", response_class=HTMLResponse)
+async def admin_branches_page(request: Request, db: Session = Depends(get_db)):
+    """Owner/admin branch management and staff assignment."""
+    from .page_auth import gate_page, is_redirect
+    from .permissions import Perm
+
+    gated = gate_page(
+        request,
+        db,
+        any_of=(Perm.MANAGE_BRANCHES, Perm.BRANCH_VIEW, Perm.BRANCH_CREATE),
+    )
+    if is_redirect(gated):
+        return gated
+    return _shell_page(request, "admin_branches.html")
+
+
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_page(request: Request, db: Session = Depends(get_db)):
     from .page_auth import gate_page, is_redirect
@@ -648,6 +669,10 @@ class Token(BaseModel):
     permissions: List[str] = []
     can_access_pos: bool = False
     can_access_overview: bool = False
+    tenant_id: Optional[int] = None
+    activeBranch: Optional[dict] = None
+    availableBranches: List[dict] = []
+    branchScope: str = "branch"
 
 
 @app.post("/api/auth/token", response_model=Token)
@@ -679,10 +704,15 @@ async def login_for_access_token(
     logging.info(f"Login successful for user: {user.username} (role: {user.role})")
     from .landing import can_access_overview, post_login_path
     from .permissions import can_access_pos
+    from .branch_service import build_auth_branch_payload
 
-    payload = {"sub": user.username, "role": user.role}
+    branch_payload = build_auth_branch_payload(db, user)
+    payload = {"sub": user.username, "role": user.role, "bscope": branch_payload.get("branchScope") or "branch"}
     if user.tenant_id is not None:
         payload["tid"] = user.tenant_id
+    ab = branch_payload.get("activeBranch")
+    if ab and ab.get("id") is not None:
+        payload["bid"] = int(ab["id"])
     access_token = auth.create_access_token(data=payload)
     body = Token(
         access_token=access_token,
@@ -692,6 +722,10 @@ async def login_for_access_token(
         permissions=permissions_as_strings(user),
         can_access_pos=can_access_pos(user),
         can_access_overview=can_access_overview(user),
+        tenant_id=user.tenant_id,
+        activeBranch=branch_payload.get("activeBranch"),
+        availableBranches=branch_payload.get("availableBranches") or [],
+        branchScope=branch_payload.get("branchScope") or "branch",
     )
     response = JSONResponse(content=body.model_dump())
     auth.attach_access_cookie(response, access_token)
@@ -714,19 +748,31 @@ class UserMeRead(BaseModel):
     landing_path: str
     can_access_pos: bool = False
     can_access_overview: bool = False
+    tenant_id: Optional[int] = None
+    activeBranch: Optional[dict] = None
+    availableBranches: List[dict] = []
+    branchScope: str = "branch"
 
 
 @app.get("/api/auth/me", response_model=UserMeRead)
 async def read_current_user_me(
+    db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
 ):
     """Current user role and permission list for UI gating."""
     from .landing import can_access_overview, post_login_path
     from .permissions import can_access_pos
+    from .branch_service import build_auth_branch_payload
 
     role = (current_user.role or "cashier").strip().lower()
     if role == "owner":
         role = "admin"
+    branch_payload = build_auth_branch_payload(
+        db,
+        current_user,
+        token_branch_id=getattr(current_user, "_token_branch_id", None),
+        token_scope=getattr(current_user, "_token_branch_scope", None),
+    )
     return UserMeRead(
         username=current_user.username,
         role=role,
@@ -735,6 +781,10 @@ async def read_current_user_me(
         landing_path=post_login_path(current_user),
         can_access_pos=can_access_pos(current_user),
         can_access_overview=can_access_overview(current_user),
+        tenant_id=current_user.tenant_id,
+        activeBranch=branch_payload.get("activeBranch"),
+        availableBranches=branch_payload.get("availableBranches") or [],
+        branchScope=branch_payload.get("branchScope") or "branch",
     )
 
 
@@ -771,6 +821,7 @@ class ProductCreate(BaseModel):
     selling_price: Decimal
     is_active: bool = True
     expiry_date: Optional[date] = None
+    branch_id: Optional[int] = None
     
     @field_validator('stock_qty')
     @classmethod
@@ -782,6 +833,10 @@ class ProductCreate(BaseModel):
 
 class ProductRead(ProductCreate):
     id: int
+    branchId: Optional[int] = None
+    stockQty: Optional[str] = None  # active-branch qty string when branch context present
+    totalStockQty: Optional[str] = None
+    branchStock: Optional[List[dict]] = None
 
     class Config:
         from_attributes = True
@@ -797,9 +852,19 @@ async def list_products(
         False,
         description="Omit X-Total-Count (faster first page when count is loaded separately)",
     ),
+    consolidated: bool = Query(False, description="Include totalStockQty + branchStock breakdown"),
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
+    x_branch_id: Optional[str] = Header(None, alias="X-Branch-Id"),
 ):
+    from .inventory_service import (
+        branch_stock_breakdown,
+        fmt_qty,
+        get_branch_stock,
+        require_operational_branch,
+        total_branch_stock_for_product,
+    )
+
     query = (
         tenant_scope.filter_products(db, current_user)
         .filter(Product.is_active == True)  # noqa: E712
@@ -823,7 +888,31 @@ async def list_products(
     )
     if total >= 0:
         response.headers["X-Total-Count"] = str(total)
-    return products
+
+    branch = None
+    scope_all = (getattr(current_user, "_token_branch_scope", None) or "") == "all"
+    if not scope_all or not consolidated:
+        try:
+            branch = require_operational_branch(
+                db, current_user, header_branch_id=x_branch_id
+            )
+        except HTTPException:
+            branch = None
+
+    out: List[ProductRead] = []
+    for p in products:
+        row = ProductRead.model_validate(p)
+        if consolidated and scope_all:
+            row.totalStockQty = fmt_qty(total_branch_stock_for_product(db, p.id))
+            row.branchStock = branch_stock_breakdown(db, p.id)
+            row.stock_qty = float(total_branch_stock_for_product(db, p.id))
+        elif branch is not None:
+            snap = get_branch_stock(db, branch.id, p.id)
+            row.branchId = branch.id
+            row.stockQty = fmt_qty(snap.quantity_on_hand)
+            row.stock_qty = float(snap.quantity_on_hand)
+        out.append(row)
+    return out
 
 
 @app.get("/api/products/count")
@@ -906,13 +995,11 @@ async def export_price_list_pdf(
 @app.post("/api/products", response_model=ProductRead)
 async def create_product(
     product: ProductCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_admin: User = Depends(auth.get_current_admin_user),
+    x_branch_id: Optional[str] = Header(None, alias="X-Branch-Id"),
 ):
-    # Ensure stock_qty is non-negative (Pydantic validation should catch this, but extra safeguard)
-    if product.stock_qty < 0:
-        raise HTTPException(status_code=400, detail="Stock quantity cannot be negative")
-
     # Barcodes are assigned only by the server for normal product APIs.
     if product.barcode is not None and str(product.barcode).strip():
         raise HTTPException(
@@ -924,48 +1011,28 @@ async def create_product(
             ),
         )
 
-    product_dict = product.dict()
-    product_dict["barcode"] = None
-    last_err: Optional[Exception] = None
-    db_product = None
-    for _attempt in range(8):
-        product_dict["barcode"] = generate_unique_barcode(db, current_admin)
-        db_product = Product(
-            **product_dict, tenant_id=tenant_scope.tenant_id_for_row(current_admin)
-        )
-        if db_product.stock_qty < 0:
-            db_product.stock_qty = 0.0
-        db.add(db_product)
-        try:
-            db.commit()
-            db.refresh(db_product)
-            last_err = None
-            break
-        except Exception as e:
-            db.rollback()
-            last_err = e
-            # Concurrent AUTO-* collision — try next code
-            if "barcode" not in str(e).lower() and "unique" not in str(e).lower():
-                raise
-    if last_err is not None or db_product is None:
-        raise HTTPException(
-            status_code=500, detail="Could not assign a unique barcode; please retry"
-        ) from last_err
+    from .inventory_service import create_product_with_opening_stock
+
+    db_product = create_product_with_opening_stock(
+        db,
+        user=current_admin,
+        name=product.name,
+        category_id=product.category_id,
+        stock_qty=product.stock_qty,
+        reserved_qty=product.reserved_qty,
+        cost_price=product.cost_price,
+        selling_price=product.selling_price,
+        is_active=product.is_active,
+        expiry_date=product.expiry_date,
+        explicit_branch_id=product.branch_id,
+        header_branch_id=x_branch_id,
+    )
 
     logging.info(
         "Auto-assigned barcode %s to product: %s",
         db_product.barcode,
         db_product.name,
     )
-
-    if product.stock_qty:
-        movement = InventoryMovement(
-            product_id=db_product.id,
-            change_qty=product.stock_qty,
-            reason="Initial stock",
-        )
-        db.add(movement)
-        db.commit()
 
     # Sync to Google Sheets backup
     try:
@@ -1815,11 +1882,29 @@ class SaleRead(BaseModel):
 async def create_sale(
     sale_data: SaleCreate,
     background_tasks: BackgroundTasks,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(dep_perm(Perm.SALES)),
+    x_branch_id: Optional[str] = Header(None, alias="X-Branch-Id"),
 ):
+    from .inventory_service import (
+        MOVEMENT_SALE,
+        assert_shift_matches_branch,
+        decrease_branch_stock,
+        require_operational_branch,
+    )
+
     if not sale_data.items:
         raise HTTPException(status_code=400, detail="No items in sale")
+
+    # Concrete branch required (rejects consolidated scope=all).
+    write_branch = require_operational_branch(
+        db,
+        current_user,
+        explicit_branch_id=sale_data.branch_id,
+        header_branch_id=x_branch_id,
+    )
+    sale_branch_id = int(write_branch.id)
 
     client_sale_id = (sale_data.client_sale_id or "").strip() or None
     if client_sale_id:
@@ -1829,6 +1914,11 @@ async def create_sale(
             .first()
         )
         if existing:
+            if existing.branch_id is not None and int(existing.branch_id) != sale_branch_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail="client_sale_id already used for a different branch",
+                )
             return existing
 
     # Ensure all values are Decimal for consistent calculations
@@ -1858,20 +1948,12 @@ async def create_sale(
         )
         .first()
     )
+    if active_shift is not None:
+        assert_shift_matches_branch(active_shift.branch_id, sale_branch_id)
 
     # Validate collection_status
     if sale_data.collection_status not in ["collected", "to_collect"]:
         raise HTTPException(status_code=400, detail="collection_status must be 'collected' or 'to_collect'")
-
-    sale_branch_id = tenant_scope.resolve_branch_id_for_sale(
-        current_user, sale_data.branch_id
-    )
-    if sale_branch_id is not None:
-        from .enterprise_models import Branch
-
-        br = tenant_scope.get_scoped(db, Branch, sale_branch_id, current_user)
-        if br is None:
-            raise HTTPException(status_code=400, detail="Invalid branch")
 
     sale = Sale(
         cashier_id=current_user.id,
@@ -1900,25 +1982,36 @@ async def create_sale(
                 .first()
             )
             if existing:
+                if existing.branch_id is not None and int(existing.branch_id) != sale_branch_id:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="client_sale_id already used for a different branch",
+                    )
                 return existing
         raise HTTPException(status_code=409, detail="Could not create sale")
 
-    # Create sale items and update stock
+    tid = tenant_scope.tenant_id_for_row(current_user)
+    # Create sale items and update branch stock (authoritative)
     for item in sale_data.items:
         product = tenant_scope.require_product(db, item.product_id, current_user)
         item_qty = int(item.quantity)
         if item_qty <= 0:
             raise HTTPException(status_code=400, detail="Quantity must be a positive integer")
-        
-        # Calculate available stock (stock_qty - reserved_qty)
-        # Reserved stock is for items bought but not yet collected
-        available_stock = product.stock_qty - (product.reserved_qty or 0.0)
-        
-        # Check if product is out of stock or has insufficient available stock
-        if available_stock <= 0:
-            raise HTTPException(status_code=400, detail=f"Product '{product.name}' is out of stock (including reserved items)")
-        if available_stock < item_qty:
-            raise HTTPException(status_code=400, detail=f"Insufficient stock for '{product.name}'. Available: {available_stock}, Requested: {item_qty} (Total stock: {product.stock_qty}, Reserved: {product.reserved_qty or 0})")
+
+        collection_reason = (
+            "Sale (to collect)" if sale_data.collection_status == "to_collect" else "Sale (collected)"
+        )
+        decrease_branch_stock(
+            db,
+            tenant_id=tid,
+            branch_id=sale_branch_id,
+            product_id=product.id,
+            quantity=item_qty,
+            reason=f"{collection_reason} #{sale.id}",
+            movement_type=MOVEMENT_SALE,
+            actor_user_id=current_user.id,
+            check_reserved=True,
+        )
 
         line_total = (Decimal(str(item.unit_price)) * Decimal(str(item.quantity))) - Decimal(str(item.discount))
         sale_item = SaleItem(
@@ -1931,19 +2024,6 @@ async def create_sale(
             unit_cost=Decimal(str(product.cost_price)),
         )
         db.add(sale_item)
-
-        # Always deduct stock immediately when receipt is printed
-        # Collection status is just for tracking, not for stock management
-        product.stock_qty -= item_qty
-        collection_reason = "Sale (to collect)" if sale_data.collection_status == "to_collect" else "Sale (collected)"
-        movement = InventoryMovement(
-            product_id=product.id,
-            change_qty=-item_qty,
-            reason=collection_reason,
-        )
-        db.add(movement)
-        
-        # Note: Low stock checks moved to background task for performance
     
     # Flush sale items so they're available for accounting
     db.flush()
@@ -4595,13 +4675,19 @@ async def create_withdrawal(
     withdrawal: WithdrawalCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
+    x_branch_id: Optional[str] = Header(None, alias="X-Branch-Id"),
 ):
     """Create a withdrawal record and print receipt. Supervisors and admins only."""
     require_permission(current_user, Perm.PROCESS_WITHDRAWALS)
     import random
     import string
 
+    from .inventory_service import require_operational_branch
     from .withdrawal_purpose import is_fixed_asset_reason, resolve_purpose
+
+    write_branch = require_operational_branch(
+        db, current_user, header_branch_id=x_branch_id
+    )
 
     # Generate receipt number
     receipt_number = f"WD{''.join(random.choices(string.digits, k=8))}"
@@ -4638,6 +4724,7 @@ async def create_withdrawal(
         receipt_number=receipt_number,
         notes=notes_to_store,
         tenant_id=tenant_scope.tenant_id_for_row(current_user),
+        branch_id=write_branch.id,
     )
     db.add(db_withdrawal)
     db.flush()  # Get withdrawal ID before commit
@@ -4960,8 +5047,11 @@ async def start_shift(
     shift_data: ShiftStart,
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_active_user),
+    x_branch_id: Optional[str] = Header(None, alias="X-Branch-Id"),
 ):
     """Start a new cashier shift."""
+    from .inventory_service import require_operational_branch
+
     # Check if there's an active shift
     active_shift = (
         tenant_scope.filter_shifts(db, current_user)
@@ -4977,13 +5067,17 @@ async def start_shift(
             status_code=400,
             detail="You already have an active shift. Please end it before starting a new one."
         )
+
+    write_branch = require_operational_branch(
+        db, current_user, header_branch_id=x_branch_id
+    )
     
     shift = CashierShift(
         cashier_id=current_user.id,
         starting_cash=shift_data.starting_cash,
         notes=shift_data.notes,
         tenant_id=tenant_scope.tenant_id_for_row(current_user),
-        branch_id=tenant_scope.resolve_branch_id_for_sale(current_user, None),
+        branch_id=write_branch.id,
     )
     db.add(shift)
     db.commit()

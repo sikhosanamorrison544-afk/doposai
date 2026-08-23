@@ -24,23 +24,17 @@ class NotificationService:
     def get_threshold(self, product: Product) -> float:
         """
         Get the low-stock threshold for a product.
-        Uses product-specific threshold if set, otherwise uses global default.
-        
-        Args:
-            product: Product to get threshold for
-        
-        Returns:
-            Threshold value
+        Uses product-specific threshold if set, otherwise tenant store settings.
         """
         if product.low_stock_threshold is not None:
             return product.low_stock_threshold
-        
-        # Get global default from store settings
-        settings = self.db.query(StoreSettings).first()
+
+        settings = tenant_scope.first_store_settings_for_tenant(
+            self.db, getattr(product, "tenant_id", None)
+        )
         if settings and settings.default_low_stock_threshold:
             return settings.default_low_stock_threshold
-        
-        # Fallback default
+
         return 10.0
     
     def check_low_stock(self, product: Product) -> Optional[Notification]:
@@ -190,53 +184,81 @@ class NotificationService:
     
     def check_all_products_low_stock(self) -> None:
         """
-        Check all active products for low stock and send a batch email
-        with all low-stock products listed.
-        This should be called periodically or after stock updates.
+        Check active products for low stock and send tenant-scoped batch emails.
+
+        Scheduler path: iterates StoreSettings per tenant (no cross-tenant branding).
+        When a product has no matching StoreSettings, it is skipped for email (logged).
         """
-        settings = self.db.query(StoreSettings).first()
-        if not settings:
+        settings_rows = self.db.query(StoreSettings).all()
+        if not settings_rows:
+            logger.warning(
+                "check_all_products_low_stock: no StoreSettings rows; skipping email batch"
+            )
             return
-        
-        if not settings.low_stock_email_enabled:
-            return
-        
-        if not settings.notification_email:
-            return
-        
-        # Get all active products
-        products = self.db.query(Product).filter(
-            Product.is_active == True
-        ).all()
-        
-        low_stock_products = []
-        
+
+        by_tenant: Dict[Optional[int], StoreSettings] = {}
+        for s in settings_rows:
+            tid = getattr(s, "tenant_id", None)
+            # Prefer first row per tenant
+            if tid not in by_tenant:
+                by_tenant[tid] = s
+
+        products = self.db.query(Product).filter(Product.is_active == True).all()
+        # Group products by tenant_id
+        products_by_tid: Dict[Optional[int], List[Product]] = {}
         for product in products:
-            threshold = self.get_threshold(product)
-            
-            # Check if stock is below threshold
-            if product.stock_qty <= threshold:
-                low_stock_products.append({
-                    'name': product.name,
-                    'current_stock': product.stock_qty,
-                    'threshold': threshold
-                })
-        
-        # Send batch email if there are any low-stock products
-        if low_stock_products:
+            tid = getattr(product, "tenant_id", None)
+            products_by_tid.setdefault(tid, []).append(product)
+
+        for tid, tenant_products in products_by_tid.items():
+            settings = by_tenant.get(tid)
+            if not settings:
+                logger.warning(
+                    "check_all_products_low_stock: no StoreSettings for tenant_id=%s; skip email",
+                    tid,
+                )
+                continue
+            if not settings.low_stock_email_enabled or not settings.notification_email:
+                continue
+
+            low_stock_products = []
+            for product in tenant_products:
+                threshold = self.get_threshold(product)
+                if product.stock_qty <= threshold:
+                    low_stock_products.append(
+                        {
+                            "name": product.name,
+                            "current_stock": product.stock_qty,
+                            "threshold": threshold,
+                        }
+                    )
+
+            if not low_stock_products:
+                continue
             try:
                 store_name = settings.store_name or "Store"
                 success = email_service.send_low_stock_batch_alert(
                     to_email=settings.notification_email,
                     products=low_stock_products,
-                    store_name=store_name
+                    store_name=store_name,
                 )
                 if success:
-                    logger.info(f"Sent batch low-stock email alert for {len(low_stock_products)} products")
+                    logger.info(
+                        "Sent batch low-stock email for tenant_id=%s (%s products)",
+                        tid,
+                        len(low_stock_products),
+                    )
                 else:
-                    logger.warning(f"Failed to send batch low-stock email alert")
+                    logger.warning(
+                        "Failed to send batch low-stock email for tenant_id=%s", tid
+                    )
             except Exception as e:
-                logger.error(f"Error sending batch low-stock email alert: {e}", exc_info=True)
+                logger.error(
+                    "Error sending batch low-stock email for tenant_id=%s: %s",
+                    tid,
+                    e,
+                    exc_info=True,
+                )
     
     def mark_notification_read(self, notification_id: int, user: User) -> bool:
         """
@@ -393,40 +415,63 @@ class NotificationService:
     
     def check_expiring_products_and_send_email(self, days_ahead: int = 7) -> None:
         """
-        Check for products expiring within the specified days and send a batch email.
-        
-        Args:
-            days_ahead: Number of days ahead to check (default: 7)
+        Check for products expiring within the specified days and send tenant-scoped emails.
         """
-        settings = self.db.query(StoreSettings).first()
-        if not settings:
-            return
-        
-        if not settings.low_stock_email_enabled:
-            # Use the same email setting for expiry alerts
-            return
-        
-        if not settings.notification_email:
-            return
-        
-        expiring_products = self.check_expiring_products(days_ahead)
-        
-        if not expiring_products:
-            return
-        
-        # Send batch email
-        try:
-            store_name = settings.store_name or "Store"
-            success = email_service.send_expiry_batch_alert(
-                to_email=settings.notification_email,
-                products=expiring_products,
-                store_name=store_name,
-                days_ahead=days_ahead
+        settings_rows = self.db.query(StoreSettings).all()
+        if not settings_rows:
+            logger.warning(
+                "check_expiring_products_and_send_email: no StoreSettings; skipping"
             )
-            if success:
-                logger.info(f"Sent expiry email alert for {len(expiring_products)} products")
-            else:
-                logger.warning(f"Failed to send expiry email alert")
-        except Exception as e:
-            logger.error(f"Error sending expiry email alert: {e}", exc_info=True)
+            return
+
+        by_tenant: Dict[Optional[int], StoreSettings] = {}
+        for s in settings_rows:
+            tid = getattr(s, "tenant_id", None)
+            if tid not in by_tenant:
+                by_tenant[tid] = s
+
+        # check_expiring_products returns product dicts — prefer per-tenant filtering
+        all_expiring = self.check_expiring_products(days_ahead)
+        if not all_expiring:
+            return
+
+        # Group by product tenant via DB lookup
+        by_tid_products: Dict[Optional[int], List[dict]] = {}
+        for item in all_expiring:
+            pid = item.get("product_id") or item.get("id")
+            product = None
+            if pid:
+                product = self.db.query(Product).filter(Product.id == pid).first()
+            tid = getattr(product, "tenant_id", None) if product else None
+            by_tid_products.setdefault(tid, []).append(item)
+
+        for tid, products in by_tid_products.items():
+            settings = by_tenant.get(tid)
+            if not settings:
+                logger.warning(
+                    "expiry email: no StoreSettings for tenant_id=%s; skip", tid
+                )
+                continue
+            if not settings.low_stock_email_enabled or not settings.notification_email:
+                continue
+            try:
+                store_name = settings.store_name or "Store"
+                success = email_service.send_expiry_batch_alert(
+                    to_email=settings.notification_email,
+                    products=products,
+                    store_name=store_name,
+                    days_ahead=days_ahead,
+                )
+                if success:
+                    logger.info(
+                        "Sent expiry email for tenant_id=%s (%s products)",
+                        tid,
+                        len(products),
+                    )
+                else:
+                    logger.warning("Failed expiry email for tenant_id=%s", tid)
+            except Exception as e:
+                logger.error(
+                    "Error sending expiry email for tenant_id=%s: %s", tid, e, exc_info=True
+                )
 

@@ -90,6 +90,10 @@ class JournalEntry(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
     is_posted: Mapped[bool] = mapped_column(Boolean, default=True, index=True)  # All entries are posted immediately
     posted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Section 14 — nullable branch scope for branch-level accounting reports.
+    branch_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("branches.id"), nullable=True, index=True
+    )
     # Stored totals for balance verification (enforced at application level, stored for performance)
     total_debit: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=Decimal("0"))
     total_credit: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=Decimal("0"))

@@ -48,7 +48,10 @@ def create_expense(
     reference: Optional[str] = None,
     notes: Optional[str] = None,
     auto_approve: bool = False,
+    header_branch_id: Optional[str] = None,
 ) -> Expense:
+    from .inventory_service import require_operational_branch
+
     cat = (category or "").strip().lower()
     if cat not in EXPENSE_CATEGORIES:
         raise HTTPException(
@@ -67,16 +70,16 @@ def create_expense(
     if method not in {"cash", "mobile_money", "card", "bank_transfer", "other"}:
         raise HTTPException(status_code=400, detail="Invalid payment_method")
 
-    if branch_id is not None:
-        from .enterprise_models import Branch
-
-        br = tenant_scope.get_scoped(db, Branch, branch_id, user)
-        if br is None:
-            raise HTTPException(status_code=400, detail="Invalid branch")
+    write_branch = require_operational_branch(
+        db,
+        user,
+        explicit_branch_id=branch_id,
+        header_branch_id=header_branch_id,
+    )
 
     expense = Expense(
         tenant_id=tenant_scope.tenant_id_for_row(user),
-        branch_id=branch_id,
+        branch_id=write_branch.id,
         expense_date=expense_date or datetime.utcnow(),
         category=cat,
         description=desc,

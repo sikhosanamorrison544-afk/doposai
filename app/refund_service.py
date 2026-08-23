@@ -375,6 +375,8 @@ def create_refund(
         approved_at=datetime.utcnow() if auto_approve else None,
         notes=(notes.strip() if notes else None),
         tenant_id=tenant_scope.tenant_id_for_row(user),
+        # Stock restore / analytics must use the sale's branch, not the UI selection.
+        branch_id=getattr(sale, "branch_id", None),
     )
     db.add(refund)
     db.flush()
@@ -529,6 +531,13 @@ def _refund_journal_exists(db: Session, refund_id: int) -> Optional[JournalEntry
 
 def _apply_refund_effects(db: Session, refund: Refund, sale: Sale, user: User) -> None:
     """Restore stock, adjust shift/customer balances, post accounting (once)."""
+    from .branch_context import sale_branch_must_match_refund
+
+    # Refund stock must return to the sale's branch (not the caller's selected branch).
+    sale_branch_must_match_refund(
+        getattr(sale, "branch_id", None),
+        getattr(refund, "branch_id", None),
+    )
     # Do not refresh(refund) here — callers may have set status/audit fields
     # that are not yet flushed; a refresh would wipe them.
     if not refund.items:
@@ -544,6 +553,23 @@ def _apply_refund_effects(db: Session, refund: Refund, sale: Sale, user: User) -
 
     already_stock = _inventory_already_restored(db, refund)
     if not already_stock:
+        from .inventory_service import (
+            MOVEMENT_REFUND,
+            _ensure_tenant_has_main_branch,
+            increase_branch_stock,
+        )
+
+        restore_branch_id = getattr(sale, "branch_id", None) or getattr(
+            refund, "branch_id", None
+        )
+        if restore_branch_id is None:
+            # Legacy null-branch sales → Main Branch (Section 14 compatibility).
+            main = _ensure_tenant_has_main_branch(db, getattr(sale, "tenant_id", None))
+            restore_branch_id = main.id
+            if getattr(sale, "branch_id", None) is None:
+                sale.branch_id = restore_branch_id
+            if getattr(refund, "branch_id", None) is None:
+                refund.branch_id = restore_branch_id
         for ri in items:
             product = (
                 db.query(Product)
@@ -558,17 +584,15 @@ def _apply_refund_effects(db: Session, refund: Refund, sale: Sale, user: User) -
                     status_code=404, detail=f"Product {ri.product_id} not found"
                 )
             change = float(ri.quantity)
-            db.execute(
-                update(Product)
-                .where(Product.id == product.id)
-                .values(stock_qty=Product.stock_qty + change)
-            )
-            db.add(
-                InventoryMovement(
-                    product_id=product.id,
-                    change_qty=change,
-                    reason=f"Refund {refund.refund_number}",
-                )
+            increase_branch_stock(
+                db,
+                tenant_id=getattr(refund, "tenant_id", None),
+                branch_id=int(restore_branch_id),
+                product_id=product.id,
+                quantity=change,
+                reason=f"Refund {refund.refund_number}",
+                movement_type=MOVEMENT_REFUND,
+                actor_user_id=user.id,
             )
         db.flush()
 

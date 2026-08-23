@@ -89,7 +89,8 @@ class AccountingEngine:
         lines: List[Dict],
         reference_type: Optional[str] = None,
         reference_id: Optional[int] = None,
-        created_by: int = 1
+        created_by: int = 1,
+        branch_id: Optional[int] = None,
     ) -> JournalEntry:
         """
         Create a balanced journal entry.
@@ -101,6 +102,7 @@ class AccountingEngine:
             reference_type: Type of source transaction (e.g., "SALE", "WITHDRAWAL")
             reference_id: ID of source transaction
             created_by: User ID creating the entry
+            branch_id: Optional branch scope (Section 14)
         
         Returns:
             JournalEntry object
@@ -138,7 +140,8 @@ class AccountingEngine:
             is_posted=True,
             posted_at=datetime.utcnow(),
             total_debit=total_debits,
-            total_credit=total_credits
+            total_credit=total_credits,
+            branch_id=branch_id,
         )
         self.db.add(journal_entry)
         self.db.flush()
@@ -291,7 +294,8 @@ class AccountingEngine:
                 lines=lines,
                 reference_type="SALE",
                 reference_id=sale.id,
-                created_by=sale.cashier_id
+                created_by=sale.cashier_id,
+                branch_id=getattr(sale, "branch_id", None),
             )
 
             return journal_entry
@@ -374,6 +378,7 @@ class AccountingEngine:
                 reference_type="WITHDRAWAL",
                 reference_id=withdrawal.id,
                 created_by=withdrawal.cashier_id,
+                branch_id=getattr(withdrawal, "branch_id", None),
             )
 
             return journal_entry
@@ -433,6 +438,7 @@ class AccountingEngine:
                 reference_type="EXPENSE",
                 reference_id=expense.id,
                 created_by=expense.created_by,
+                branch_id=getattr(expense, "branch_id", None),
             )
         except Exception as e:
             logger.error(f"Error posting expense {expense.id} to accounting: {e}", exc_info=True)
@@ -574,6 +580,7 @@ class AccountingEngine:
                 reference_type="REFUND",
                 reference_id=refund.id,
                 created_by=refund.approved_by_id or refund.requested_by_id,
+                branch_id=getattr(refund, "branch_id", None),
             )
         except Exception as e:
             logger.error(f"Error posting refund {refund.id} to accounting: {e}", exc_info=True)

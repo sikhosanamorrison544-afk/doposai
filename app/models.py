@@ -182,6 +182,19 @@ class InventoryMovement(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, index=True
     )
+    # Section 12 — additive branch provenance (nullable until backfill).
+    tenant_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("tenants.id"), nullable=True, index=True
+    )
+    branch_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("branches.id"), nullable=True, index=True
+    )
+    # Offline / sync idempotency for stock movements.
+    client_movement_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    # Section 15 — transfer / adjustment provenance (additive).
+    movement_type: Mapped[Optional[str]] = mapped_column(String(40), nullable=True, index=True)
+    reference_type: Mapped[Optional[str]] = mapped_column(String(40), nullable=True, index=True)
+    reference_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
 
     product: Mapped[Product] = relationship("Product")
 
@@ -286,6 +299,10 @@ class Withdrawal(Base):
     tenant_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("tenants.id"), nullable=True, index=True
     )
+    # Section 12 — till / branch scope (nullable until backfill from shift/user).
+    branch_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("branches.id"), nullable=True, index=True
+    )
 
     cashier: Mapped[User] = relationship("User")
 
@@ -374,6 +391,10 @@ class Refund(Base):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     tenant_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("tenants.id"), nullable=True, index=True
+    )
+    # Inherited from sale at create/approve; stock restore must use this branch.
+    branch_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("branches.id"), nullable=True, index=True
     )
 
     sale: Mapped["Sale"] = relationship("Sale", back_populates="refunds")

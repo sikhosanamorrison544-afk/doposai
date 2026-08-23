@@ -37,16 +37,16 @@ def apply_product_stock_change(
     update_cost: Optional[float] = None,
 ) -> StockChangeResult:
     """
-    Atomically adjust product stock and record an InventoryMovement.
-
-    Caller owns the outer transaction (commit/rollback). This function:
-      1. Locks the product row with FOR UPDATE (honoured on Postgres; SQLite
-         still serialises writers at the DB file)
-      2. Applies ``stock_qty = stock_qty + change`` via SQL so two concurrent
-         receipts cannot overwrite each other even when FOR UPDATE is a no-op
-      3. Inserts the movement and flushes so ``movement_id`` is available
-      4. Optionally adjusts branch stock under the same transaction
+    Atomically adjust stock. When branch_id is set, BranchProductStock is authoritative
+    and Product.stock_qty is synced as a legacy shadow (Section 14).
     """
+    from ..inventory_service import (
+        MOVEMENT_ADJUSTMENT,
+        decrease_branch_stock,
+        increase_branch_stock,
+        to_qty,
+    )
+
     change = float(change_qty)
     product = (
         db.query(Product)
@@ -57,18 +57,62 @@ def apply_product_stock_change(
     if product is None:
         raise ValueError(f"Product {product_id} not found")
 
+    if update_cost is not None:
+        db.execute(
+            update(Product).where(Product.id == product_id).values(cost_price=update_cost)
+        )
+
+    if branch_id is not None:
+        tid = getattr(product, "tenant_id", None)
+        qty = abs(change)
+        if change >= 0:
+            snap = increase_branch_stock(
+                db,
+                tenant_id=tid,
+                branch_id=int(branch_id),
+                product_id=product_id,
+                quantity=qty,
+                reason=reason,
+                movement_type=MOVEMENT_ADJUSTMENT,
+            )
+        else:
+            snap = decrease_branch_stock(
+                db,
+                tenant_id=tid,
+                branch_id=int(branch_id),
+                product_id=product_id,
+                quantity=qty,
+                reason=reason,
+                movement_type=MOVEMENT_ADJUSTMENT,
+                check_reserved=False,
+            )
+        db.refresh(product)
+        resulting = float(product.stock_qty or 0)
+        previous = resulting - change
+        mov = (
+            db.query(InventoryMovement)
+            .filter(InventoryMovement.product_id == product_id)
+            .order_by(InventoryMovement.id.desc())
+            .first()
+        )
+        return StockChangeResult(
+            product=product,
+            previous_qty=previous,
+            change_qty=change,
+            resulting_qty=resulting,
+            movement_id=mov.id if mov else 0,
+        )
+
+    # Legacy Product-only path (no branch) — keep for rare callers; prefer branch_id.
     previous = float(product.stock_qty or 0)
     resulting = previous + change
     if resulting < 0:
         raise ValueError("Insufficient stock")
 
-    values = {"stock_qty": Product.stock_qty + change}
-    if update_cost is not None:
-        values["cost_price"] = update_cost
-
-    db.execute(update(Product).where(Product.id == product_id).values(**values))
+    db.execute(
+        update(Product).where(Product.id == product_id).values(stock_qty=Product.stock_qty + change)
+    )
     db.refresh(product)
-    # Prefer the post-update column as source of truth (guards against races).
     resulting = float(product.stock_qty or 0)
     previous = resulting - change
 
@@ -76,41 +120,10 @@ def apply_product_stock_change(
         product_id=product_id,
         change_qty=change,
         reason=reason,
+        tenant_id=getattr(product, "tenant_id", None),
     )
     db.add(movement)
-    db.flush()  # assign movement.id before commit
-
-    if branch_id is not None:
-        bps = (
-            db.query(BranchProductStock)
-            .filter(
-                BranchProductStock.branch_id == branch_id,
-                BranchProductStock.product_id == product_id,
-            )
-            .with_for_update()
-            .one_or_none()
-        )
-        if bps is None:
-            bps = BranchProductStock(
-                branch_id=branch_id, product_id=product_id, stock_qty=0.0
-            )
-            db.add(bps)
-            db.flush()
-            bps = (
-                db.query(BranchProductStock)
-                .filter(BranchProductStock.id == bps.id)
-                .with_for_update()
-                .one()
-            )
-        # Atomic branch increment; clamp at zero to match prior behaviour.
-        db.execute(
-            update(BranchProductStock)
-            .where(BranchProductStock.id == bps.id)
-            .values(stock_qty=BranchProductStock.stock_qty + change)
-        )
-        db.refresh(bps)
-        if float(bps.stock_qty or 0) < 0:
-            bps.stock_qty = 0.0
+    db.flush()
 
     return StockChangeResult(
         product=product,

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="pos-build" content="{{ pos_build }}">
+    <script>window.__POS_BUILD__={{ pos_build|tojson }};</script>
+    <script src="/static/js/pos-client-boot.js?v={{ pos_build }}"></script>
+    <title>Branches - {{ store_name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <script src="/static/js/theme-instant.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css?v={{ pos_build }}">
+    <link rel="stylesheet" href="/static/css/secondary-pages-theme.css">
+    <style>
+      .branches-page { max-width: 960px; margin: 0 auto; padding: 1.25rem; }
+      .branches-page h1 { margin: 0 0 0.25rem; }
+      .branches-page .sub { opacity: 0.75; margin-bottom: 1.25rem; }
+      .branch-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+      .branch-table th, .branch-table td { text-align: left; padding: 0.55rem 0.4rem; border-bottom: 1px solid rgba(127,127,127,0.25); }
+      .branch-table tr.inactive { opacity: 0.55; }
+      .branch-badge { font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 4px; background: rgba(16,185,129,0.2); }
+      .branch-form { display: grid; gap: 0.5rem; max-width: 420px; margin-top: 1rem; }
+      .branch-form input, .branch-form select { padding: 0.45rem; }
+      .staff-panel { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid rgba(127,127,127,0.3); }
+      .err { color: #f87171; min-height: 1.2em; }
+      .ok { color: #34d399; }
+    </style>
+</head>
+<body class="page-admin-branches">
+<div class="branches-page">
+  <header>
+    <p><a href="/overview">&larr; Overview</a> · <a href="/enterprise">Enterprise</a></p>
+    <h1>Branch management</h1>
+    <p class="sub">Create locations, set the main branch, and assign staff. Stock editing is Section 14.</p>
+  </header>
+
+  <section>
+    <h2>Branches</h2>
+    <div id="branches-msg" class="err" role="status"></div>
+    <table class="branch-table" id="branches-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Code</th>
+          <th>Status</th>
+          <th>Staff</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="branches-body"></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Create branch</h2>
+    <form class="branch-form" id="create-branch-form">
+      <label>Name <input name="name" required minlength="2" maxlength="120"></label>
+      <label>Code <input name="code" maxlength="32" placeholder="e.g. TOWN"></label>
+      <label>Address <input name="address"></label>
+      <label>Phone <input name="phone"></label>
+      <label>Email <input name="email" type="email"></label>
+      <label><input type="checkbox" name="is_main"> Set as main branch</label>
+      <button type="submit">Create</button>
+    </form>
+  </section>
+
+  <section class="staff-panel" id="staff-panel" hidden>
+    <h2>Staff — <span id="staff-branch-name"></span></h2>
+    <p class="sub">Membership decides where a user may operate. Global permissions decide what they may do.</p>
+    <form class="branch-form" id="assign-staff-form">
+      <input type="hidden" name="branch_id" id="staff-branch-id">
+      <label>User ID <input name="user_id" type="number" required></label>
+      <label>Branch role
+        <select name="role">
+          <option value="cashier">cashier</option>
+          <option value="manager">manager</option>
+          <option value="stock_controller">stock_controller</option>
+          <option value="accountant">accountant</option>
+          <option value="viewer">viewer</option>
+        </select>
+      </label>
+      <label><input type="checkbox" name="is_default"> Default branch for user</label>
+      <button type="submit">Assign</button>
+    </form>
+    <table class="branch-table">
+      <thead><tr><th>User</th><th>Role</th><th>Default</th><th>Active</th><th></th></tr></thead>
+      <tbody id="staff-body"></tbody>
+    </table>
+  </section>
+</div>
+<script src="/static/js/branch-context.js?v={{ pos_build }}"></script>
+<script src="/static/js/admin-branches.js?v={{ pos_build }}"></script>
+</body>
+</html>

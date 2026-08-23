@@ -623,6 +623,26 @@ async function enterPosAfterAuth(data) {
     }
 
     document.getElementById('user-info').textContent = `${currentUser.username} (${currentUser.role})`;
+    if (window.PosBranch && typeof PosBranch.renderSelector === 'function') {
+        PosBranch.renderSelector(document.getElementById('pos-branch-selector'), Object.assign({}, data, {
+            username: currentUser.username,
+            tenant_id: data.tenant_id,
+        }), {
+            onSwitched: function () {
+                loadProducts();
+            },
+        });
+        if (data.activeBranch) {
+            localStorage.setItem('pos_branch_ctx', JSON.stringify({
+                branchId: data.activeBranch.id,
+                scope: data.branchScope || 'branch',
+            }));
+            PosBranch.writeCachedBranch(data.tenant_id, currentUser.username, {
+                branchId: data.activeBranch.id,
+                scope: data.branchScope || 'branch',
+            });
+        }
+    }
     if (window.PosRoles) {
         PosRoles.applyPosRoleGates(currentUser);
     }
@@ -2727,10 +2747,26 @@ async function restoreSession() {
             return true;
         }
         
-        // Update UI
         const userInfoEl = document.getElementById('user-info');
         if (userInfoEl) {
             userInfoEl.textContent = `${currentUser.username} (${currentUser.role})`;
+        }
+        if (window.PosBranch && typeof PosBranch.renderSelector === 'function') {
+            PosBranch.renderSelector(document.getElementById('pos-branch-selector'), me, {
+                onSwitched: function () {
+                    loadProducts();
+                },
+            });
+            if (me.activeBranch) {
+                localStorage.setItem('pos_branch_ctx', JSON.stringify({
+                    branchId: me.activeBranch.id,
+                    scope: me.branchScope || 'branch',
+                }));
+                PosBranch.writeCachedBranch(me.tenant_id, currentUser.username, {
+                    branchId: me.activeBranch.id,
+                    scope: me.branchScope || 'branch',
+                });
+            }
         }
         
         if (window.PosRoles) {

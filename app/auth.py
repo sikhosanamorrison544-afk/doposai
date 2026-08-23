@@ -113,6 +113,19 @@ async def get_current_user(
             raise credentials_exception
     elif tid_claim is not None:
         raise credentials_exception
+    # Section 13 — optional active-branch claims (validated later by branch_context).
+    bid = payload.get("bid")
+    if bid is not None:
+        try:
+            user._token_branch_id = int(bid)  # type: ignore[attr-defined]
+        except (TypeError, ValueError):
+            user._token_branch_id = None  # type: ignore[attr-defined]
+    else:
+        user._token_branch_id = None  # type: ignore[attr-defined]
+    bscope = payload.get("bscope")
+    user._token_branch_scope = (  # type: ignore[attr-defined]
+        str(bscope).strip().lower() if bscope else "branch"
+    )
     return user
 
 

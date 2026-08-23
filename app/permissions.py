@@ -25,6 +25,25 @@ class Perm(str, Enum):
     RECEIVE_STOCK = "receive_stock"
     MANAGE_BRANCHES = "manage_branches"
     MANAGE_TRANSFERS = "manage_transfers"
+    # Section 12 — granular branch permissions (admin inherits all via role set).
+    BRANCH_CREATE = "branch.create"
+    BRANCH_VIEW = "branch.view"
+    BRANCH_UPDATE = "branch.update"
+    BRANCH_DEACTIVATE = "branch.deactivate"
+    BRANCH_SWITCH = "branch.switch"
+    BRANCH_STAFF_ASSIGN = "branch.staff.assign"
+    BRANCH_STAFF_REMOVE = "branch.staff.remove"
+    BRANCH_STOCK_VIEW = "branch.stock.view"
+    BRANCH_STOCK_ADJUST = "branch.stock.adjust"
+    BRANCH_TRANSFER_REQUEST = "branch.transfer.request"
+    BRANCH_TRANSFER_APPROVE = "branch.transfer.approve"
+    BRANCH_TRANSFER_DISPATCH = "branch.transfer.dispatch"
+    BRANCH_TRANSFER_RECEIVE = "branch.transfer.receive"
+    BRANCH_TRANSFER_REJECT = "branch.transfer.reject"
+    BRANCH_TRANSFER_CANCEL = "branch.transfer.cancel"
+    BRANCH_TRANSFER_VIEW = "branch.transfer.view"
+    BRANCH_ANALYTICS_VIEW = "branch.analytics.view"
+    BRANCH_ANALYTICS_CONSOLIDATED = "branch.analytics.consolidated"
     VIEW_REPORTS = "view_reports"
     VIEW_AUDIT = "view_audit"
     MANAGE_USERS = "manage_users"
@@ -64,11 +83,27 @@ _ROLE_PERMS: dict[str, Set[Perm]] = {
         Perm.MANAGE_PENDING_COLLECTION,
         Perm.VIEW_REPORTS,
         Perm.MANAGE_SHIFTS,
+        Perm.BRANCH_VIEW,
+        Perm.BRANCH_SWITCH,
+        Perm.BRANCH_STOCK_VIEW,
+        Perm.BRANCH_STOCK_ADJUST,
+        Perm.BRANCH_TRANSFER_REQUEST,
+        Perm.BRANCH_TRANSFER_APPROVE,
+        Perm.BRANCH_TRANSFER_DISPATCH,
+        Perm.BRANCH_TRANSFER_RECEIVE,
+        Perm.BRANCH_TRANSFER_REJECT,
+        Perm.BRANCH_TRANSFER_CANCEL,
+        Perm.BRANCH_TRANSFER_VIEW,
+        Perm.BRANCH_ANALYTICS_VIEW,
+        Perm.MANAGE_TRANSFERS,
     },
     "cashier": {
         Perm.SALES,
         Perm.VIEW_INVENTORY,
         Perm.REQUEST_REFUNDS,
+        Perm.BRANCH_VIEW,
+        Perm.BRANCH_SWITCH,
+        Perm.BRANCH_STOCK_VIEW,
     },
 }
 

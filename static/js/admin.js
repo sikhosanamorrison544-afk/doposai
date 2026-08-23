@@ -915,8 +915,18 @@ function clearProductForm() {
     }
 }
 
+let saveProductBusy = false;
+
 async function saveProduct() {
     const msg = document.getElementById('prod-message');
+    const saveBtn = document.getElementById('btn-save-product') || document.getElementById('btnSaveProduct');
+    if (saveProductBusy) {
+        return;
+    }
+    saveProductBusy = true;
+    if (saveBtn) {
+        saveBtn.disabled = true;
+    }
     msg.textContent = '';
     const name = document.getElementById('prod-name').value.trim();
     const stock = Math.max(0, Math.round(parseFloat(document.getElementById('prod-stock').value) || 0));
@@ -975,6 +985,11 @@ async function saveProduct() {
     } catch (e) {
         console.error(e);
         msg.textContent = (e && e.message) ? e.message : 'Save failed';
+    } finally {
+        saveProductBusy = false;
+        if (saveBtn) {
+            saveBtn.disabled = false;
+        }
     }
 }
 

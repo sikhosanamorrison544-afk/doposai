@@ -27,9 +27,17 @@ from .database import Base
 
 
 class Branch(Base):
+    """Tenant-owned location (shop / till / stock room). Exactly one tenant per branch.
+
+    ``is_default`` marks the Main Branch (at most one active main per tenant —
+    enforced by migrate_branches / application layer; soft-deactivate preferred
+    over hard delete when financial history exists).
+    """
+
     __tablename__ = "branches"
     __table_args__ = (
         UniqueConstraint("tenant_id", "name", name="uq_branches_tenant_name"),
+        UniqueConstraint("tenant_id", "code", name="uq_branches_tenant_code"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -40,30 +48,69 @@ class Branch(Base):
     code: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, index=True)
     address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     phone: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    manager_user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Main Branch flag (Section 12 ``is_main`` synonym).
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
+    @property
+    def is_main(self) -> bool:
+        return bool(self.is_default)
+
+    @is_main.setter
+    def is_main(self, value: bool) -> None:
+        self.is_default = bool(value)
+
 
 class BranchProductStock(Base):
-    """Per-branch inventory (tenant-wide product catalog, branch-specific qty)."""
+    """Per-branch inventory — Section 14 authoritative stock source of truth.
+
+    ``stock_qty`` / ``quantity_on_hand`` is NUMERIC(18,4).
+    ``Product.stock_qty`` is a legacy shadow (sum of branch quantities).
+    """
+
     __tablename__ = "branch_product_stock"
     __table_args__ = (
         UniqueConstraint("branch_id", "product_id", name="uq_branch_product"),
         CheckConstraint("stock_qty >= 0", name="check_branch_stock_non_negative"),
+        CheckConstraint("reserved_qty >= 0", name="check_branch_reserved_non_negative"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("tenants.id"), nullable=True, index=True
+    )
     branch_id: Mapped[int] = mapped_column(ForeignKey("branches.id"), index=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
-    stock_qty: Mapped[float] = mapped_column(Float, default=0.0)
-    reserved_qty: Mapped[float] = mapped_column(Float, default=0.0)
+    # Authoritative on-hand quantity (DECIMAL — GlazzerX-ready precision).
+    stock_qty: Mapped[Numeric] = mapped_column(Numeric(18, 4), default=0)
+    reserved_qty: Mapped[Numeric] = mapped_column(Numeric(18, 4), default=0)
+    reorder_level: Mapped[Optional[Numeric]] = mapped_column(Numeric(18, 4), nullable=True)
+    reorder_quantity: Mapped[Optional[Numeric]] = mapped_column(Numeric(18, 4), nullable=True)
+    # Idempotent migrate marker: True once seeded from Product.stock_qty.
+    seeded_from_legacy: Mapped[bool] = mapped_column(Boolean, default=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
+
+    @property
+    def quantity_on_hand(self):
+        from decimal import Decimal
+
+        return Decimal(str(self.stock_qty or 0))
+
+    @quantity_on_hand.setter
+    def quantity_on_hand(self, value) -> None:
+        from decimal import Decimal
+
+        self.stock_qty = Decimal(str(value))
 
 
 # --- Suppliers ---
@@ -225,15 +272,31 @@ class StockAdjustment(Base):
 
 
 # --- Stock transfers ---
+# Lifecycle: DRAFT → REQUESTED → APPROVED → DISPATCHED → RECEIVED
+# Terminal: REJECTED | CANCELLED
+# Legacy statuses draft / in_transit / received / cancelled remain readable.
 
 
 TRANSFER_STATUS_DRAFT = "draft"
-TRANSFER_STATUS_IN_TRANSIT = "in_transit"
+TRANSFER_STATUS_IN_TRANSIT = "in_transit"  # legacy ≈ dispatched
 TRANSFER_STATUS_RECEIVED = "received"
 TRANSFER_STATUS_CANCELLED = "cancelled"
+TRANSFER_STATUS_REQUESTED = "requested"
+TRANSFER_STATUS_APPROVED = "approved"
+TRANSFER_STATUS_DISPATCHED = "dispatched"
+TRANSFER_STATUS_REJECTED = "rejected"
+
+TRANSFER_OPEN_STATUSES = (
+    TRANSFER_STATUS_REQUESTED,
+    TRANSFER_STATUS_APPROVED,
+    TRANSFER_STATUS_DISPATCHED,
+    TRANSFER_STATUS_IN_TRANSIT,
+)
 
 
 class StockTransfer(Base):
+    """Inter-branch stock movement. Never creates sales revenue, COGS, Payment, or Expense."""
+
     __tablename__ = "stock_transfers"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -245,10 +308,28 @@ class StockTransfer(Base):
     to_branch_id: Mapped[int] = mapped_column(ForeignKey("branches.id"), index=True)
     status: Mapped[str] = mapped_column(String(32), default=TRANSFER_STATUS_DRAFT, index=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    request_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    approval_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    dispatch_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    receipt_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    rejection_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    cancellation_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    received_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    requested_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    approved_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    dispatched_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
     received_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    rejected_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    cancelled_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)  # dispatched_at
+    received_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    rejected_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    cancelled_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Offline / sync idempotency (alias: idempotency_key)
+    client_transfer_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -257,6 +338,30 @@ class StockTransfer(Base):
     items: Mapped[list["StockTransferItem"]] = relationship(
         "StockTransferItem", back_populates="transfer", cascade="all, delete-orphan"
     )
+
+    @property
+    def source_branch_id(self) -> int:
+        return int(self.from_branch_id)
+
+    @property
+    def destination_branch_id(self) -> int:
+        return int(self.to_branch_id)
+
+    @property
+    def dispatched_at(self) -> Optional[datetime]:
+        return self.sent_at
+
+    @property
+    def received_by_id(self) -> Optional[int]:
+        return self.received_by
+
+    @property
+    def idempotency_key(self) -> Optional[str]:
+        return self.client_transfer_id
+
+    @idempotency_key.setter
+    def idempotency_key(self, value: Optional[str]) -> None:
+        self.client_transfer_id = value
 
 
 class StockTransferItem(Base):
@@ -268,10 +373,48 @@ class StockTransferItem(Base):
     )
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
     product_name: Mapped[str] = mapped_column(String(120))
-    quantity: Mapped[float] = mapped_column(Float)
-    quantity_received: Mapped[float] = mapped_column(Float, default=0)
+    # quantity = requested_quantity (legacy column name)
+    quantity: Mapped[Numeric] = mapped_column(Numeric(18, 4), default=0)
+    approved_quantity: Mapped[Optional[Numeric]] = mapped_column(Numeric(18, 4), nullable=True)
+    quantity_dispatched: Mapped[Optional[Numeric]] = mapped_column(Numeric(18, 4), nullable=True)
+    quantity_received: Mapped[Numeric] = mapped_column(Numeric(18, 4), default=0)
+    quantity_damaged: Mapped[Optional[Numeric]] = mapped_column(Numeric(18, 4), nullable=True)
+    quantity_missing: Mapped[Optional[Numeric]] = mapped_column(Numeric(18, 4), nullable=True)
+    unit_cost_snapshot: Mapped[Optional[Numeric]] = mapped_column(Numeric(12, 4), nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    request_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    dispatch_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    receipt_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
     transfer: Mapped["StockTransfer"] = relationship("StockTransfer", back_populates="items")
+
+    @property
+    def requested_quantity(self):
+        from decimal import Decimal
+
+        return Decimal(str(self.quantity or 0))
+
+    @property
+    def dispatched_quantity(self):
+        from decimal import Decimal
+
+        if self.quantity_dispatched is not None:
+            return Decimal(str(self.quantity_dispatched))
+        return Decimal("0")
+
+    @property
+    def in_transit_quantity(self):
+        from decimal import Decimal
+
+        d = self.dispatched_quantity
+        r = Decimal(str(self.quantity_received or 0))
+        dmg = Decimal(str(self.quantity_damaged or 0))
+        miss = Decimal(str(self.quantity_missing or 0))
+        return d - r - dmg - miss
 
 
 # --- Audit ---
