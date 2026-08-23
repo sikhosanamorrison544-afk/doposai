@@ -804,7 +804,7 @@ def create_product_with_opening_stock(
     left behind, other branches stay at zero, and the legacy stock shadow
     equals the total branch stock.
     """
-    from .product_barcodes import generate_unique_barcode
+    from .product_barcodes import BarcodeAllocationError, generate_unique_barcode
 
     assert_branch_schema_ready(db)
 
@@ -831,20 +831,20 @@ def create_product_with_opening_stock(
 
     last_err: Optional[Exception] = None
     for _attempt in range(8):
-        product = Product(
-            name=name,
-            barcode=generate_unique_barcode(db, user),
-            category_id=category_id,
-            stock_qty=0.0,
-            reserved_qty=float(reserved),
-            cost_price=cost_price,
-            selling_price=selling_price,
-            is_active=is_active,
-            expiry_date=expiry_date,
-            tenant_id=tid,
-        )
-        db.add(product)
         try:
+            product = Product(
+                name=name,
+                barcode=generate_unique_barcode(db, user),
+                category_id=category_id,
+                stock_qty=0.0,
+                reserved_qty=float(reserved),
+                cost_price=cost_price,
+                selling_price=selling_price,
+                is_active=is_active,
+                expiry_date=expiry_date,
+                tenant_id=tid,
+            )
+            db.add(product)
             db.flush()
 
             bps = BranchProductStock(
@@ -875,6 +875,13 @@ def create_product_with_opening_stock(
             db.commit()
             db.refresh(product)
             return product
+        except BarcodeAllocationError as e:
+            db.rollback()
+            logger.error("AUTO barcode namespace exhausted during product create: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="AUTO barcode namespace exhausted — cannot allocate a unique barcode",
+            ) from e
         except HTTPException:
             db.rollback()
             raise
