@@ -409,6 +409,7 @@
             let show = true;
             if (need === 'admin') show = hasPerm('manage_settings') || hasPerm('manage_users');
             else if (need === 'inventory') show = hasPerm('manage_inventory');
+            else if (need === 'transfers') show = hasPerm('branch.transfer.view');
             else if (need === 'pending') show = hasPerm('manage_pending_collection');
             else if (need === 'refunds') show = hasPerm('view_refunds') || hasPerm('request_refunds');
             else if (need === 'layby') show = hasPerm('sales') || hasPerm('manage_settings');

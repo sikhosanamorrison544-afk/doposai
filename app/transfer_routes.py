@@ -141,7 +141,7 @@ def api_list_transfers(
         limit=limit,
         offset=offset,
     )
-    return [transfer_to_dict(t) for t in rows]
+    return [transfer_to_dict(t, db) for t in rows]
 
 
 @router.get("/{transfer_id}")
@@ -152,7 +152,7 @@ def api_get_transfer(
 ):
     t = get_transfer(db, user, transfer_id)
     _ensure_branch_visible(db, user, t)
-    return transfer_to_dict(t)
+    return transfer_to_dict(t, db)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -176,7 +176,7 @@ def api_create_transfer(
         client_transfer_id=body.client_transfer_id,
     )
     db.refresh(t)
-    return transfer_to_dict(t)
+    return transfer_to_dict(t, db)
 
 
 @router.post("/{transfer_id}/items", status_code=status.HTTP_201_CREATED)
@@ -196,7 +196,7 @@ def api_add_transfer_item(
         quantity=body.quantity,
     )
     db.refresh(t)
-    return transfer_to_dict(t)
+    return transfer_to_dict(t, db)
 
 
 @router.put("/{transfer_id}/items/{item_id}")
@@ -211,7 +211,7 @@ def api_update_transfer_item(
         db, update_transfer_item, db, user, transfer_id, item_id, quantity=body.quantity
     )
     db.refresh(t)
-    return transfer_to_dict(t)
+    return transfer_to_dict(t, db)
 
 
 @router.delete("/{transfer_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -234,7 +234,7 @@ def api_update_transfer_draft(
 ):
     t = _mutate(db, update_transfer_draft, db, user, transfer_id, notes=body.notes)
     db.refresh(t)
-    return transfer_to_dict(t)
+    return transfer_to_dict(t, db)
 
 
 @router.delete("/{transfer_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -256,7 +256,7 @@ def api_request_transfer(
 ):
     t = _mutate(db, request_transfer, db, user, transfer_id, notes=body.notes)
     db.refresh(t)
-    return transfer_to_dict(t)
+    return transfer_to_dict(t, db)
 
 
 @router.post("/{transfer_id}/approve")
@@ -268,7 +268,7 @@ def api_approve_transfer(
 ):
     t = _mutate(db, approve_transfer, db, user, transfer_id, notes=body.notes)
     db.refresh(t)
-    return transfer_to_dict(t)
+    return transfer_to_dict(t, db)
 
 
 @router.post("/{transfer_id}/reject")
@@ -280,7 +280,7 @@ def api_reject_transfer(
 ):
     t = _mutate(db, reject_transfer, db, user, transfer_id, reason=body.reason)
     db.refresh(t)
-    return transfer_to_dict(t)
+    return transfer_to_dict(t, db)
 
 
 @router.post("/{transfer_id}/cancel")
@@ -292,7 +292,7 @@ def api_cancel_transfer(
 ):
     t = _mutate(db, cancel_transfer, db, user, transfer_id, reason=body.reason)
     db.refresh(t)
-    return transfer_to_dict(t)
+    return transfer_to_dict(t, db)
 
 
 @router.post("/{transfer_id}/dispatch")
@@ -304,7 +304,7 @@ def api_dispatch_transfer(
 ):
     t = _mutate(db, dispatch_transfer, db, user, transfer_id, notes=body.notes)
     db.refresh(t)
-    return transfer_to_dict(t)
+    return transfer_to_dict(t, db)
 
 
 @router.post("/{transfer_id}/receive")
@@ -334,4 +334,4 @@ def api_receive_transfer(
         client_movement_id=body.client_movement_id,
     )
     db.refresh(t)
-    return transfer_to_dict(t)
+    return transfer_to_dict(t, db)

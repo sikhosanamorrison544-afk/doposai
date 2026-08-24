@@ -190,7 +190,35 @@ def _movement_exists(db: Session, client_movement_id: str) -> bool:
 # --- Serialization ----------------------------------------------------------
 
 
-def transfer_to_dict(t: StockTransfer) -> dict:
+def _resolve_actor_names(db: Session, t: StockTransfer) -> Dict[str, Optional[str]]:
+    """Map transfer actor user IDs to usernames (read-only, additive)."""
+    ids = {
+        t.created_by,
+        t.requested_by_id,
+        t.approved_by_id,
+        t.dispatched_by_id,
+        t.received_by,
+        t.rejected_by_id,
+        t.cancelled_by_id,
+    }
+    ids = {i for i in ids if i is not None}
+    name_by_id: Dict[int, str] = {}
+    if ids:
+        rows = db.query(User).filter(User.id.in_(ids)).all()
+        for u in rows:
+            name_by_id[int(u.id)] = u.username
+    return {
+        "created_by_name": name_by_id.get(int(t.created_by)) if t.created_by is not None else None,
+        "requested_by_name": name_by_id.get(int(t.requested_by_id)) if t.requested_by_id is not None else None,
+        "approved_by_name": name_by_id.get(int(t.approved_by_id)) if t.approved_by_id is not None else None,
+        "dispatched_by_name": name_by_id.get(int(t.dispatched_by_id)) if t.dispatched_by_id is not None else None,
+        "received_by_name": name_by_id.get(int(t.received_by)) if t.received_by is not None else None,
+        "rejected_by_name": name_by_id.get(int(t.rejected_by_id)) if t.rejected_by_id is not None else None,
+        "cancelled_by_name": name_by_id.get(int(t.cancelled_by_id)) if t.cancelled_by_id is not None else None,
+    }
+
+
+def transfer_to_dict(t: StockTransfer, db: Optional[Session] = None) -> dict:
     items = []
     for it in t.items:
         items.append(
@@ -214,6 +242,7 @@ def transfer_to_dict(t: StockTransfer) -> dict:
                 "notes": it.notes,
             }
         )
+    names = _resolve_actor_names(db, t) if db is not None else {}
     return {
         "id": t.id,
         "transfer_number": t.transfer_number,
@@ -221,6 +250,7 @@ def transfer_to_dict(t: StockTransfer) -> dict:
         "from_branch_id": t.from_branch_id,
         "to_branch_id": t.to_branch_id,
         "status": t.status,
+        "version": t.version,
         "notes": t.notes,
         "request_notes": t.request_notes,
         "approval_notes": t.approval_notes,
@@ -236,6 +266,13 @@ def transfer_to_dict(t: StockTransfer) -> dict:
         "received_by": t.received_by,
         "rejected_by_id": t.rejected_by_id,
         "cancelled_by_id": t.cancelled_by_id,
+        "created_by_name": names.get("created_by_name"),
+        "requested_by_name": names.get("requested_by_name"),
+        "approved_by_name": names.get("approved_by_name"),
+        "dispatched_by_name": names.get("dispatched_by_name"),
+        "received_by_name": names.get("received_by_name"),
+        "rejected_by_name": names.get("rejected_by_name"),
+        "cancelled_by_name": names.get("cancelled_by_name"),
         "created_at": t.created_at.isoformat() if t.created_at else None,
         "requested_at": t.requested_at.isoformat() if t.requested_at else None,
         "approved_at": t.approved_at.isoformat() if t.approved_at else None,

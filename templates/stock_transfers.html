@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="pos-build" content="{{ pos_build }}">
+    <script>window.__POS_BUILD__={{ pos_build|tojson }};</script>
+    <script src="/static/js/pos-client-boot.js?v={{ pos_build }}"></script>
+    <title>Stock Transfers — {{ store_name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="platform-motto" content="{{ platform_motto or 'Pecunia Non Olet' }}">
+    <script src="/static/js/theme-instant.js?v=1"></script>
+<link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/pos-android.css?v=4">
+    <link rel="stylesheet" href="/static/css/secondary-pages-theme.css?v=1">
+    <link rel="stylesheet" href="/static/css/settings.css?v=3">
+    <style>
+        .xfer-wrap { max-width: 1200px; margin: 0 auto; }
+        .xfer-header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
+        .xfer-header h1 { font-size: clamp(1.25rem, 2vw, 1.6rem); margin: 0; flex: 1 1 auto; }
+        .xfer-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 12px; }
+        .xfer-filters label { display: block; font-size: 12px; opacity: 0.85; margin-bottom: 4px; }
+        .xfer-filters select, .xfer-filters input { min-height: 40px; padding: 0.45rem 0.6rem; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
+        .xfer-filters .field { display: flex; flex-direction: column; }
+        .xfer-table-wrap { overflow-x: auto; }
+        table.xfer-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 860px; }
+        table.xfer-table th, table.xfer-table td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left; white-space: nowrap; }
+        table.xfer-table th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; opacity: 0.85; }
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid transparent; }
+        .badge-draft { color: #94a3b8; border-color: rgba(148,163,184,0.5); }
+        .badge-requested { color: #f59e0b; border-color: rgba(245,158,11,0.55); }
+        .badge-approved { color: #38bdf8; border-color: rgba(56,189,248,0.55); }
+        .badge-dispatched, .badge-in_transit { color: #a78bfa; border-color: rgba(167,139,250,0.55); }
+        .badge-received { color: #22c55e; border-color: rgba(34,197,94,0.55); }
+        .badge-rejected { color: #ef4444; border-color: rgba(239,68,68,0.55); }
+        .badge-cancelled { color: #f87171; border-color: rgba(248,113,113,0.5); }
+        .xfer-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        .xfer-actions button { min-height: 34px; padding: 0.3rem 0.7rem; border-radius: 8px; font-size: 13px; cursor: pointer; }
+        .xfer-mobile { display: none; }
+        .xfer-mobile .card { margin-bottom: 10px; padding: 12px; border-radius: 10px; }
+        .xfer-mobile .row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; font-size: 13px; }
+        .xfer-mobile .row b { font-weight: 600; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 12px; }
+        .modal-overlay.show { display: flex; }
+        .modal-box { background: var(--settings-surface, #1e1b2e); border: 1px solid rgba(255,255,255,0.2); border-radius: 14px; max-width: 760px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 16px; box-sizing: border-box; }
+        .modal-box h2 { margin: 0 0 12px; font-size: 1.15rem; }
+        .modal-close { float: right; cursor: pointer; font-size: 20px; line-height: 1; background: none; border: none; color: inherit; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+        .form-grid label, .modal-box label { display: block; font-size: 12px; opacity: 0.85; margin-bottom: 4px; }
+        .form-grid select, .form-grid input, .modal-box select, .modal-box input, .modal-box textarea {
+            min-height: 42px; padding: 0.5rem 0.65rem; border-radius: 8px; font-size: 14px; width: 100%; box-sizing: border-box;
+        }
+        .modal-box textarea { min-height: 64px; resize: vertical; }
+        .item-line { display: grid; grid-template-columns: 1fr 110px 60px auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+        .item-line .stock-hint { font-size: 11px; opacity: 0.8; }
+        .muted { opacity: 0.75; }
+        .field-val { font-weight: 600; }
+        .kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px 14px; margin: 10px 0; }
+        .kv .k { font-size: 11px; opacity: 0.8; }
+        .kv .v { font-weight: 600; font-size: 14px; }
+        .notes-block { background: rgba(0,0,0,0.18); border-radius: 8px; padding: 8px 10px; margin: 6px 0; font-size: 13px; }
+        .receive-item { border-bottom: 1px solid rgba(255,255,255,0.12); padding: 10px 0; }
+        .receive-item .qty-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 6px; }
+        .receive-item input { min-height: 40px; padding: 0.45rem; border-radius: 8px; width: 100%; box-sizing: border-box; font-size: 14px; }
+        .toast-wrap { position: fixed; top: 12px; right: 12px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; max-width: 320px; }
+        .toast { padding: 10px 14px; border-radius: 10px; font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,0.3); }
+        .toast-error { background: #7f1d1d; color: #fff; }
+        .toast-success { background: #14532d; color: #fff; }
+        .toast-info { background: #1e3a5f; color: #fff; }
+        .pagination { display: flex; gap: 8px; align-items: center; justify-content: center; padding: 12px 0; flex-wrap: wrap; }
+        .pagination button { min-height: 34px; padding: 0.3rem 0.8rem; border-radius: 8px; cursor: pointer; }
+        .btn-new { background: var(--primary, #667eea); color: #fff; }
+        .danger-btn { background: rgba(239,68,68,0.85); color: #fff; }
+        @media (max-width: 768px) {
+            .xfer-table-wrap table.xfer-table { display: none; }
+            .xfer-mobile { display: block; }
+            .modal-box { padding: 12px; }
+            .item-line { grid-template-columns: 1fr 90px; }
+            .item-line button { grid-column: 1 / -1; }
+            .receive-item .qty-grid { grid-template-columns: 1fr; }
+            .xfer-filters select, .xfer-filters input { font-size: 16px; }
+        }
+    </style>
+</head>
+
+<body class="page-stock-transfers settings-shell">
+<canvas id="bg3d-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none; background: transparent;"></canvas>
+<video id="light-theme-video" autoplay loop muted playsinline preload="none" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; pointer-events: none; display: none;">
+    <source src="/static/background-web.mp4" type="video/mp4">
+</video>
+<script src="/static/js/light-theme-video.js?v=4"></script>
+<div id="app" class="screen active">
+    <header class="top-bar">
+        <span id="xfer-user-info"></span>
+        <div class="shop-name">{{ store_name }}</div>
+        <div class="top-bar-right">
+            <button id="btn-xfer-back" class="small" type="button">Back to Overview</button>
+            <button id="btn-xfer-logout" class="danger small" type="button">Logout</button>
+        </div>
+    </header>
+    <main class="pos-layout" style="overflow-y:auto;height:calc(100vh - 60px);">
+        <section class="xfer-wrap" style="padding:20px;box-sizing:border-box;">
+            <div class="xfer-header">
+                <h1>Stock Transfers</h1>
+                <button type="button" id="btn-new-transfer" class="btn-new" style="display:none;min-height:42px;padding:0.5rem 1rem;border-radius:10px;cursor:pointer;">＋ New Stock Transfer</button>
+            </div>
+            <p id="xfer-subtitle" class="muted" style="margin:0 0 16px;font-size:14px;line-height:1.5;">
+                Move stock between branches. Drafts are editable; approval reserves source stock, dispatch moves it, and receipt accepts/damages/misses quantities.
+            </p>
+
+            <div class="xfer-filters">
+                <div class="field">
+                    <label for="filter-status">Status</label>
+                    <select id="filter-status">
+                        <option value="">All statuses</option>
+                        <option value="draft">Draft</option>
+                        <option value="requested">Requested</option>
+                        <option value="approved">Approved</option>
+                        <option value="dispatched">Dispatched</option>
+                        <option value="received">Received</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="filter-from">Source branch</label>
+                    <select id="filter-from"><option value="">All sources</option></select>
+                </div>
+                <div class="field">
+                    <label for="filter-to">Destination branch</label>
+                    <select id="filter-to"><option value="">All destinations</option></select>
+                </div>
+                <div class="field">
+                    <label for="transfer-search">Search reference / notes</label>
+                    <input type="search" id="transfer-search" placeholder="Search…" autocomplete="off">
+                </div>
+                <button type="button" id="btn-refresh" class="primary small" style="min-height:40px;">↻ Refresh</button>
+                <span id="xfer-count" class="muted" style="font-size:13px;align-self:center;"></span>
+            </div>
+
+            <div id="transfers-loading" class="muted" style="padding:24px;text-align:center;">Loading transfers…</div>
+            <div id="transfers-error" style="display:none;padding:16px;border-radius:10px;background:rgba(127,29,29,0.35);border:1px solid rgba(239,68,68,0.5);margin:8px 0;"></div>
+            <div id="transfers-empty" style="display:none;padding:28px;text-align:center;opacity:0.8;">No transfers match these filters yet. Use “New Stock Transfer” to create a draft.</div>
+
+            <div class="xfer-table-wrap" id="transfers-table" style="display:none;">
+                <table class="xfer-table">
+                    <thead>
+                    <tr>
+                        <th>Reference</th>
+                        <th>Source</th>
+                        <th>Destination</th>
+                        <th>Status</th>
+                        <th>Requested</th>
+                        <th>Approved</th>
+                        <th>Dispatched</th>
+                        <th>Received</th>
+                        <th>Created by</th>
+                        <th>Created</th>
+                        <th>Updated</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody id="transfers-body"></tbody>
+                </table>
+            </div>
+
+            <div id="transfers-mobile" class="xfer-mobile" role="list" aria-label="Stock transfers"></div>
+
+            <div class="pagination" id="pagination" style="display:none;">
+                <button type="button" id="btn-page-prev" class="small">← Prev</button>
+                <span id="page-info" class="muted" style="font-size:13px;"></span>
+                <button type="button" id="btn-page-next" class="small">Next →</button>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- Transfer details modal -->
+<div class="modal-overlay" id="detail-modal">
+    <div class="modal-box" style="max-width:820px;">
+        <button type="button" class="modal-close" id="detail-close" aria-label="Close">×</button>
+        <h2 id="detail-title">Transfer</h2>
+        <div id="detail-body"></div>
+    </div>
+</div>
+
+<!-- Create draft modal -->
+<div class="modal-overlay" id="create-modal">
+    <div class="modal-box" style="max-width:720px;">
+        <button type="button" class="modal-close" id="create-close" aria-label="Close">×</button>
+        <h2>New Stock Transfer</h2>
+        <div id="create-body">
+            <div class="form-grid" style="margin-bottom:12px;">
+                <div>
+                    <label for="create-from">Source branch</label>
+                    <select id="create-from"></select>
+                </div>
+                <div>
+                    <label for="create-to">Destination branch</label>
+                    <select id="create-to"></select>
+                </div>
+            </div>
+            <div style="margin-bottom:12px;">
+                <label for="create-notes">Notes (optional)</label>
+                <input type="text" id="create-notes" maxlength="500" placeholder="Reason / reference for this transfer" autocomplete="off">
+            </div>
+            <div id="create-item-form" style="margin-bottom:10px;">
+                <label for="create-product-q">Add product</label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <input type="search" id="create-product-q" placeholder="Search product name or barcode…" autocomplete="off" style="flex:1;min-width:180px;">
+                    <button type="button" id="btn-search-product" class="small" style="min-height:42px;">Search</button>
+                </div>
+                <div id="product-options" style="margin-top:6px;"></div>
+                <div id="create-item-rows"></div>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+                <button type="button" id="btn-create-cancel" class="small">Cancel</button>
+                <button type="button" id="btn-create-save" class="primary small" style="min-height:42px;">Create draft</button>
+            </div>
+            <div id="create-message" class="info" style="margin-top:8px;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Generic confirm modal -->
+<div class="modal-overlay" id="confirm-modal">
+    <div class="modal-box" style="max-width:480px;">
+        <h2 id="confirm-title">Confirm</h2>
+        <div id="confirm-message" style="font-size:14px;line-height:1.55;margin-bottom:14px;"></div>
+        <div id="confirm-form" style="margin-bottom:12px;"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" id="confirm-cancel" class="small">Cancel</button>
+            <button type="button" id="confirm-ok" class="primary small" style="min-height:42px;">Confirm</button>
+        </div>
+        <div id="confirm-message-box" class="info" style="margin-top:8px;"></div>
+    </div>
+</div>
+
+<div class="toast-wrap" id="toast-wrap" aria-live="polite"></div>
+
+<script src="/static/js/stock-transfers.js?v={{ pos_build }}"></script>
+</body>
+</html>
+

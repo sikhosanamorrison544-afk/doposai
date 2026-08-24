@@ -5,16 +5,21 @@
  * Password-reset routes and any URL containing a reset token are network-only
  * and must never enter Cache Storage.
  *
+ * /api/transfers requests are network-only with no-store so stale transfer
+ * data is never served from a cache; failures pass through to the app.
+ *
  * Does not touch IndexedDB or localStorage (offline sales stay intact).
  */
 /* eslint-disable no-restricted-globals */
-const CACHE_VERSION = 'pos-sw-v3-password-reset-isolation';
+const CACHE_VERSION = 'pos-sw-v4-transfers-network-only';
 
 const PASSWORD_RESET_PATHS = [
     '/reset-password',
     '/auth/reset-password',
     '/auth/reset-password/validate',
 ];
+
+const NETWORK_ONLY_API_PREFIXES = ['/api/transfers'];
 
 function isPasswordResetRequest(urlString) {
     try {
@@ -32,6 +37,18 @@ function isPasswordResetRequest(urlString) {
             }
         }
         return false;
+    } catch (_) {
+        return false;
+    }
+}
+
+function isNetworkOnlyApi(urlString) {
+    try {
+        const u = new URL(urlString, self.location.origin);
+        const path = u.pathname || '';
+        return NETWORK_ONLY_API_PREFIXES.some(function (p) {
+            return path === p || path.indexOf(p + '/') === 0;
+        });
     } catch (_) {
         return false;
     }
@@ -77,6 +94,12 @@ self.addEventListener('fetch', function (event) {
         );
         return;
     }
+    if (isNetworkOnlyApi(req.url)) {
+        // Stock transfers are never cached; let API failures propagate as-is.
+        event.respondWith(fetch(req, { cache: 'no-store' }));
+        return;
+    }
     // Default: network pass-through without caching HTML/API into Cache Storage.
     event.respondWith(fetch(req));
 });
+

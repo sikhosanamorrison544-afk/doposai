@@ -837,6 +837,8 @@ class ProductRead(ProductCreate):
     id: int
     branchId: Optional[int] = None
     stockQty: Optional[str] = None  # active-branch qty string when branch context present
+    reservedQty: Optional[str] = None  # active-branch reserved qty (transfer reservations)
+    availableQty: Optional[str] = None  # active-branch available = on-hand - reserved
     totalStockQty: Optional[str] = None
     branchStock: Optional[List[dict]] = None
 
@@ -912,6 +914,8 @@ async def list_products(
             snap = get_branch_stock(db, branch.id, p.id)
             row.branchId = branch.id
             row.stockQty = fmt_qty(snap.quantity_on_hand)
+            row.reservedQty = fmt_qty(snap.quantity_reserved)
+            row.availableQty = fmt_qty(snap.available)
             row.stock_qty = float(snap.quantity_on_hand)
         out.append(row)
     return out
@@ -3950,6 +3954,18 @@ async def billing_page(request: Request, db: Session = Depends(get_db)):
 async def enterprise_hub_page(request: Request):
     """Enterprise inventory: suppliers, purchasing, branches, audit."""
     return _shell_page(request, "enterprise.html")
+
+
+@app.get("/stock-transfers", response_class=HTMLResponse)
+async def stock_transfers_page(request: Request, db: Session = Depends(get_db)):
+    """Stock Transfers (Section 15) — view and run the transfer lifecycle."""
+    from .page_auth import gate_page, is_redirect
+    from .permissions import Perm
+
+    gated = gate_page(request, db, any_of=(Perm.BRANCH_TRANSFER_VIEW,))
+    if is_redirect(gated):
+        return gated
+    return _shell_page(request, "stock_transfers.html")
 
 
 @app.get("/analytics", response_class=RedirectResponse)

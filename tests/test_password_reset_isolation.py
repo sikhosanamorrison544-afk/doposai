@@ -605,7 +605,7 @@ def test_service_worker_excludes_password_reset_routes(client):
         Path(__file__).resolve().parents[1] / "static" / "js" / "pos-client-boot.js"
     ).read_text(encoding="utf-8")
 
-    assert "pos-sw-v3-password-reset-isolation" in sw
+    assert "pos-sw-v4-transfers-network-only" in sw
     assert "/reset-password" in sw
     assert "/auth/reset-password" in sw
     assert "/auth/reset-password/validate" in sw
@@ -618,7 +618,7 @@ def test_service_worker_excludes_password_reset_routes(client):
     assert r.status_code == 200
     assert "no-store" in (r.headers.get("cache-control") or "").lower()
     assert "/reset-password" in r.text
-    assert "pos-sw-v3-password-reset-isolation" in r.text
+    assert "pos-sw-v4-transfers-network-only" in r.text
 
 
 def test_store_branding_js_skips_reset_page_and_reset_ids():
@@ -672,7 +672,7 @@ def test_boot_js_unregisters_sw_on_reset_page():
     ).read_text(encoding="utf-8")
     assert "unregisterAllServiceWorkers" in boot
     assert "isPasswordResetPage()" in boot
-    assert "pos-sw-v3-password-reset-isolation" not in boot  # version lives in sw.js
+    assert "pos-sw-v4-transfers-network-only" not in boot  # version lives in sw.js
     assert "purgePasswordResetFromCaches" in boot
 
 

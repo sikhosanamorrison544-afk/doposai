@@ -1030,3 +1030,49 @@ def test_listing_does_not_mutate_database(client, db_session):
     assert db_session.query(StockTransferItem).count() == counters["items"]
     assert db_session.query(InventoryMovement).count() == counters["movements"]
     assert db_session.query(JournalEntry).count() == counters["journal"]
+
+
+def test_transfer_dict_includes_version_and_actor_names(client, db_session):
+    """The list/detail payload exposes version + resolved actor usernames."""
+    t, admin, main, west, p1, p2 = _seed_shop(db_session)
+    tok = _login(client, "owner_xfer")
+    tid = _create(client, tok, main.id, west.id, items=[{"product_id": p1.id, "quantity": 4}]).json()["id"]
+    _request(client, tok, tid)
+
+    row = client.get(f"/api/transfers/{tid}", headers=_auth(tok)).json()
+    assert row["version"] == 1
+    assert row["created_by_name"] == "owner_xfer"
+    assert row["requested_by_name"] == "owner_xfer"
+    assert row["requested_at"] is not None
+
+    rows = client.get("/api/transfers", headers=_auth(tok)).json()
+    assert rows[0]["created_by_name"] == "owner_xfer"
+
+
+def test_products_endpoint_with_branch_header_exposes_reserved_available(client, db_session):
+    """Product search carries branch-authoritative on-hand/reserved/available."""
+    from app.enterprise_models import BranchProductStock
+
+    t, admin, main, west, p1, p2 = _seed_shop(db_session)
+    tok = _login(client, "owner_xfer")
+
+    # Reserve 3 units at Main for p1 so on-hand/reserved/available differ.
+    row = db_session.query(BranchProductStock).filter(
+        BranchProductStock.branch_id == main.id, BranchProductStock.product_id == p1.id
+    ).one()
+    row.reserved_qty = 3
+    db_session.commit()
+
+    r = client.get(
+        "/api/products?q=" + p1.name.replace(" ", "%20") + "&limit=10",
+        headers={**{"X-Branch-Id": str(main.id)}, **_auth(tok)},
+    )
+    assert r.status_code == 200
+    rows = r.json()
+    assert rows
+    match = [x for x in rows if x["id"] == p1.id]
+    assert match
+    item = match[0]
+    assert item["stockQty"] == "10.0000"
+    assert item["reservedQty"] == "3.0000"
+    assert item["availableQty"] == "7.0000"
