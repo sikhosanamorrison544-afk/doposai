@@ -341,3 +341,49 @@ def test_helpers_preserve_signatures_for_existing_tests(full_engine):
     assert mb.ensure_branch_inventory(db, t.id, main) == 0
     assert isinstance(mb.backfill_transaction_branch_ids(db, t.id, main), dict)
     db.close()
+
+
+# ---------------------------------------------------------------------------
+# 13. Section 15 transfer schema is deferred by default; opt-in via flag
+# ---------------------------------------------------------------------------
+def test_transfer_schema_deferred_by_default_then_opt_in(monkeypatch):
+    from sqlalchemy import inspect as sa_inspect
+
+    e = _engine()
+    Base.metadata.create_all(e)
+    # Remove Section 15 tables so "not created by default" is observable.
+    with e.begin() as conn:
+        conn.execute(text("DROP TABLE stock_transfer_items"))
+        conn.execute(text("DROP TABLE stock_transfers"))
+
+    _monkeypatch_globals(monkeypatch, e)
+    try:
+        # Default --apply must NOT recreate Section 15 transfer tables.
+        assert mb.main(["--apply"]) == 0
+        names = set(sa_inspect(e).get_table_names())
+        assert "stock_transfers" not in names
+        assert "stock_transfer_items" not in names
+
+        # Opt-in --include-transfers recreates them.
+        assert mb.main(["--apply", "--include-transfers"]) == 0
+        names = set(sa_inspect(e).get_table_names())
+        assert "stock_transfers" in names
+        assert "stock_transfer_items" in names
+    finally:
+        mb.INCLUDE_TRANSFERS = False
+
+
+def test_include_transfers_flag_toggles_schema_helpers():
+    try:
+        mb.INCLUDE_TRANSFERS = False
+        assert "stock_transfers" not in mb.schema_tables()
+        assert "stock_transfers" not in mb.schema_columns()
+        assert not any(row[0] == "stock_transfers" for row in mb.schema_column_ddl())
+
+        mb.INCLUDE_TRANSFERS = True
+        assert "stock_transfers" in mb.schema_tables()
+        assert "stock_transfer_items" in mb.schema_tables()
+        assert "stock_transfers" in mb.schema_columns()
+        assert any(row[0] == "stock_transfers" for row in mb.schema_column_ddl())
+    finally:
+        mb.INCLUDE_TRANSFERS = False

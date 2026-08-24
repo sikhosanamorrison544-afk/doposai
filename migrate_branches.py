@@ -2,12 +2,10 @@
 """
 Multi-branch foundation migration (additive, idempotent, production-safe).
 
-Creates / ensures:
+Creates / ensures (Sections 12-14 only, by default):
   - branches table columns (email, manager_user_id, unique code)
   - user_branches membership table
   - branch_product_stock tenant_id / reorder fields / seeded_from_legacy
-  - stock_transfers actor + idempotency columns
-  - stock_transfer_items dispatch/damage columns
   - refunds.branch_id, withdrawals.branch_id
   - inventory_movements.tenant_id / branch_id / client_movement_id +
     movement_type / reference_type / reference_id provenance
@@ -17,6 +15,9 @@ Creates / ensures:
   - backfill branch_id on sales, shifts, refunds, expenses, withdrawals,
     cash_movements, users (legacy assignment)
 
+Section 15 (inter-branch stock transfers) schema is DEFERRED by default and
+only created/verified when ``--include-transfers`` is explicitly passed.
+
 Does NOT alter historical amounts, costs, dates, or journal entries.
 Does NOT run against production unless explicitly invoked with DATABASE_URL.
 
@@ -24,6 +25,9 @@ Usage (exactly one mode required):
   python3 migrate_branches.py --dry-run   # inspection only, exit 0/2
   python3 migrate_branches.py --verify    # inspection only, exit 0/1
   python3 migrate_branches.py --apply     # mutate + verify, exit 0/1
+
+Optional modifier:
+  --include-transfers  also create/verify Section 15 stock-transfer schema
 """
 from __future__ import annotations
 
@@ -68,12 +72,12 @@ MAIN_BRANCH_CODE = "MAIN"
 
 # --- Internal constants only. Never accept table/column names from input. ---
 
+INCLUDE_TRANSFERS = False  # --include-transfers toggles this (Section 15 deferred)
+
 REQUIRED_TABLES = (
     "branches",
     "user_branches",
     "branch_product_stock",
-    "stock_transfers",
-    "stock_transfer_items",
 )
 
 REQUIRED_COLUMNS: Dict[str, Tuple[str, ...]] = {
@@ -84,19 +88,6 @@ REQUIRED_COLUMNS: Dict[str, Tuple[str, ...]] = {
         "reorder_level",
         "reorder_quantity",
         "seeded_from_legacy",
-    ),
-    "stock_transfers": (
-        "requested_by_id",
-        "approved_by_id",
-        "dispatched_by_id",
-        "requested_at",
-        "approved_at",
-        "client_transfer_id",
-    ),
-    "stock_transfer_items": (
-        "quantity_dispatched",
-        "quantity_damaged",
-        "notes",
     ),
     "refunds": ("branch_id",),
     "withdrawals": ("branch_id",),
@@ -111,21 +102,34 @@ REQUIRED_COLUMNS: Dict[str, Tuple[str, ...]] = {
     "journal_entries": ("branch_id",),
 }
 
+# Section 15 (inter-branch stock transfers) — deferred behind --include-transfers.
+TRANSFER_TABLES = (
+    "stock_transfers",
+    "stock_transfer_items",
+)
+
+TRANSFER_REQUIRED_COLUMNS: Dict[str, Tuple[str, ...]] = {
+    "stock_transfers": (
+        "requested_by_id",
+        "approved_by_id",
+        "dispatched_by_id",
+        "requested_at",
+        "approved_at",
+        "client_transfer_id",
+    ),
+    "stock_transfer_items": (
+        "quantity_dispatched",
+        "quantity_damaged",
+        "notes",
+    ),
+}
+
 COLUMN_DDL: List[Tuple[str, str, str]] = [
     ("branches", "email", "VARCHAR(120)"),
     ("branches", "manager_user_id", "INTEGER"),
     ("branch_product_stock", "tenant_id", "INTEGER"),
     ("branch_product_stock", "reorder_level", "FLOAT"),
     ("branch_product_stock", "reorder_quantity", "FLOAT"),
-    ("stock_transfers", "requested_by_id", "INTEGER"),
-    ("stock_transfers", "approved_by_id", "INTEGER"),
-    ("stock_transfers", "dispatched_by_id", "INTEGER"),
-    ("stock_transfers", "requested_at", "TIMESTAMP"),
-    ("stock_transfers", "approved_at", "TIMESTAMP"),
-    ("stock_transfers", "client_transfer_id", "VARCHAR(64)"),
-    ("stock_transfer_items", "quantity_dispatched", "FLOAT"),
-    ("stock_transfer_items", "quantity_damaged", "FLOAT"),
-    ("stock_transfer_items", "notes", "TEXT"),
     ("refunds", "branch_id", "INTEGER"),
     ("withdrawals", "branch_id", "INTEGER"),
     ("inventory_movements", "tenant_id", "INTEGER"),
@@ -139,7 +143,42 @@ COLUMN_DDL: List[Tuple[str, str, str]] = [
     ("journal_entries", "branch_id", "INTEGER"),
 ]
 
+TRANSFER_COLUMN_DDL: List[Tuple[str, str, str]] = [
+    ("stock_transfers", "requested_by_id", "INTEGER"),
+    ("stock_transfers", "approved_by_id", "INTEGER"),
+    ("stock_transfers", "dispatched_by_id", "INTEGER"),
+    ("stock_transfers", "requested_at", "TIMESTAMP"),
+    ("stock_transfers", "approved_at", "TIMESTAMP"),
+    ("stock_transfers", "client_transfer_id", "VARCHAR(64)"),
+    ("stock_transfer_items", "quantity_dispatched", "FLOAT"),
+    ("stock_transfer_items", "quantity_damaged", "FLOAT"),
+    ("stock_transfer_items", "notes", "TEXT"),
+]
+
 UNIQUE_INDEX_NAME = "uq_branches_tenant_code"
+
+
+def schema_tables() -> Tuple[str, ...]:
+    """Effective table list for the active mode (Sections 12-14 by default)."""
+    if INCLUDE_TRANSFERS:
+        return (*REQUIRED_TABLES, *TRANSFER_TABLES)
+    return REQUIRED_TABLES
+
+
+def schema_columns() -> Dict[str, Tuple[str, ...]]:
+    """Effective column map for the active mode."""
+    out = dict(REQUIRED_COLUMNS)
+    if INCLUDE_TRANSFERS:
+        out.update(TRANSFER_REQUIRED_COLUMNS)
+    return out
+
+
+def schema_column_ddl() -> List[Tuple[str, str, str]]:
+    """Effective additive-column DDL for the active mode."""
+    out = list(COLUMN_DDL)
+    if INCLUDE_TRANSFERS:
+        out.extend(TRANSFER_COLUMN_DDL)
+    return out
 
 
 # --- Read-only inspection helpers -----------------------------------------
@@ -178,10 +217,10 @@ def missing_required_schema(bind: Any) -> List[str]:
     """Read-only list of missing tables/columns; never creates anything."""
     tables = _table_names(bind)
     gaps: List[str] = []
-    for t in REQUIRED_TABLES:
+    for t in schema_tables():
         if t not in tables:
             gaps.append(f"table:{t}")
-    for t, cols in REQUIRED_COLUMNS.items():
+    for t, cols in schema_columns().items():
         existing = _table_columns(bind, t)
         for c in cols:
             if c not in existing:
@@ -193,8 +232,8 @@ def verify_branch_schema(bind: Any = None) -> Dict[str, bool]:
     """Complete post-migration schema verification (read-only)."""
     binding = bind if bind is not None else engine
     tables = _table_names(binding)
-    out: Dict[str, bool] = {f"table:{t}": t in tables for t in REQUIRED_TABLES}
-    for t, cols in REQUIRED_COLUMNS.items():
+    out: Dict[str, bool] = {f"table:{t}": t in tables for t in schema_tables()}
+    for t, cols in schema_columns().items():
         existing = _table_columns(binding, t)
         for c in cols:
             out[f"{t}.{c}"] = c in existing
@@ -226,7 +265,7 @@ def add_column_if_missing(conn, table: str, column: str, ddl: str) -> bool:
 def ensure_schema_columns(conn) -> List[str]:
     """Add all missing additive columns using the provided transaction connection."""
     added: List[str] = []
-    for table, col, ddl in COLUMN_DDL:
+    for table, col, ddl in schema_column_ddl():
         if not inspect(conn).has_table(table):
             continue
         if add_column_if_missing(conn, table, col, ddl):
@@ -604,8 +643,12 @@ def apply_migration(bind: Any = None) -> Dict[str, Any]:
         ]
 
     with binding.begin() as conn:
-        # New tables on the SAME transaction connection.
-        Base.metadata.create_all(bind=conn)
+        # New tables on the SAME transaction connection. Only Sections 12-14
+        # tables are created by default; Section 15 transfer tables are
+        # deferred unless --include-transfers is set.
+        wanted_names = set(schema_tables())
+        wanted_tables = [t for t in Base.metadata.sorted_tables if t.name in wanted_names]
+        Base.metadata.create_all(bind=conn, tables=wanted_tables)
         report["added_columns"] = ensure_schema_columns(conn)
         if dialect == "postgresql":
             report["postgres_extras"] = ensure_postgres_extras(conn)
@@ -723,12 +766,19 @@ def build_parser() -> argparse.ArgumentParser:
     group.add_argument("--dry-run", action="store_true", help="Inspection only; exit 0/2.")
     group.add_argument("--verify", action="store_true", help="Inspection only; exit 0/1.")
     group.add_argument("--apply", action="store_true", help="Apply then verify; exit 0/1.")
+    parser.add_argument(
+        "--include-transfers",
+        action="store_true",
+        help="Also create/verify Section 15 stock-transfer schema (deferred by default).",
+    )
     return parser
 
 
 def main(argv: Optional[List[str]] = None) -> int:
+    global INCLUDE_TRANSFERS
     parser = build_parser()
     args = parser.parse_args(argv)
+    INCLUDE_TRANSFERS = args.include_transfers
 
     modes = [name for name in ("dry_run", "verify", "apply") if getattr(args, name)]
     if len(modes) != 1:
