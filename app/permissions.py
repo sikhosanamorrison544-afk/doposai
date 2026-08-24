@@ -35,6 +35,7 @@ class Perm(str, Enum):
     BRANCH_STAFF_REMOVE = "branch.staff.remove"
     BRANCH_STOCK_VIEW = "branch.stock.view"
     BRANCH_STOCK_ADJUST = "branch.stock.adjust"
+    BRANCH_TRANSFER_CREATE = "branch.transfer.create"
     BRANCH_TRANSFER_REQUEST = "branch.transfer.request"
     BRANCH_TRANSFER_APPROVE = "branch.transfer.approve"
     BRANCH_TRANSFER_DISPATCH = "branch.transfer.dispatch"
@@ -87,6 +88,7 @@ _ROLE_PERMS: dict[str, Set[Perm]] = {
         Perm.BRANCH_SWITCH,
         Perm.BRANCH_STOCK_VIEW,
         Perm.BRANCH_STOCK_ADJUST,
+        Perm.BRANCH_TRANSFER_CREATE,
         Perm.BRANCH_TRANSFER_REQUEST,
         Perm.BRANCH_TRANSFER_APPROVE,
         Perm.BRANCH_TRANSFER_DISPATCH,
