@@ -12,11 +12,12 @@ NEVER creates Sale / Payment / Expense / Withdrawal / JournalEntry rows.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -57,6 +58,81 @@ def client(db_session):
     def _override():
         try:
             yield db_session
+        finally:
+            pass
+
+    fastapi_app.dependency_overrides[get_db] = _override
+    with TestClient(fastapi_app, raise_server_exceptions=False) as c:
+        yield c
+    fastapi_app.dependency_overrides.clear()
+
+
+# --- production-schema-gap fixtures -----------------------------------------
+#
+# The production `stock_transfers` / `stock_transfer_items` tables were created
+# before the ORM models gained the lifecycle/notes/idempotency columns. Those
+# tables are recreated here in their legacy shape so the regression tests can
+# reproduce the exact `UndefinedColumn ... request_notes` 500 and prove the
+# additive branch migration repairs it.
+
+LEGACY_STOCK_TRANSFERS_DDL = """
+CREATE TABLE stock_transfers (
+    id INTEGER NOT NULL PRIMARY KEY,
+    tenant_id INTEGER,
+    transfer_number VARCHAR(50),
+    from_branch_id INTEGER,
+    to_branch_id INTEGER,
+    status VARCHAR(32),
+    notes TEXT,
+    created_by INTEGER,
+    sent_at DATETIME,
+    received_at DATETIME,
+    received_by INTEGER,
+    created_at DATETIME,
+    updated_at DATETIME
+)
+"""
+
+LEGACY_STOCK_TRANSFER_ITEMS_DDL = """
+CREATE TABLE stock_transfer_items (
+    id INTEGER NOT NULL PRIMARY KEY,
+    stock_transfer_id INTEGER,
+    product_id INTEGER,
+    product_name VARCHAR(120),
+    quantity FLOAT,
+    quantity_received FLOAT
+)
+"""
+
+
+@pytest.fixture()
+def legacy_db_session():
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
+    )
+    Base.metadata.create_all(engine)
+    with engine.begin() as conn:
+        conn.execute(text("DROP TABLE stock_transfer_items"))
+        conn.execute(text("DROP TABLE stock_transfers"))
+        conn.execute(text(LEGACY_STOCK_TRANSFERS_DDL))
+        conn.execute(text(LEGACY_STOCK_TRANSFER_ITEMS_DDL))
+    Session = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    db = Session()
+    db._legacy_engine = engine
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@pytest.fixture()
+def legacy_client(legacy_db_session):
+    def _override():
+        try:
+            yield legacy_db_session
         finally:
             pass
 
@@ -642,3 +718,315 @@ def test_cannot_cancel_after_dispatch(client, db_session):
     tok = _login(client, "owner_xfer")
     tid, item_id = _full_transfer(client, tok, main, west, p1, 4)
     assert _cancel(client, tok, tid).status_code == 409
+
+
+# --- GET /api/transfers listing regression tests -----------------------------
+
+
+def test_list_empty_returns_200(client, db_session):
+    """Empty transfer list returns a valid 200 (empty paginated list)."""
+    t, admin, main, west, p1, p2 = _seed_shop(db_session)
+    tok = _login(client, "owner_xfer")
+    r = client.get("/api/transfers", headers=_auth(tok))
+    assert r.status_code == 200, r.text
+    assert r.json() == []
+    # Also valid with explicit pagination params.
+    r = client.get("/api/transfers?limit=10&offset=0", headers=_auth(tok))
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+def test_list_serializes_existing_transfer(client, db_session):
+    """Existing transfer rows serialize successfully in the list response."""
+    t, admin, main, west, p1, p2 = _seed_shop(db_session)
+    tok = _login(client, "owner_xfer")
+    tid = _create(
+        client, tok, main.id, west.id, items=[{"product_id": p1.id, "quantity": 4}], notes="restock west"
+    ).json()["id"]
+
+    r = client.get("/api/transfers", headers=_auth(tok))
+    assert r.status_code == 200, r.text
+    rows = r.json()
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["id"] == tid
+    assert row["status"] == "draft"
+    assert row["transfer_number"].startswith("TR-")
+    assert row["from_branch_id"] == main.id
+    assert row["to_branch_id"] == west.id
+    assert row["notes"] == "restock west"
+    assert row["created_by"] == admin.id
+    assert len(row["items"]) == 1
+    assert row["items"][0]["product_name"] == p1.name
+
+
+def test_nullable_legacy_fields_serialize_safely(client, db_session):
+    """Fully-null lifecycle/notes fields on existing rows never cause a 500."""
+    t, admin, main, west, p1, p2 = _seed_shop(db_session)
+    tok = _login(client, "owner_xfer")
+    tid = _create(client, tok, main.id, west.id, items=[{"product_id": p1.id, "quantity": 4}]).json()["id"]
+
+    # Force every legacy-nullable transfer field to NULL (as an old production
+    # row would have before the column backfills).
+    db_session.query(StockTransfer).filter(StockTransfer.id == tid).update(
+        {
+            StockTransfer.request_notes: None,
+            StockTransfer.approval_notes: None,
+            StockTransfer.dispatch_notes: None,
+            StockTransfer.receipt_notes: None,
+            StockTransfer.rejection_reason: None,
+            StockTransfer.cancellation_reason: None,
+            StockTransfer.requested_by_id: None,
+            StockTransfer.approved_by_id: None,
+            StockTransfer.dispatched_by_id: None,
+            StockTransfer.received_by: None,
+            StockTransfer.rejected_by_id: None,
+            StockTransfer.cancelled_by_id: None,
+            StockTransfer.requested_at: None,
+            StockTransfer.approved_at: None,
+            StockTransfer.sent_at: None,
+            StockTransfer.received_at: None,
+            StockTransfer.rejected_at: None,
+            StockTransfer.cancelled_at: None,
+        }
+    )
+    db_session.query(StockTransferItem).filter(StockTransferItem.stock_transfer_id == tid).update(
+        {
+            StockTransferItem.approved_quantity: None,
+            StockTransferItem.quantity_dispatched: None,
+            StockTransferItem.quantity_damaged: None,
+            StockTransferItem.quantity_missing: None,
+            StockTransferItem.unit_cost_snapshot: None,
+            StockTransferItem.notes: None,
+            StockTransferItem.request_notes: None,
+            StockTransferItem.dispatch_notes: None,
+            StockTransferItem.receipt_notes: None,
+        }
+    )
+    db_session.commit()
+
+    r = client.get("/api/transfers", headers=_auth(tok))
+    assert r.status_code == 200, r.text
+    row = r.json()[0]
+    for key in (
+        "request_notes",
+        "approval_notes",
+        "dispatch_notes",
+        "receipt_notes",
+        "rejection_reason",
+        "cancellation_reason",
+        "requested_by_id",
+        "approved_by_id",
+        "dispatched_by_id",
+        "received_by",
+        "rejected_by_id",
+        "cancelled_by_id",
+        "requested_at",
+        "approved_at",
+        "dispatched_at",
+        "received_at",
+        "rejected_at",
+        "cancelled_at",
+    ):
+        assert row[key] is None, f"{key} should be null"
+    item = row["items"][0]
+    assert float(item["quantity_dispatched"]) == 0.0
+    assert float(item["quantity_damaged"]) == 0.0
+    assert float(item["quantity_missing"]) == 0.0
+    assert item["unit_cost_snapshot"] is None
+
+
+def _insert_legacy_transfer(db, tenant_id, from_branch_id, to_branch_id, created_by, product_id):
+    """Insert a transfer row using only the pre-multi-branch (legacy) columns."""
+    now = datetime.utcnow()
+    db.execute(
+        text(
+            "INSERT INTO stock_transfers "
+            "(tenant_id, transfer_number, from_branch_id, to_branch_id, status, notes, "
+            " created_by, created_at, updated_at) "
+            "VALUES (:tid, 'TR-LEGACY-1', :fb, :tb, 'draft', 'legacy note', :cb, :now, :now)"
+        ),
+        {"tid": tenant_id, "fb": from_branch_id, "tb": to_branch_id, "cb": created_by, "now": now},
+    )
+    tid = db.execute(text("SELECT last_insert_rowid()")).scalar()
+    db.execute(
+        text(
+            "INSERT INTO stock_transfer_items "
+            "(stock_transfer_id, product_id, product_name, quantity, quantity_received) "
+            "VALUES (:tid, :pid, 'Legacy Item', 3.0, 0.0)"
+        ),
+        {"tid": tid, "pid": product_id},
+    )
+    db.commit()
+    return tid
+
+
+def test_legacy_schema_gap_reproduced_then_repaired(legacy_client, legacy_db_session):
+    """Reproduce the production UndefinedColumn 500, then prove the additive
+    branch migration repairs the schema and the list endpoint returns 200 with
+    the legacy row's nullable fields serialized safely."""
+    import migrate_branches as mb
+
+    t, admin, main, west, p1, p2 = _seed_shop(legacy_db_session)
+    legacy_tid = _insert_legacy_transfer(legacy_db_session, t.id, main.id, west.id, admin.id, p1.id)
+    tok = _login(legacy_client, "owner_xfer")
+
+    # Reproduction: stale production-style schema makes GET /api/transfers 500.
+    before = legacy_client.get("/api/transfers", headers=_auth(tok))
+    assert before.status_code == 500, before.text
+
+    # Repair with the exact additive migration path used in production.
+    engine = legacy_db_session._legacy_engine
+    mb.INCLUDE_TRANSFERS = True
+    try:
+        report = mb.apply_migration(engine)
+    finally:
+        mb.INCLUDE_TRANSFERS = False
+
+    assert "stock_transfers.request_notes" in report["added_columns"]
+    assert "stock_transfers.version" in report["added_columns"]
+    assert "stock_transfer_items.created_at" in report["added_columns"]
+    assert mb.missing_required_schema(engine) == []
+
+    legacy_db_session.rollback()  # end any transaction left from apply_migration
+
+    # Same request now returns 200; the legacy row serializes with NULL new fields.
+    r = legacy_client.get("/api/transfers", headers=_auth(tok))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert len(body) == 1
+    row = body[0]
+    assert row["id"] == legacy_tid
+    assert row["transfer_number"] == "TR-LEGACY-1"
+    assert row["status"] == "draft"
+    assert row["notes"] == "legacy note"
+    assert row["created_at"] is not None
+    assert row["request_notes"] is None
+    assert row["approval_notes"] is None
+    assert row["dispatch_notes"] is None
+    assert row["receipt_notes"] is None
+    assert row["rejection_reason"] is None
+    assert row["cancellation_reason"] is None
+    assert row["requested_by_id"] is None
+    assert row["approved_by_id"] is None
+    assert row["dispatched_by_id"] is None
+    assert row["cancelled_at"] is None
+    item = row["items"][0]
+    assert item["product_name"] == "Legacy Item"
+    assert float(item["quantity_dispatched"]) == 0.0
+    assert float(item["quantity_damaged"]) == 0.0
+    assert float(item["quantity_missing"]) == 0.0
+    assert item["unit_cost_snapshot"] is None
+
+
+def test_owner_and_admin_can_list(client, db_session):
+    t, admin, main, west, p1, p2 = _seed_shop(db_session)
+    owner = _user(db_session, t.id, "owner_list", role="owner")
+    db_session.commit()
+    tok_o = _login(client, "owner_list")
+    tok_a = _login(client, "owner_xfer")  # admin role
+
+    r_o = client.get("/api/transfers", headers=_auth(tok_o))
+    assert r_o.status_code == 200
+    r_a = client.get("/api/transfers", headers=_auth(tok_a))
+    assert r_a.status_code == 200
+    assert r_o.json() == []
+    assert r_a.json() == []
+
+
+def test_supervisor_sees_only_accessible_branch_transfers(client, db_session):
+    t, admin, main, west, p1, p2 = _seed_shop(db_session)
+    north = _branch(db_session, t.id, "North", "NORTH")
+    supervisor = _user(db_session, t.id, "sup_list", role="supervisor")
+    db_session.add(
+        UserBranch(
+            user_id=supervisor.id, branch_id=north.id, tenant_id=t.id,
+            role="manager", is_active=True, is_default=True,
+        )
+    )
+    db_session.commit()
+    tok = _login(client, "owner_xfer")
+    tok_s = _login(client, "sup_list")
+
+    t_north = _create(client, tok, north.id, main.id, items=[{"product_id": p1.id, "quantity": 2}]).json()["id"]
+    t_west = _create(client, tok, main.id, west.id, items=[{"product_id": p2.id, "quantity": 3}]).json()["id"]
+
+    # Supervisor only has access to North: sees the transfer touching North,
+    # never the Main<->West one.
+    rows = client.get("/api/transfers", headers=_auth(tok_s)).json()
+    assert [r["id"] for r in rows] == [t_north]
+    assert client.get(f"/api/transfers/{t_west}", headers=_auth(tok_s)).status_code == 404
+
+
+def test_cashier_list_receives_403(client, db_session):
+    t, admin, main, west, p1, p2 = _seed_shop(db_session)
+    cashier = _user(db_session, t.id, "cash_list", role="cashier")
+    db_session.commit()
+    tok_c = _login(client, "cash_list")
+    assert client.get("/api/transfers", headers=_auth(tok_c)).status_code == 403
+
+
+def test_cross_tenant_transfers_hidden_from_list(client, db_session):
+    t1, admin1, main1, west1, p1, p2 = _seed_shop(db_session)
+    t2 = _tenant(db_session, "Other Tenant Shop")
+    admin2 = _user(db_session, t2.id, "owner_other", role="admin")
+    main2 = _branch(db_session, t2.id, "Main2", "MAIN2", is_default=True)
+    west2 = _branch(db_session, t2.id, "West2", "WEST2")
+    p3 = _product(db_session, t2.id, "Other Product")
+    db_session.commit()
+
+    tok1 = _login(client, "owner_xfer")
+    tok2 = _login(client, "owner_other")
+
+    tid1 = _create(client, tok1, main1.id, west1.id, items=[{"product_id": p1.id, "quantity": 1}]).json()["id"]
+    tid2 = _create(client, tok2, main2.id, west2.id, items=[{"product_id": p3.id, "quantity": 1}]).json()["id"]
+
+    assert [r["id"] for r in client.get("/api/transfers", headers=_auth(tok1)).json()] == [tid1]
+    assert [r["id"] for r in client.get("/api/transfers", headers=_auth(tok2)).json()] == [tid2]
+    # Cross-tenant detail reads stay hidden as well.
+    assert client.get(f"/api/transfers/{tid2}", headers=_auth(tok1)).status_code == 404
+    assert client.get(f"/api/transfers/{tid1}", headers=_auth(tok2)).status_code == 404
+
+
+def test_list_pagination_and_status_filters(client, db_session):
+    t, admin, main, west, p1, p2 = _seed_shop(db_session)
+    tok = _login(client, "owner_xfer")
+    drafts = []
+    for _ in range(3):
+        drafts.append(
+            _create(client, tok, main.id, west.id, items=[{"product_id": p1.id, "quantity": 1}]).json()["id"]
+        )
+    # Move the first draft to "requested" so a status filter has a target.
+    _request(client, tok, drafts[0])
+
+    page1 = client.get("/api/transfers?limit=2&offset=0", headers=_auth(tok)).json()
+    page2 = client.get("/api/transfers?limit=2&offset=2", headers=_auth(tok)).json()
+    assert len(page1) == 2
+    assert len(page2) == 1
+    assert [r["id"] for r in page1 + page2] == sorted(drafts, reverse=True)
+
+    req = client.get("/api/transfers?status=requested", headers=_auth(tok)).json()
+    assert [r["id"] for r in req] == [drafts[0]]
+    assert len(client.get("/api/transfers", headers=_auth(tok)).json()) == 3
+
+
+def test_listing_does_not_mutate_database(client, db_session):
+    from app.accounting_models import JournalEntry
+    from app.models import InventoryMovement
+
+    t, admin, main, west, p1, p2 = _seed_shop(db_session)
+    tok = _login(client, "owner_xfer")
+    _create(client, tok, main.id, west.id, items=[{"product_id": p1.id, "quantity": 4}])
+
+    counters = {
+        "transfers": db_session.query(StockTransfer).count(),
+        "items": db_session.query(StockTransferItem).count(),
+        "movements": db_session.query(InventoryMovement).count(),
+        "journal": db_session.query(JournalEntry).count(),
+    }
+    r = client.get("/api/transfers", headers=_auth(tok))
+    assert r.status_code == 200
+    assert db_session.query(StockTransfer).count() == counters["transfers"]
+    assert db_session.query(StockTransferItem).count() == counters["items"]
+    assert db_session.query(InventoryMovement).count() == counters["movements"]
+    assert db_session.query(JournalEntry).count() == counters["journal"]

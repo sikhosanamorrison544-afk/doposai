@@ -103,6 +103,10 @@ REQUIRED_COLUMNS: Dict[str, Tuple[str, ...]] = {
 }
 
 # Section 15 (inter-branch stock transfers) — deferred behind --include-transfers.
+# The ensure lists mirror every non-PK column the StockTransfer / StockTransferItem
+# ORM models declare. create_all never ALTERs existing tables, so a production
+# table created before the model gained columns (e.g. request_notes, version)
+# would otherwise raise UndefinedColumn on the first transfer SELECT.
 TRANSFER_TABLES = (
     "stock_transfers",
     "stock_transfer_items",
@@ -110,17 +114,52 @@ TRANSFER_TABLES = (
 
 TRANSFER_REQUIRED_COLUMNS: Dict[str, Tuple[str, ...]] = {
     "stock_transfers": (
+        "tenant_id",
+        "transfer_number",
+        "from_branch_id",
+        "to_branch_id",
+        "status",
+        "notes",
+        "request_notes",
+        "approval_notes",
+        "dispatch_notes",
+        "receipt_notes",
+        "rejection_reason",
+        "cancellation_reason",
+        "created_by",
         "requested_by_id",
         "approved_by_id",
         "dispatched_by_id",
+        "received_by",
+        "rejected_by_id",
+        "cancelled_by_id",
         "requested_at",
         "approved_at",
+        "sent_at",
+        "received_at",
+        "rejected_at",
+        "cancelled_at",
         "client_transfer_id",
+        "version",
+        "created_at",
+        "updated_at",
     ),
     "stock_transfer_items": (
+        "product_id",
+        "product_name",
+        "quantity",
+        "approved_quantity",
         "quantity_dispatched",
+        "quantity_received",
         "quantity_damaged",
+        "quantity_missing",
+        "unit_cost_snapshot",
         "notes",
+        "request_notes",
+        "dispatch_notes",
+        "receipt_notes",
+        "created_at",
+        "updated_at",
     ),
 }
 
@@ -144,15 +183,52 @@ COLUMN_DDL: List[Tuple[str, str, str]] = [
 ]
 
 TRANSFER_COLUMN_DDL: List[Tuple[str, str, str]] = [
+    # stock_transfers — full model column set (additive; existing columns skipped).
+    ("stock_transfers", "tenant_id", "INTEGER"),
+    ("stock_transfers", "transfer_number", "VARCHAR(50)"),
+    ("stock_transfers", "from_branch_id", "INTEGER"),
+    ("stock_transfers", "to_branch_id", "INTEGER"),
+    ("stock_transfers", "status", "VARCHAR(32)"),
+    ("stock_transfers", "notes", "TEXT"),
+    ("stock_transfers", "request_notes", "TEXT"),
+    ("stock_transfers", "approval_notes", "TEXT"),
+    ("stock_transfers", "dispatch_notes", "TEXT"),
+    ("stock_transfers", "receipt_notes", "TEXT"),
+    ("stock_transfers", "rejection_reason", "TEXT"),
+    ("stock_transfers", "cancellation_reason", "TEXT"),
+    ("stock_transfers", "created_by", "INTEGER"),
     ("stock_transfers", "requested_by_id", "INTEGER"),
     ("stock_transfers", "approved_by_id", "INTEGER"),
     ("stock_transfers", "dispatched_by_id", "INTEGER"),
+    ("stock_transfers", "received_by", "INTEGER"),
+    ("stock_transfers", "rejected_by_id", "INTEGER"),
+    ("stock_transfers", "cancelled_by_id", "INTEGER"),
     ("stock_transfers", "requested_at", "TIMESTAMP"),
     ("stock_transfers", "approved_at", "TIMESTAMP"),
+    ("stock_transfers", "sent_at", "TIMESTAMP"),
+    ("stock_transfers", "received_at", "TIMESTAMP"),
+    ("stock_transfers", "rejected_at", "TIMESTAMP"),
+    ("stock_transfers", "cancelled_at", "TIMESTAMP"),
     ("stock_transfers", "client_transfer_id", "VARCHAR(64)"),
-    ("stock_transfer_items", "quantity_dispatched", "FLOAT"),
-    ("stock_transfer_items", "quantity_damaged", "FLOAT"),
+    ("stock_transfers", "version", "INTEGER DEFAULT 1"),
+    ("stock_transfers", "created_at", "TIMESTAMP"),
+    ("stock_transfers", "updated_at", "TIMESTAMP"),
+    # stock_transfer_items — full model column set.
+    ("stock_transfer_items", "product_id", "INTEGER"),
+    ("stock_transfer_items", "product_name", "VARCHAR(120)"),
+    ("stock_transfer_items", "quantity", "NUMERIC(18,4) DEFAULT 0"),
+    ("stock_transfer_items", "approved_quantity", "NUMERIC(18,4)"),
+    ("stock_transfer_items", "quantity_dispatched", "NUMERIC(18,4)"),
+    ("stock_transfer_items", "quantity_received", "NUMERIC(18,4) DEFAULT 0"),
+    ("stock_transfer_items", "quantity_damaged", "NUMERIC(18,4)"),
+    ("stock_transfer_items", "quantity_missing", "NUMERIC(18,4)"),
+    ("stock_transfer_items", "unit_cost_snapshot", "NUMERIC(12,4)"),
     ("stock_transfer_items", "notes", "TEXT"),
+    ("stock_transfer_items", "request_notes", "TEXT"),
+    ("stock_transfer_items", "dispatch_notes", "TEXT"),
+    ("stock_transfer_items", "receipt_notes", "TEXT"),
+    ("stock_transfer_items", "created_at", "TIMESTAMP"),
+    ("stock_transfer_items", "updated_at", "TIMESTAMP"),
 ]
 
 UNIQUE_INDEX_NAME = "uq_branches_tenant_code"

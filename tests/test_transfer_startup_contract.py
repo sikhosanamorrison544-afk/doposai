@@ -147,3 +147,36 @@ def test_cashier_has_no_approval_dispatch_receive():
     perms = user_permissions(_user("cashier"))
     for name in EXPECTED_TRANSFER_PERMS:
         assert getattr(Perm, name) not in perms, f"cashier should not have Perm.{name}"
+
+
+# --- migration/model schema contract -----------------------------------------
+
+
+def test_transfer_migration_ensures_every_model_column():
+    """The additive branch migration must ensure every column the StockTransfer /
+    StockTransferItem ORM models declare.
+
+    ``Base.metadata.create_all`` never ALTERs an existing table, so a production
+    table created before the model gained columns (e.g. ``request_notes``,
+    ``version``) will 500 with UndefinedColumn on the first transfer SELECT
+    unless the migration's ensure lists cover them. This guards that drift."""
+    import migrate_branches as mb
+    from app.enterprise_models import StockTransfer, StockTransferItem
+
+    excluded = {
+        "stock_transfers": {"id"},
+        "stock_transfer_items": {"id", "stock_transfer_id"},
+    }
+    for model in (StockTransfer, StockTransferItem):
+        table = model.__tablename__
+        model_cols = {c.name for c in model.__table__.columns} - excluded[table]
+        required = set(mb.TRANSFER_REQUIRED_COLUMNS[table])
+        assert required == model_cols, (
+            f"TRANSFER_REQUIRED_COLUMNS[{table!r}] drifted from the model: "
+            f"missing={sorted(model_cols - required)} extra={sorted(required - model_cols)}"
+        )
+        ddl_cols = {row[1] for row in mb.TRANSFER_COLUMN_DDL if row[0] == table}
+        assert model_cols <= ddl_cols, (
+            f"TRANSFER_COLUMN_DDL is missing additive DDL for: "
+            f"{sorted(model_cols - ddl_cols)}"
+        )
