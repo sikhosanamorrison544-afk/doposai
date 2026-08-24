@@ -416,6 +416,27 @@ class StockTransferItem(Base):
         miss = Decimal(str(self.quantity_missing or 0))
         return d - r - dmg - miss
 
+    @property
+    def dispatched_value(self):
+        from decimal import Decimal
+
+        snap = Decimal(str(self.unit_cost_snapshot or 0))
+        return (self.dispatched_quantity * snap).quantize(Decimal("0.0001"))
+
+    @property
+    def received_value(self):
+        from decimal import Decimal
+
+        snap = Decimal(str(self.unit_cost_snapshot or 0))
+        return (Decimal(str(self.quantity_received or 0)) * snap).quantize(Decimal("0.0001"))
+
+    @property
+    def damaged_value(self):
+        from decimal import Decimal
+
+        snap = Decimal(str(self.unit_cost_snapshot or 0))
+        return (Decimal(str(self.quantity_damaged or 0)) * snap).quantize(Decimal("0.0001"))
+
 
 # --- Audit ---
 

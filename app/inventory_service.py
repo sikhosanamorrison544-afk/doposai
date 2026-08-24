@@ -244,6 +244,9 @@ def lock_branch_stock(
 
 def sync_legacy_product_stock(db: Session, product_id: int) -> Decimal:
     """Set Product.stock_qty = sum of BranchProductStock across all branches."""
+    # Flush pending in-session stock mutations first so the SUM reflects the
+    # same transaction (autoflush=False sessions otherwise read stale values).
+    db.flush()
     total = (
         db.query(func.coalesce(func.sum(BranchProductStock.stock_qty), 0))
         .filter(BranchProductStock.product_id == int(product_id))

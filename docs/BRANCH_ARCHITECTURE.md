@@ -1,6 +1,8 @@
-# Multi-branch POS architecture (Section 12–13)
+# Multi-branch POS architecture (Section 12–15)
 
-**Status:** Section 12 foundation + Section 13 management/switching.
+**Status:** Sections 12–14 foundation + Section 15 inter-branch stock transfers
+(Section 12 foundation, 13 management/switching, 14 branch-authoritative inventory,
+15 transfer workflow — implemented).
 Financial release closed at app commit `34fa203`.
 **Do not** run `migrate_branches.py` against production in this phase.
 
@@ -140,18 +142,37 @@ Branch filters must be applied consistently to revenue, COGS, profit, refunds, e
 
 ---
 
-## 8. Stock transfer lifecycle (model ready; workflow later)
+## 8. Stock transfer lifecycle (implemented — Section 15)
 
 ```
 DRAFT → REQUESTED → APPROVED → DISPATCHED → RECEIVED
                  ↘ REJECTED / CANCELLED
 ```
 
-- **DISPATCHED:** source qty ↓, in-transit ↑
-- **RECEIVED:** in-transit ↓, destination qty ↑
-- Do **not** credit destination at request/approval.
+Backend: `app/transfer_service.py` + `app/transfer_routes.py` (`/api/transfers`).
 
-Idempotency: `client_transfer_id`; separate keys for dispatch vs receive events.
+- **APPROVED:** source `reserved_qty` ↑ (available = on-hand − reserved); no stock moves.
+- **DISPATCHED:** source qty ↓, reservation released, in-transit ↑
+- **RECEIVED:** in-transit ↓, destination qty ↑ (partial accepted/damaged/missing allowed;
+  damaged/missing never enter destination on-hand)
+- **REJECTED** only from REQUESTED; **CANCELLED** from DRAFT/REQUESTED, and from
+  APPROVED only while nothing has been dispatched (releases reservations).
+- Do **not** credit destination at request/approval.
+- `BranchProductStock.stock_qty` stays authoritative; `Product.stock_qty` remains the
+  legacy shadow (sum of physical branch stock, excludes in-transit).
+- Transfer events never create Sale / Payment / Expense / Withdrawal / JournalEntry.
+
+API (all under `/api/transfers`, guarded by `BRANCH_TRANSFER_*` permissions):
+
+| Endpoint | Action |
+|---|---|
+| `GET ""` / `GET /{id}` | list / detail (`BRANCH_TRANSFER_VIEW`) |
+| `POST ""` | create draft (+ items) (`CREATE`) |
+| `POST/PUT/DELETE /{id}/items[/{item_id}]`, `PATCH/DELETE /{id}` | draft editing (`CREATE`) |
+| `POST /{id}/request` / `approve` / `reject` / `cancel` / `dispatch` / `receive` | lifecycle |
+
+Idempotency: `client_transfer_id` on create; `client_movement_id` on receive
+(one key per receive event — fresh key for each partial receive call).
 
 ---
 
