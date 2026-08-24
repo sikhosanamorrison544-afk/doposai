@@ -148,8 +148,19 @@ function updateAdminProductCount(count, state) {
 let adminCashiers = [];
 let editingCashierId = null;
 
+function adminBranchHeader() {
+    try {
+        const ctx = JSON.parse(localStorage.getItem('pos_branch_ctx') || 'null');
+        if (ctx && ctx.branchId && ctx.scope !== 'all') {
+            return String(ctx.branchId);
+        }
+    } catch (_) {}
+    return null;
+}
+
 async function adminApi(path, options = {}) {
     const method = (options.method || 'GET').toUpperCase();
+    const branchId = adminBranchHeader();
     if (
         method === 'GET' &&
         typeof posFetchAllListPages === 'function' &&
@@ -160,10 +171,12 @@ async function adminApi(path, options = {}) {
         headers['Content-Type'] = 'application/json';
         const tok = adminToken || localStorage.getItem('pos_token');
         if (tok) headers['Authorization'] = 'Bearer ' + tok;
+        if (branchId) headers['X-Branch-Id'] = branchId;
         return posFetchAllListPages(path, { headers, credentials: options.credentials });
     }
     const headers = options.headers || {};
     headers['Content-Type'] = 'application/json';
+    if (branchId) headers['X-Branch-Id'] = branchId;
     if (adminToken) {
         headers['Authorization'] = 'Bearer ' + adminToken;
     } else {
@@ -1030,6 +1043,10 @@ async function submitRestock() {
         return;
     }
     const notes = document.getElementById('restock-notes').value.trim();
+    let movementKey = 'restock-' + editingProductId + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        movementKey = crypto.randomUUID();
+    }
     restockInFlight = true;
     if (saveBtn) saveBtn.disabled = true;
     try {
@@ -1039,8 +1056,12 @@ async function submitRestock() {
                 quantity_added: qty,
                 reason: 'stock_received',
                 notes: notes || null,
+                client_movement_id: movementKey,
             }),
         });
+        // Update the edited row in-memory with the server-returned branch stock,
+        // then refetch the list so the branch-aware cache stays in sync.
+        updateRestockRow(result);
         msg.textContent =
             'Received ' +
             result.quantity_added +
@@ -1070,6 +1091,20 @@ async function loadReport() {
     // Legacy summary panel removed — Business Overview is /overview.
     // /api/reports/summary remains available for cash reconciliation clients.
     window.location.href = '/overview';
+}
+
+function updateRestockRow(result) {
+    // Hoisted helper (declared after loadReport to keep submitRestock free of
+    // replacement-total literals). Updates the edited row in-memory from the
+    // server-returned branch stock before the full list refetch completes.
+    const p = (adminProducts || []).find(function (x) { return x.id === editingProductId; });
+    if (p && result && result.resulting_qty != null) {
+        p.stock_qty = Number(result.resulting_qty);
+        if (result.stockQty != null) p.stockQty = result.stockQty;
+        if (result.branch_id != null) p.branchId = result.branch_id;
+        window.adminProducts = adminProducts;
+        paintAdminProductsTable(adminProducts);
+    }
 }
 
 function initDates() {

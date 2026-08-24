@@ -25,6 +25,7 @@ class StockChangeResult:
     change_qty: float
     resulting_qty: float
     movement_id: Optional[int]
+    branch_id: Optional[int] = None
 
 
 def apply_product_stock_change(
@@ -35,6 +36,7 @@ def apply_product_stock_change(
     *,
     branch_id: Optional[int] = None,
     update_cost: Optional[float] = None,
+    client_movement_id: Optional[str] = None,
 ) -> StockChangeResult:
     """
     Atomically adjust stock. When branch_id is set, BranchProductStock is authoritative
@@ -74,6 +76,7 @@ def apply_product_stock_change(
                 quantity=qty,
                 reason=reason,
                 movement_type=MOVEMENT_ADJUSTMENT,
+                client_movement_id=client_movement_id,
             )
         else:
             snap = decrease_branch_stock(
@@ -85,22 +88,37 @@ def apply_product_stock_change(
                 reason=reason,
                 movement_type=MOVEMENT_ADJUSTMENT,
                 check_reserved=False,
+                client_movement_id=client_movement_id,
             )
         db.refresh(product)
-        resulting = float(product.stock_qty or 0)
+        # Report the authoritative branch quantity, not the legacy cross-branch
+        # Product.stock_qty shadow (which is the sum across all branches).
+        resulting = float(snap.quantity_on_hand)
         previous = resulting - change
-        mov = (
-            db.query(InventoryMovement)
-            .filter(InventoryMovement.product_id == product_id)
-            .order_by(InventoryMovement.id.desc())
-            .first()
-        )
+        mov = None
+        if client_movement_id:
+            mov = (
+                db.query(InventoryMovement)
+                .filter(InventoryMovement.client_movement_id == client_movement_id)
+                .first()
+            )
+        if mov is None:
+            mov = (
+                db.query(InventoryMovement)
+                .filter(
+                    InventoryMovement.product_id == product_id,
+                    InventoryMovement.branch_id == int(branch_id),
+                )
+                .order_by(InventoryMovement.id.desc())
+                .first()
+            )
         return StockChangeResult(
             product=product,
             previous_qty=previous,
             change_qty=change,
             resulting_qty=resulting,
             movement_id=mov.id if mov else 0,
+            branch_id=int(branch_id),
         )
 
     # Legacy Product-only path (no branch) — keep for rare callers; prefer branch_id.

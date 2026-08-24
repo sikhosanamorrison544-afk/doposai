@@ -313,6 +313,15 @@ def increase_branch_stock(
     qty = to_qty(quantity)
     if qty <= ZERO:
         raise HTTPException(status_code=400, detail="Quantity must be positive")
+    if client_movement_id:
+        existing = (
+            db.query(InventoryMovement)
+            .filter(InventoryMovement.client_movement_id == client_movement_id)
+            .first()
+        )
+        if existing is not None:
+            # Idempotent retry — do not increment or create a second movement.
+            return get_branch_stock(db, branch_id, product_id)
     row = lock_branch_stock(
         db, tenant_id=tenant_id, branch_id=branch_id, product_id=product_id
     )

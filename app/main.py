@@ -1068,10 +1068,12 @@ class ProductRestockRequest(BaseModel):
     reason: Optional[str] = Field(default="stock_received", max_length=80)
     notes: Optional[str] = Field(default=None, max_length=500)
     cost_price: Optional[Decimal] = None
+    client_movement_id: Optional[str] = Field(default=None, max_length=64)
 
 
 class ProductRestockResponse(BaseModel):
     product_id: int
+    branch_id: Optional[int] = None
     barcode: Optional[str]
     name: str
     previous_qty: float
@@ -1087,6 +1089,7 @@ async def restock_product(
     body: ProductRestockRequest,
     db: Session = Depends(get_db),
     current_admin: User = Depends(auth.get_current_admin_user),
+    x_branch_id: Optional[str] = Header(None, alias="X-Branch-Id"),
 ):
     """
     Receive stock for an existing product.
@@ -1095,6 +1098,7 @@ async def restock_product(
     Stock and inventory movement are committed in one atomic transaction.
     """
     from .enterprise.inventory_ops import apply_product_stock_change
+    from .inventory_service import require_operational_branch
     from .product_barcodes import ensure_product_barcode
 
     qty = float(body.quantity_added)
@@ -1111,13 +1115,19 @@ async def restock_product(
     if body.notes:
         reason = f"{reason}: {body.notes.strip()[:60]}"
 
+    # Resolve the concrete active branch — the authoritative stock source of truth.
+    branch = require_operational_branch(db, current_admin, header_branch_id=x_branch_id)
+    client_movement_id = (body.client_movement_id or "").strip() or None
+
     try:
         result = apply_product_stock_change(
             db,
             db_product.id,
             qty,
             reason[:80],
+            branch_id=branch.id,
             update_cost=float(body.cost_price) if body.cost_price is not None else None,
+            client_movement_id=client_movement_id,
         )
         db.commit()
         db.refresh(result.product)
@@ -1136,6 +1146,7 @@ async def restock_product(
 
     return ProductRestockResponse(
         product_id=result.product.id,
+        branch_id=result.branch_id,
         barcode=result.product.barcode,
         name=result.product.name,
         previous_qty=result.previous_qty,
