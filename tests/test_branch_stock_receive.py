@@ -327,3 +327,271 @@ def test_duplicate_submission_idempotent_no_double_increment(client, db_session)
 
     assert float(_bpg(db_session, main.id, p.id).stock_qty) == 8.0
     assert len(_movements(db_session, p.id)) == 1
+
+
+# --- Exact 1 + 1 = 2 regression (not 3) ------------------------------------
+
+
+def _seed_tape(db_session, stock=1.0):
+    t = _tenant(db_session, name="Tape Shop")
+    admin = _user(db_session, t.id, "tape_admin", role="admin")
+    main = _branch(db_session, t.id, "Main Branch", "MAIN", is_default=True)
+    p = Product(
+        name="Tape Measure",
+        barcode="TAPE-1",
+        selling_price=10,
+        cost_price=4,
+        stock_qty=stock,
+        tenant_id=t.id,
+    )
+    db_session.add(p)
+    db_session.flush()
+    seed_main_branch_from_legacy(db_session, tenant_id=t.id, branch_id=main.id, product=p)
+    sync_legacy_product_stock(db_session, p.id)
+    db_session.commit()
+    return t, admin, main, p
+
+
+def test_restock_one_plus_one_equals_two_not_three(client, db_session):
+    """Acceptance: stock 1, receive 1 → exactly 2 with one InventoryMovement."""
+    t, admin, main, p = _seed_tape(db_session, stock=1.0)
+    tok = _login(client, "tape_admin")
+
+    assert float(_bpg(db_session, main.id, p.id).stock_qty) == 1.0
+    before_movs = len(_movements(db_session, p.id))
+
+    r = _restock(client, tok, p.id, 1, branch_id=main.id, movement_id="tape-recv-1")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["previous_qty"] == 1.0
+    assert body["quantity_added"] == 1.0
+    assert body["resulting_qty"] == 2.0
+
+    assert float(_bpg(db_session, main.id, p.id).stock_qty) == 2.0
+    db_session.refresh(p)
+    assert float(p.stock_qty) == 2.0
+    movs = _movements(db_session, p.id)
+    assert len(movs) == before_movs + 1
+    assert float(movs[-1].change_qty) == 1.0
+
+
+def test_restock_larger_receipt_10_plus_5(client, db_session):
+    t, admin, main, p = _seed_tape(db_session, stock=10.0)
+    tok = _login(client, "tape_admin")
+
+    r = _restock(client, tok, p.id, 5, branch_id=main.id)
+    assert r.status_code == 200, r.text
+    assert r.json()["resulting_qty"] == 15.0
+    assert float(_bpg(db_session, main.id, p.id).stock_qty) == 15.0
+    assert len(_movements(db_session, p.id)) == 1
+
+
+def test_restock_rejects_zero_and_negative(client, db_session):
+    t, admin, main, p = _seed_tape(db_session, stock=1.0)
+    tok = _login(client, "tape_admin")
+
+    zero = _restock(client, tok, p.id, 0, branch_id=main.id)
+    assert zero.status_code in (400, 422)
+
+    neg = _restock(client, tok, p.id, -1, branch_id=main.id)
+    assert neg.status_code in (400, 422)
+
+    assert float(_bpg(db_session, main.id, p.id).stock_qty) == 1.0
+    assert _movements(db_session, p.id) == []
+
+
+def test_one_request_one_increment_one_movement(client, db_session):
+    t, admin, main, p = _seed_tape(db_session, stock=1.0)
+    tok = _login(client, "tape_admin")
+
+    r = _restock(client, tok, p.id, 1, branch_id=main.id, movement_id="single-action")
+    assert r.status_code == 200
+    assert float(_bpg(db_session, main.id, p.id).stock_qty) == 2.0
+    assert len(_movements(db_session, p.id)) == 1
+
+
+def test_two_legitimate_receives_increment_twice(client, db_session):
+    """Two genuine receipts (distinct client keys) must both apply: 1→2→3."""
+    t, admin, main, p = _seed_tape(db_session, stock=1.0)
+    tok = _login(client, "tape_admin")
+
+    r1 = _restock(client, tok, p.id, 1, branch_id=main.id, movement_id="legit-a")
+    assert r1.status_code == 200
+    assert r1.json()["resulting_qty"] == 2.0
+
+    r2 = _restock(client, tok, p.id, 1, branch_id=main.id, movement_id="legit-b")
+    assert r2.status_code == 200
+    assert r2.json()["resulting_qty"] == 3.0
+
+    assert float(_bpg(db_session, main.id, p.id).stock_qty) == 3.0
+    assert len(_movements(db_session, p.id)) == 2
+
+
+def test_ui_double_submit_same_movement_key_no_double_increment(client, db_session):
+    """Simulate one user action retried with the same client_movement_id (ghost click)."""
+    t, admin, main, p = _seed_tape(db_session, stock=1.0)
+    tok = _login(client, "tape_admin")
+
+    mid = "modal-session-key"
+    assert _restock(client, tok, p.id, 1, branch_id=main.id, movement_id=mid).status_code == 200
+    assert _restock(client, tok, p.id, 1, branch_id=main.id, movement_id=mid).status_code == 200
+
+    assert float(_bpg(db_session, main.id, p.id).stock_qty) == 2.0
+    assert len(_movements(db_session, p.id)) == 1
+
+
+def test_restock_tenant_isolation(client, db_session):
+    t_a, admin_a, main_a, p_a = _seed_tape(db_session, stock=1.0)
+    t_b = _tenant(db_session, name="Other Shop")
+    admin_b = _user(db_session, t_b.id, "other_admin", role="admin")
+    main_b = _branch(db_session, t_b.id, "Main Branch", "MAIN", is_default=True)
+    p_b = Product(
+        name="Tape Measure B",
+        barcode="TAPE-B",
+        selling_price=10,
+        cost_price=4,
+        stock_qty=7,
+        tenant_id=t_b.id,
+    )
+    db_session.add(p_b)
+    db_session.flush()
+    seed_main_branch_from_legacy(db_session, tenant_id=t_b.id, branch_id=main_b.id, product=p_b)
+    sync_legacy_product_stock(db_session, p_b.id)
+    db_session.commit()
+
+    tok_a = _login(client, "tape_admin")
+    # Tenant A must not be able to restock Tenant B's product.
+    denied = _restock(client, tok_a, p_b.id, 1, branch_id=main_a.id)
+    assert denied.status_code in (403, 404)
+
+    assert float(_bpg(db_session, main_b.id, p_b.id).stock_qty) == 7.0
+    assert _movements(db_session, p_b.id) == []
+
+    tok_b = _login(client, "other_admin")
+    ok = _restock(client, tok_b, p_b.id, 1, branch_id=main_b.id)
+    assert ok.status_code == 200
+    assert float(_bpg(db_session, main_b.id, p_b.id).stock_qty) == 8.0
+    # Tenant A's product unchanged.
+    assert float(_bpg(db_session, main_a.id, p_a.id).stock_qty) == 1.0
+
+
+def test_concurrent_branch_restocks_both_apply():
+    """Two simultaneous legitimate receipts on the same branch: 1+1+1 → 3, two movements."""
+    import tempfile
+    import threading
+    from pathlib import Path
+
+    from app.enterprise.inventory_ops import apply_product_stock_change
+
+    tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+    tmp.close()
+    db_path = tmp.name
+    try:
+        engine = create_engine(
+            f"sqlite:///{db_path}",
+            connect_args={"check_same_thread": False, "timeout": 30},
+            future=True,
+        )
+
+        def _enable_wal(dbapi_conn, _connection_record):
+            cursor = dbapi_conn.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA busy_timeout=30000")
+            cursor.close()
+
+        from sqlalchemy import event
+
+        event.listen(engine, "connect", _enable_wal)
+        Base.metadata.create_all(engine)
+        SessionLocal = sessionmaker(
+            bind=engine, autoflush=False, autocommit=False, future=True
+        )
+
+        with SessionLocal() as setup:
+            t = Tenant(tenant_uid=str(uuid.uuid4()), name="Conc Shop")
+            setup.add(t)
+            setup.flush()
+            main = Branch(
+                tenant_id=t.id,
+                name="Main",
+                code="MAIN",
+                is_default=True,
+                is_active=True,
+            )
+            setup.add(main)
+            setup.flush()
+            p = Product(
+                name="Conc Tape",
+                barcode="CONC-TAPE",
+                selling_price=10,
+                cost_price=4,
+                stock_qty=1,
+                tenant_id=t.id,
+            )
+            setup.add(p)
+            setup.flush()
+            seed_main_branch_from_legacy(
+                setup, tenant_id=t.id, branch_id=main.id, product=p
+            )
+            sync_legacy_product_stock(setup, p.id)
+            setup.commit()
+            product_id = p.id
+            branch_id = main.id
+
+        errors: list = []
+        barrier = threading.Barrier(2)
+
+        def _receipt(amount: float, mid: str):
+            try:
+                session = SessionLocal()
+                try:
+                    barrier.wait(timeout=5)
+                    apply_product_stock_change(
+                        session,
+                        product_id,
+                        amount,
+                        "stock_received concurrent",
+                        branch_id=branch_id,
+                        client_movement_id=mid,
+                    )
+                    session.commit()
+                except Exception as e:
+                    session.rollback()
+                    errors.append(e)
+                finally:
+                    session.close()
+            except Exception as e:
+                errors.append(e)
+
+        t1 = threading.Thread(target=_receipt, args=(1.0, "conc-a"))
+        t2 = threading.Thread(target=_receipt, args=(1.0, "conc-b"))
+        t1.start()
+        t2.start()
+        t1.join(timeout=15)
+        t2.join(timeout=15)
+
+        assert not errors, f"Concurrent restock failed: {errors}"
+        with SessionLocal() as verify:
+            bps = (
+                verify.query(BranchProductStock)
+                .filter(
+                    BranchProductStock.product_id == product_id,
+                    BranchProductStock.branch_id == branch_id,
+                )
+                .one()
+            )
+            assert float(bps.stock_qty) == 3.0
+            movs = (
+                verify.query(InventoryMovement)
+                .filter(InventoryMovement.product_id == product_id)
+                .all()
+            )
+            assert len(movs) == 2
+            product = verify.query(Product).filter_by(id=product_id).one()
+            assert float(product.stock_qty) == 3.0
+    finally:
+        Path(db_path).unlink(missing_ok=True)
+        try:
+            engine.dispose()
+        except Exception:
+            pass

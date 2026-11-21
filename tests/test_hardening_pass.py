@@ -129,9 +129,17 @@ def test_admin_js_edit_omits_stock_and_restock_uses_quantity_added():
     assert "/restock" in src
     assert "quantity_added" in src
     assert "restockInFlight" in src
+    assert "restockCompleted" in src
+    assert "restockMovementKey" in src
+    assert "closeRestockModal" in src
+    assert "newRestockMovementKey" in src
     restock_block = src[src.find("async function submitRestock") : src.find("async function loadReport")]
     assert "quantity_added" in restock_block
     assert "stock_qty" not in restock_block
+    assert "restockCompleted" in restock_block
+    # Must not re-enable the button on success (ghost/double click while modal open).
+    assert "restockCompleted = true" in restock_block
+    assert "client_movement_id: movementKey" in restock_block
 
 
 def test_android_has_no_native_product_crud_forms():

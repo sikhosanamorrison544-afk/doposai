@@ -906,8 +906,7 @@ function clearProductForm() {
     document.getElementById('prod-price').value = '';
     document.getElementById('prod-expiry').value = '';
     document.getElementById('prod-message').textContent = '';
-    const restockModal = document.getElementById('restock-modal');
-    if (restockModal) restockModal.hidden = true;
+    closeRestockModal();
     // Hide the product form panel after clearing
     const formCard = document.getElementById('product-form-card');
     if (formCard) {
@@ -1006,6 +1005,34 @@ async function saveProduct() {
     }
 }
 
+let restockInFlight = false;
+let restockCompleted = false;
+let restockMovementKey = null;
+
+function newRestockMovementKey(productId) {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return (
+        'restock-' +
+        productId +
+        '-' +
+        Date.now() +
+        '-' +
+        Math.random().toString(36).slice(2, 10)
+    );
+}
+
+function closeRestockModal() {
+    const modal = document.getElementById('restock-modal');
+    if (modal) modal.hidden = true;
+    restockInFlight = false;
+    restockCompleted = false;
+    restockMovementKey = null;
+    const saveBtn = document.getElementById('btn-restock-save');
+    if (saveBtn) saveBtn.disabled = false;
+}
+
 function openRestockModal() {
     if (!editingProductId) return;
     const modal = document.getElementById('restock-modal');
@@ -1021,6 +1048,13 @@ function openRestockModal() {
     document.getElementById('restock-notes').value = '';
     document.getElementById('restock-preview').textContent = String(current + 1);
     document.getElementById('restock-message').textContent = '';
+    // One idempotency key per modal session so a ghost/double click cannot
+    // create a second InventoryMovement after a fast successful response.
+    restockInFlight = false;
+    restockCompleted = false;
+    restockMovementKey = newRestockMovementKey(editingProductId);
+    const saveBtn = document.getElementById('btn-restock-save');
+    if (saveBtn) saveBtn.disabled = false;
     modal.hidden = false;
 }
 
@@ -1031,22 +1065,21 @@ function updateRestockPreview() {
     if (prev) prev.textContent = String(current + add);
 }
 
-let restockInFlight = false;
-
 async function submitRestock() {
     const msg = document.getElementById('restock-message');
     const saveBtn = document.getElementById('btn-restock-save');
-    if (!editingProductId || restockInFlight) return;
+    // Reject in-flight and post-success clicks while the modal is still visible.
+    if (!editingProductId || restockInFlight || restockCompleted) return;
     const qty = Math.round(parseFloat(document.getElementById('restock-qty').value) || 0);
     if (qty <= 0) {
         msg.textContent = 'Enter a positive quantity received';
         return;
     }
     const notes = document.getElementById('restock-notes').value.trim();
-    let movementKey = 'restock-' + editingProductId + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-        movementKey = crypto.randomUUID();
+    if (!restockMovementKey) {
+        restockMovementKey = newRestockMovementKey(editingProductId);
     }
+    const movementKey = restockMovementKey;
     restockInFlight = true;
     if (saveBtn) saveBtn.disabled = true;
     try {
@@ -1059,8 +1092,10 @@ async function submitRestock() {
                 client_movement_id: movementKey,
             }),
         });
+        restockCompleted = true;
         // Update the edited row in-memory with the server-returned branch stock,
         // then refetch the list so the branch-aware cache stays in sync.
+        // Authoritative stock comes from the response — never locally += received.
         updateRestockRow(result);
         msg.textContent =
             'Received ' +
@@ -1075,13 +1110,12 @@ async function submitRestock() {
         document.getElementById('prod-stock').value = String(Math.round(result.resulting_qty));
         await loadAdminProducts();
         setTimeout(() => {
-            const modal = document.getElementById('restock-modal');
-            if (modal) modal.hidden = true;
+            closeRestockModal();
         }, 1200);
     } catch (e) {
         console.error(e);
         msg.textContent = (e && e.message) ? e.message : 'Restock failed';
-    } finally {
+        // Allow retry on failure with the same movement key (server is idempotent).
         restockInFlight = false;
         if (saveBtn) saveBtn.disabled = false;
     }
@@ -3237,22 +3271,31 @@ function setupAdminEvents() {
     }
 
     const btnAddStock = document.getElementById('btn-add-stock');
-    if (btnAddStock) {
+    if (btnAddStock && btnAddStock.dataset.restockBound !== '1') {
+        btnAddStock.dataset.restockBound = '1';
         btnAddStock.addEventListener('click', openRestockModal);
     }
     const restockQty = document.getElementById('restock-qty');
-    if (restockQty) {
+    if (restockQty && restockQty.dataset.restockBound !== '1') {
+        restockQty.dataset.restockBound = '1';
         restockQty.addEventListener('input', updateRestockPreview);
     }
     const btnRestockSave = document.getElementById('btn-restock-save');
-    if (btnRestockSave) {
-        btnRestockSave.addEventListener('click', submitRestock);
+    if (btnRestockSave && btnRestockSave.dataset.restockBound !== '1') {
+        btnRestockSave.dataset.restockBound = '1';
+        btnRestockSave.addEventListener('click', function (e) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            submitRestock();
+        });
     }
     const btnRestockCancel = document.getElementById('btn-restock-cancel');
-    if (btnRestockCancel) {
-        btnRestockCancel.addEventListener('click', () => {
-            const modal = document.getElementById('restock-modal');
-            if (modal) modal.hidden = true;
+    if (btnRestockCancel && btnRestockCancel.dataset.restockBound !== '1') {
+        btnRestockCancel.dataset.restockBound = '1';
+        btnRestockCancel.addEventListener('click', function () {
+            closeRestockModal();
         });
     }
     

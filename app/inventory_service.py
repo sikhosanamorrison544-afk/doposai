@@ -328,11 +328,12 @@ def increase_branch_stock(
     row = lock_branch_stock(
         db, tenant_id=tenant_id, branch_id=branch_id, product_id=product_id
     )
-    new_val = to_qty(row.stock_qty) + qty
+    # Atomic SQL increment so concurrent receipts cannot overwrite each other
+    # (FOR UPDATE is a no-op on SQLite; the expression still serialises correctly).
     db.execute(
         update(BranchProductStock)
         .where(BranchProductStock.id == row.id)
-        .values(stock_qty=new_val)
+        .values(stock_qty=BranchProductStock.stock_qty + qty)
     )
     db.refresh(row)
     _record_movement(
