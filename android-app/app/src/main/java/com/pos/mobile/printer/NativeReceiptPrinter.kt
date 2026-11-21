@@ -24,6 +24,26 @@ object NativeReceiptPrinter {
         if (!store.optString("store_location").isNotBlank()) {
             store.put("store_location", prefs.getString("store_location", "") ?: "")
         }
+        // Merge Receipt Design fields from the last synced store-settings payload.
+        val cached = prefs.getString("store_settings_json", null)
+        if (!cached.isNullOrBlank()) {
+            try {
+                val cachedStore = JSONObject(cached)
+                for (key in listOf(
+                    "receipt_keep_for_refund_text",
+                    "receipt_footer",
+                    "receipt_phone_1",
+                    "receipt_phone_2",
+                    "receipt_phone_3",
+                )) {
+                    if (!store.has(key) && cachedStore.has(key) && !cachedStore.isNull(key)) {
+                        store.put(key, cachedStore.get(key))
+                    }
+                }
+            } catch (_: Exception) {
+                // Ignore malformed cache; receipt will use defaults.
+            }
+        }
     }
 
     suspend fun printSaleFromJson(context: Context, json: String, transport: String? = null): Result<Unit> {

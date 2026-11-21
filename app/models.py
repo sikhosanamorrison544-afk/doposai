@@ -211,6 +211,12 @@ class StoreSettings(Base):
     default_low_stock_threshold: Mapped[float] = mapped_column(Float, default=10.0)  # Global default threshold
     # ISO 4217 business display/reporting currency (not SaaS billing currency).
     currency: Mapped[str] = mapped_column(String(3), default="USD")
+    # Receipt Design (NULL = application default; empty string = hide on receipt).
+    receipt_keep_for_refund_text: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    receipt_footer: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    receipt_phone_1: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    receipt_phone_2: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    receipt_phone_3: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     tenant_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("tenants.id"), nullable=True, index=True
     )

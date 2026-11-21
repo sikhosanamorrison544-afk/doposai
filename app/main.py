@@ -2482,7 +2482,11 @@ def print_receipt_background(sale_id: int):
             store_settings_name = store_settings.store_name
             store_settings_phone = store_settings.store_phone
             store_settings_location = store_settings.store_location
-        
+
+        from .receipt_design import compose_sale_receipt_closing
+
+        receipt_footer = compose_sale_receipt_closing(store_settings)
+
         print_receipt(
             sale_id=sale.id,
             store_name=store_settings_name,
@@ -2496,6 +2500,7 @@ def print_receipt_background(sale_id: int):
             cashier_role=cashier_role,
             store_phone=store_settings_phone,
             store_location=store_settings_location,
+            footer=receipt_footer,
             collection_status=sale.collection_status,
         )
     except Exception as e:
@@ -2547,6 +2552,11 @@ class StoreSettingsRead(BaseModel):
     low_stock_email_enabled: bool
     default_low_stock_threshold: float
     currency: str = "USD"
+    receipt_keep_for_refund_text: Optional[str] = None
+    receipt_footer: Optional[str] = None
+    receipt_phone_1: Optional[str] = None
+    receipt_phone_2: Optional[str] = None
+    receipt_phone_3: Optional[str] = None
     updated_at: datetime
 
     class Config:
@@ -2561,6 +2571,13 @@ class StoreSettingsUpdate(BaseModel):
     low_stock_email_enabled: bool = False
     default_low_stock_threshold: float = 10.0
     currency: Optional[str] = "USD"
+    receipt_keep_for_refund_text: Optional[str] = None
+    receipt_footer: Optional[str] = None
+    receipt_phone_1: Optional[str] = None
+    receipt_phone_2: Optional[str] = None
+    receipt_phone_3: Optional[str] = None
+    # Reject accidental client payloads that try to send a phone list > 3.
+    receipt_phones: Optional[list] = None
 
 
 @app.get("/api/store-settings", response_model=StoreSettingsRead)
@@ -2602,11 +2619,47 @@ async def update_store_settings(
     """Update store settings. Admin only."""
     response.headers["Cache-Control"] = "no-store"
     from .currency_util import validate_currency
+    from .receipt_design import (
+        MAX_FOOTER_LEN,
+        MAX_KEEP_FOR_REFUND_LEN,
+        MAX_RECEIPT_PHONES,
+        normalize_optional_text,
+        normalize_phone,
+    )
 
     try:
         currency = validate_currency(settings_data.currency or "USD")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    if settings_data.receipt_phones is not None:
+        if len(settings_data.receipt_phones) > MAX_RECEIPT_PHONES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"At most {MAX_RECEIPT_PHONES} receipt phone numbers are allowed",
+            )
+
+    fields_set = settings_data.model_fields_set
+    receipt_patch = {}
+    if "receipt_keep_for_refund_text" in fields_set:
+        receipt_patch["receipt_keep_for_refund_text"] = normalize_optional_text(
+            settings_data.receipt_keep_for_refund_text,
+            max_len=MAX_KEEP_FOR_REFUND_LEN,
+        )
+    if "receipt_footer" in fields_set:
+        if settings_data.receipt_footer is None:
+            receipt_patch["receipt_footer"] = None
+        else:
+            footer_raw = str(settings_data.receipt_footer).strip("\r\n")
+            receipt_patch["receipt_footer"] = (
+                "" if footer_raw.strip() == "" else footer_raw[:MAX_FOOTER_LEN]
+            )
+    if "receipt_phone_1" in fields_set:
+        receipt_patch["receipt_phone_1"] = normalize_phone(settings_data.receipt_phone_1)
+    if "receipt_phone_2" in fields_set:
+        receipt_patch["receipt_phone_2"] = normalize_phone(settings_data.receipt_phone_2)
+    if "receipt_phone_3" in fields_set:
+        receipt_patch["receipt_phone_3"] = normalize_phone(settings_data.receipt_phone_3)
 
     settings = tenant_scope.filter_store_settings(db, current_user).first()
     if not settings:
@@ -2614,8 +2667,12 @@ async def update_store_settings(
             store_name=settings_data.store_name,
             store_phone=settings_data.store_phone,
             store_location=settings_data.store_location,
+            notification_email=settings_data.notification_email,
+            low_stock_email_enabled=settings_data.low_stock_email_enabled,
+            default_low_stock_threshold=settings_data.default_low_stock_threshold,
             currency=currency,
             tenant_id=tenant_scope.tenant_id_for_row(current_user),
+            **receipt_patch,
         )
         db.add(settings)
     else:
@@ -2626,8 +2683,10 @@ async def update_store_settings(
         settings.low_stock_email_enabled = settings_data.low_stock_email_enabled
         settings.default_low_stock_threshold = settings_data.default_low_stock_threshold
         settings.currency = currency
+        for key, value in receipt_patch.items():
+            setattr(settings, key, value)
         settings.updated_at = datetime.utcnow()
-    
+
     db.commit()
     db.refresh(settings)
     return settings

@@ -192,6 +192,15 @@
         return true;
     }
 
+    const DEFAULT_KEEP_FOR_REFUND = 'Keep receipt for refund';
+    const DEFAULT_RECEIPT_FOOTER = 'Thank you for shopping with us!';
+
+    function mergeField(from, cached, key, fallback) {
+        if (from && from[key] != null) return from[key];
+        if (cached && cached[key] != null) return cached[key];
+        return fallback;
+    }
+
     function mergeStore(opts) {
         const from = (opts && opts.store) || storeSettings || {};
         const cached = storeSettings || {};
@@ -209,7 +218,65 @@
                     : cached.store_phone != null
                       ? String(cached.store_phone)
                       : '',
+            receipt_keep_for_refund_text: mergeField(from, cached, 'receipt_keep_for_refund_text', null),
+            receipt_footer: mergeField(from, cached, 'receipt_footer', null),
+            receipt_phone_1: mergeField(from, cached, 'receipt_phone_1', null),
+            receipt_phone_2: mergeField(from, cached, 'receipt_phone_2', null),
+            receipt_phone_3: mergeField(from, cached, 'receipt_phone_3', null),
         };
+    }
+
+    function resolveKeepForRefund(store) {
+        if (!store || store.receipt_keep_for_refund_text == null) {
+            return DEFAULT_KEEP_FOR_REFUND;
+        }
+        const text = String(store.receipt_keep_for_refund_text).trim();
+        return text || null;
+    }
+
+    function resolveReceiptFooter(store) {
+        if (!store || store.receipt_footer == null) {
+            return DEFAULT_RECEIPT_FOOTER;
+        }
+        const text = String(store.receipt_footer).replace(/^\r?\n+|\r?\n+$/g, '');
+        return text.trim() === '' ? null : text;
+    }
+
+    function receiptPhonesFromStore(store) {
+        const out = [];
+        if (!store) return out;
+        ['receipt_phone_1', 'receipt_phone_2', 'receipt_phone_3'].forEach(function (key) {
+            const raw = store[key];
+            const phone = raw != null ? String(raw).trim() : '';
+            if (phone) out.push(phone);
+        });
+        return out.slice(0, 3);
+    }
+
+    function saleReceiptClosingHtml(store) {
+        let html = '';
+        const keep = resolveKeepForRefund(store);
+        if (keep) {
+            html += '<div class="footer">' + escapeHtml(keep) + '</div>';
+        }
+        const phones = receiptPhonesFromStore(store);
+        if (phones.length) {
+            html += '<div class="footer" style="margin-top:6px">Phone:</div>';
+            phones.forEach(function (p) {
+                html +=
+                    '<div class="footer" style="margin-top:2px;word-break:break-word">' +
+                    escapeHtml(p) +
+                    '</div>';
+            });
+        }
+        const footer = resolveReceiptFooter(store);
+        if (footer) {
+            html +=
+                '<div class="footer" style="margin-top:8px;white-space:pre-line">' +
+                escapeHtml(footer) +
+                '</div>';
+        }
+        return html;
     }
 
     function storeHeaderHtml(store) {
@@ -301,7 +368,8 @@
                 formatMoney(change) +
                 '</td></tr>';
         }
-        body += '</table><hr><div class="footer">Thank you for shopping with us!</div>';
+        body += '</table><hr>';
+        body += saleReceiptClosingHtml(opts.store);
         body += receiptMottoHtml();
         return body;
     }

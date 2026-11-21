@@ -35,9 +35,11 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
         cashierName: String?,
         saleId: Int? = null,
         saleLocalId: Long? = null,
-        footer: String = "Thank you for shopping with us!",
+        footer: String? = null,
         storePhone: String? = null,
         storeLocation: String? = null,
+        keepForRefund: String? = null,
+        receiptPhones: List<String> = emptyList(),
     ): ByteArray {
         buffer.clear()
         initPrinter()
@@ -52,7 +54,7 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
         return buildSaleReceiptFromLines(
             storeName, lines, subtotal, discountTotal, total, payments,
             customerName, collectionStatus, cashierName, saleId, saleLocalId, footer,
-            storePhone, storeLocation,
+            storePhone, storeLocation, keepForRefund, receiptPhones,
         )
     }
 
@@ -68,9 +70,11 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
         cashierName: String?,
         saleId: Int? = null,
         saleLocalId: Long? = null,
-        footer: String = "Thank you for shopping with us!",
+        footer: String? = null,
         storePhone: String? = null,
         storeLocation: String? = null,
+        keepForRefund: String? = null,
+        receiptPhones: List<String> = emptyList(),
     ): ByteArray {
         buffer.clear()
         initPrinter()
@@ -112,12 +116,46 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
         writeLine('=')
         writeText("\n")
         centerAlign()
-        for (line in footer.split('\n')) {
-            writeWrapped(line)
-        }
+        writeSaleClosing(keepForRefund, receiptPhones, footer)
         leftAlign()
         finishReceipt()
         return buffer.toByteArray()
+    }
+
+    private fun writeSaleClosing(
+        keepForRefund: String?,
+        receiptPhones: List<String>,
+        footer: String?,
+    ) {
+        val keep = resolveKeepForRefund(keepForRefund)
+        if (!keep.isNullOrBlank()) {
+            writeWrapped(keep)
+        }
+        val phones = receiptPhones.map { it.trim() }.filter { it.isNotEmpty() }.take(3)
+        if (phones.isNotEmpty()) {
+            writeText("Phone:\n")
+            for (phone in phones) {
+                writeWrapped(phone)
+            }
+        }
+        val foot = resolveFooter(footer)
+        if (!foot.isNullOrBlank()) {
+            for (line in foot.split('\n')) {
+                writeWrapped(line)
+            }
+        }
+    }
+
+    private fun resolveKeepForRefund(raw: String?): String? {
+        if (raw == null) return DEFAULT_KEEP_FOR_REFUND
+        val text = raw.trim()
+        return text.ifEmpty { null }
+    }
+
+    private fun resolveFooter(raw: String?): String? {
+        if (raw == null) return DEFAULT_RECEIPT_FOOTER
+        val text = raw.trim('\n', '\r')
+        return if (text.trim().isEmpty()) null else text
     }
 
     fun buildWithdrawalReceipt(
@@ -206,6 +244,24 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
     }
 
     companion object {
+        const val DEFAULT_KEEP_FOR_REFUND = "Keep receipt for refund"
+        const val DEFAULT_RECEIPT_FOOTER = "Thank you for shopping with us!"
+
+        fun receiptPhonesFromStore(store: JSONObject?): List<String> {
+            if (store == null) return emptyList()
+            val out = mutableListOf<String>()
+            for (key in listOf("receipt_phone_1", "receipt_phone_2", "receipt_phone_3")) {
+                val phone = store.optString(key, "").trim()
+                if (phone.isNotEmpty()) out.add(phone)
+            }
+            return out.take(3)
+        }
+
+        fun optNullableString(store: JSONObject?, key: String): String? {
+            if (store == null || !store.has(key) || store.isNull(key)) return null
+            return store.optString(key)
+        }
+
         fun parseSaleJson(json: JSONObject, paperWidth: Int = PrinterPreferences.DEFAULT_PAPER_WIDTH): ByteArray {
             val store = json.optJSONObject("store")
             val storeName = store?.optString("store_name")?.takeIf { it.isNotBlank() }
@@ -255,8 +311,11 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
                 cashierName = json.optString("cashierName", json.optString("cashier_name", null)),
                 saleId = saleId,
                 saleLocalId = saleLocalId,
+                footer = optNullableString(store, "receipt_footer"),
                 storePhone = store?.optString("store_phone"),
                 storeLocation = store?.optString("store_location"),
+                keepForRefund = optNullableString(store, "receipt_keep_for_refund_text"),
+                receiptPhones = receiptPhonesFromStore(store),
             )
         }
 
@@ -315,7 +374,6 @@ class EscPosReceiptBuilder(private val paperWidth: Int) {
             writeText("$line\n")
         }
         boldOff()
-        writeText("(Keep receipt for refunds)\n")
         writeText("Date:   ${df.format(Date())}\n")
         if (!cashierName.isNullOrBlank()) {
             writeText("Cashier: ${cashierName.take(width - 9)}\n")

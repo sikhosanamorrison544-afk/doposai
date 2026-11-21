@@ -1359,6 +1359,30 @@ function applyStoreSettingsToForm(settings) {
             }
         }
     }
+
+    const keepEl = document.getElementById('receipt-keep-for-refund');
+    if (keepEl) {
+        // NULL → show app default in the form; "" → intentionally blank (hide on receipt).
+        if (settings.receipt_keep_for_refund_text == null) {
+            keepEl.value = 'Keep receipt for refund';
+        } else {
+            keepEl.value = settings.receipt_keep_for_refund_text;
+        }
+    }
+    const footerEl = document.getElementById('receipt-footer');
+    if (footerEl) {
+        if (settings.receipt_footer == null) {
+            footerEl.value = 'Thank you for shopping with us!';
+        } else {
+            footerEl.value = settings.receipt_footer;
+        }
+    }
+    const rp1 = document.getElementById('receipt-phone-1');
+    if (rp1) rp1.value = settings.receipt_phone_1 || '';
+    const rp2 = document.getElementById('receipt-phone-2');
+    if (rp2) rp2.value = settings.receipt_phone_2 || '';
+    const rp3 = document.getElementById('receipt-phone-3');
+    if (rp3) rp3.value = settings.receipt_phone_3 || '';
 }
 
 function applyStoreSettingsGlobally(settings) {
@@ -1422,6 +1446,20 @@ async function saveStoreSettings() {
         return;
     }
 
+    const keepEl = document.getElementById('receipt-keep-for-refund');
+    const footerEl = document.getElementById('receipt-footer');
+    const rp1El = document.getElementById('receipt-phone-1');
+    const rp2El = document.getElementById('receipt-phone-2');
+    const rp3El = document.getElementById('receipt-phone-3');
+    // Always send receipt fields when the Receipt Design form is present so blanks clear prior values.
+    const receiptKeep =
+        keepEl ? String(keepEl.value || '').trim() : undefined;
+    const receiptFooter =
+        footerEl != null ? String(footerEl.value || '').replace(/^\r?\n+|\r?\n+$/g, '') : undefined;
+    const receiptPhone1 = rp1El ? String(rp1El.value || '').trim() : undefined;
+    const receiptPhone2 = rp2El ? String(rp2El.value || '').trim() : undefined;
+    const receiptPhone3 = rp3El ? String(rp3El.value || '').trim() : undefined;
+
     const payload = {
         store_name: storeName,
         store_phone: storePhone,
@@ -1431,6 +1469,13 @@ async function saveStoreSettings() {
         default_low_stock_threshold: defaultLowStockThreshold,
         currency: currency,
     };
+    if (keepEl) {
+        payload.receipt_keep_for_refund_text = receiptKeep;
+        payload.receipt_footer = receiptFooter;
+        payload.receipt_phone_1 = receiptPhone1 || null;
+        payload.receipt_phone_2 = receiptPhone2 || null;
+        payload.receipt_phone_3 = receiptPhone3 || null;
+    }
 
     try {
         const saved = await adminApi('/api/store-settings', {

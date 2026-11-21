@@ -15,6 +15,7 @@ import com.pos.mobile.printer.PrinterPreferences
 import com.pos.mobile.printer.PrinterSetupDialog
 import com.pos.mobile.printer.PrinterTransport
 import com.pos.mobile.printer.ThermalPrintService
+import org.json.JSONObject
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -119,6 +120,7 @@ object ReceiptPrinter {
     private suspend fun printSaleThermalResult(activity: Activity, request: SaleReceiptRequest): Boolean {
         return try {
             val width = PrinterPreferences.getPaperWidth(activity)
+            val design = loadReceiptDesign(activity)
             val data = EscPosReceiptBuilder(width).buildSaleReceipt(
                 storeName = request.storeName,
                 cartLines = request.cartLines,
@@ -131,8 +133,11 @@ object ReceiptPrinter {
                 cashierName = request.cashierName,
                 saleId = request.saleId,
                 saleLocalId = request.saleLocalId,
+                footer = design.footer,
                 storePhone = request.storePhone,
                 storeLocation = request.storeLocation,
+                keepForRefund = design.keepForRefund,
+                receiptPhones = design.phones,
             )
             val result = ThermalPrintService.print(activity, data)
             if (result.isSuccess) return true
@@ -154,7 +159,7 @@ object ReceiptPrinter {
             try {
                 val printManager = activity.getSystemService(Context.PRINT_SERVICE) as? PrintManager
                     ?: return@withContext false
-                val lines = buildReceiptTextLines(request)
+                val lines = buildReceiptTextLines(activity, request)
                 val adapter = ReceiptPrintDocumentAdapter(
                     activity.applicationContext,
                     "Sale receipt",
@@ -204,6 +209,7 @@ object ReceiptPrinter {
     private suspend fun printSaleThermal(activity: Activity, request: SaleReceiptRequest) {
         try {
             val width = PrinterPreferences.getPaperWidth(activity)
+            val design = loadReceiptDesign(activity)
             val data = EscPosReceiptBuilder(width).buildSaleReceipt(
                 storeName = request.storeName,
                 cartLines = request.cartLines,
@@ -216,8 +222,11 @@ object ReceiptPrinter {
                 cashierName = request.cashierName,
                 saleId = request.saleId,
                 saleLocalId = request.saleLocalId,
+                footer = design.footer,
                 storePhone = request.storePhone,
                 storeLocation = request.storeLocation,
+                keepForRefund = design.keepForRefund,
+                receiptPhones = design.phones,
             )
             val result = ThermalPrintService.print(activity, data)
             withContext(Dispatchers.Main) {
@@ -240,7 +249,7 @@ object ReceiptPrinter {
         activity.runOnUiThread {
             if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
             try {
-                val lines = buildReceiptTextLines(request)
+                val lines = buildReceiptTextLines(activity, request)
                 val printManager = activity.getSystemService(Context.PRINT_SERVICE) as? PrintManager
                     ?: return@runOnUiThread
                 val adapter = ReceiptPrintDocumentAdapter(
@@ -271,7 +280,32 @@ object ReceiptPrinter {
         }
     }
 
-    private fun buildReceiptTextLines(request: SaleReceiptRequest): List<String> {
+    private data class ReceiptDesign(
+        val keepForRefund: String?,
+        val footer: String?,
+        val phones: List<String>,
+    )
+
+    private fun loadReceiptDesign(context: Context): ReceiptDesign {
+        val prefs = context.getSharedPreferences("pos", Context.MODE_PRIVATE)
+        val raw = prefs.getString("store_settings_json", null)
+        if (raw.isNullOrBlank()) {
+            return ReceiptDesign(keepForRefund = null, footer = null, phones = emptyList())
+        }
+        return try {
+            val o = JSONObject(raw)
+            val phones = EscPosReceiptBuilder.receiptPhonesFromStore(o)
+            ReceiptDesign(
+                keepForRefund = EscPosReceiptBuilder.optNullableString(o, "receipt_keep_for_refund_text"),
+                footer = EscPosReceiptBuilder.optNullableString(o, "receipt_footer"),
+                phones = phones,
+            )
+        } catch (_: Exception) {
+            ReceiptDesign(keepForRefund = null, footer = null, phones = emptyList())
+        }
+    }
+
+    private fun buildReceiptTextLines(context: Context, request: SaleReceiptRequest): List<String> {
         val df = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
         val lines = mutableListOf<String>()
         lines.add(request.storeName.uppercase())
@@ -315,9 +349,30 @@ object ReceiptPrinter {
             lines.add("CHANGE:       ${"%.2f".format(Locale.US, change).padStart(10)}")
         }
         lines.add("=" .repeat(32))
-        lines.add("(Keep receipt for refunds)")
-        lines.add("Thank you for shopping with us!")
+        lines.addAll(buildClosingTextLines(loadReceiptDesign(context)))
         return lines
+    }
+
+    private fun buildClosingTextLines(design: ReceiptDesign): List<String> {
+        val out = mutableListOf<String>()
+        val keep = when {
+            design.keepForRefund == null -> EscPosReceiptBuilder.DEFAULT_KEEP_FOR_REFUND
+            else -> design.keepForRefund.trim().ifEmpty { null }
+        }
+        if (!keep.isNullOrBlank()) out.add(keep)
+        if (design.phones.isNotEmpty()) {
+            out.add("Phone:")
+            out.addAll(design.phones.take(3))
+        }
+        val footer = when {
+            design.footer == null -> EscPosReceiptBuilder.DEFAULT_RECEIPT_FOOTER
+            design.footer.trim().isEmpty() -> null
+            else -> design.footer.trim('\n', '\r')
+        }
+        if (!footer.isNullOrBlank()) {
+            out.addAll(footer.split('\n'))
+        }
+        return out
     }
 
     private fun formatMethod(method: String): String = when (method) {

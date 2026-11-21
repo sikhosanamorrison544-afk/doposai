@@ -101,9 +101,84 @@
         }
         chunks.push(enc('='.repeat(width) + '\n\n'));
         chunks.push(new Uint8Array([ESC, 0x61, 1]));
-        chunks.push(enc('Thank you for shopping with us!\n'));
+        appendSaleClosing(chunks, store, width);
         chunks.push(new Uint8Array([ESC, 0x61, 0, ESC, 0x64, 3, GS, 0x56, 0x42, 3]));
         return concat(chunks);
+    }
+
+    const DEFAULT_KEEP_FOR_REFUND = 'Keep receipt for refund';
+    const DEFAULT_RECEIPT_FOOTER = 'Thank you for shopping with us!';
+
+    function resolveKeepForRefund(store) {
+        if (!store || store.receipt_keep_for_refund_text == null) {
+            return DEFAULT_KEEP_FOR_REFUND;
+        }
+        const text = String(store.receipt_keep_for_refund_text).trim();
+        return text || null;
+    }
+
+    function resolveReceiptFooter(store) {
+        if (!store || store.receipt_footer == null) {
+            return DEFAULT_RECEIPT_FOOTER;
+        }
+        const text = String(store.receipt_footer).replace(/^\r?\n+|\r?\n+$/g, '');
+        return text.trim() === '' ? null : text;
+    }
+
+    function receiptPhonesFromStore(store) {
+        const out = [];
+        if (!store) return out;
+        ['receipt_phone_1', 'receipt_phone_2', 'receipt_phone_3'].forEach(function (key) {
+            const raw = store[key];
+            const phone = raw != null ? String(raw).trim() : '';
+            if (phone) out.push(phone);
+        });
+        return out.slice(0, 3);
+    }
+
+    function wrapLine(line, width) {
+        if (line.length <= width) return [line];
+        const words = line.split(/\s+/);
+        const lines = [];
+        let cur = '';
+        words.forEach(function (word) {
+            if (!cur) {
+                cur = word;
+            } else if ((cur + ' ' + word).length <= width) {
+                cur += ' ' + word;
+            } else {
+                lines.push(cur);
+                cur = word;
+            }
+        });
+        if (cur) lines.push(cur);
+        return lines.length ? lines : [''];
+    }
+
+    function appendSaleClosing(chunks, store, width) {
+        const keep = resolveKeepForRefund(store);
+        if (keep) {
+            wrapLine(keep, width).forEach(function (ln) {
+                chunks.push(enc(ln + '\n'));
+            });
+        }
+        const phones = receiptPhonesFromStore(store);
+        if (phones.length) {
+            chunks.push(enc('Phone:\n'));
+            phones.forEach(function (p) {
+                wrapLine(p, width).forEach(function (ln) {
+                    chunks.push(enc(ln + '\n'));
+                });
+            });
+        }
+        const footer = resolveReceiptFooter(store);
+        if (footer) {
+            footer.split(/\r?\n/).forEach(function (line) {
+                wrapLine(line, width).forEach(function (ln) {
+                    chunks.push(enc(ln + '\n'));
+                });
+            });
+        }
     }
 
     function buildWithdrawal(opts, paperWidth) {

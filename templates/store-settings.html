@@ -125,6 +125,43 @@
                 </details>
 
                 <details class="settings-section settings-card" open>
+                    <summary class="settings-section-summary">Receipt Design</summary>
+                    <p class="help-text settings-help">
+                        Text shown at the bottom of sales receipts. Leave fields blank to hide them
+                        (except keep-for-refund, which defaults to “Keep receipt for refund” until cleared).
+                    </p>
+                    <div class="settings-form-grid">
+                        <div class="settings-field-full">
+                            <label class="settings-label" for="receipt-keep-for-refund">Keep receipt for refund</label>
+                            <input type="text" id="receipt-keep-for-refund" name="receipt-keep-for-refund"
+                                   maxlength="200" placeholder="Keep receipt for refund" autocomplete="off">
+                        </div>
+                        <div class="settings-field-full">
+                            <label class="settings-label" for="receipt-footer">Receipt footer</label>
+                            <textarea id="receipt-footer" name="receipt-footer" rows="3" maxlength="500"
+                                      placeholder="Thank you for shopping with us!"></textarea>
+                            <small class="help-text settings-help">Optional. Line breaks are preserved on the receipt.</small>
+                        </div>
+                        <div>
+                            <label class="settings-label" for="receipt-phone-1">Phone number 1</label>
+                            <input type="tel" id="receipt-phone-1" name="receipt-phone-1" maxlength="32"
+                                   placeholder="Phone number" inputmode="tel" autocomplete="tel">
+                        </div>
+                        <div>
+                            <label class="settings-label" for="receipt-phone-2">Phone number 2</label>
+                            <input type="tel" id="receipt-phone-2" name="receipt-phone-2" maxlength="32"
+                                   placeholder="Optional" inputmode="tel" autocomplete="tel">
+                        </div>
+                        <div>
+                            <label class="settings-label" for="receipt-phone-3">Phone number 3</label>
+                            <input type="tel" id="receipt-phone-3" name="receipt-phone-3" maxlength="32"
+                                   placeholder="Optional" inputmode="tel" autocomplete="tel">
+                        </div>
+                    </div>
+                    <p class="help-text settings-help">Saved with <strong>Save Settings</strong> above.</p>
+                </details>
+
+                <details class="settings-section settings-card" open>
                     <summary class="settings-section-summary">Notifications</summary>
                     <div>
                         <label class="settings-label" for="notification-email">Notification Email Address</label>
@@ -544,15 +581,15 @@
 </div>
 
 <script src="/static/js/printer-web-prefs.js?v=1"></script>
-<script src="/static/js/receipt-escpos.js?v=2"></script>
+<script src="/static/js/receipt-escpos.js?v=3"></script>
 <script src="/static/js/receipt-native.js?v=2"></script>
-<script src="/static/js/receipt.js?v=4"></script>
+<script src="/static/js/receipt.js?v=5"></script>
 <script src="/static/js/printer-web-setup.js?v=1"></script>
 <script src="/static/js/plan-features.js?v=1"></script>
 <script src="/static/js/role-permissions.js?v=1"></script>
 <script src="/static/js/offline-fetch.js?v=2"></script>
 <script src="/static/js/list-fetch.js?v=1"></script>
-<script src="/static/js/admin.js?v=30"></script>
+<script src="/static/js/admin.js?v=31"></script>
 <script>
     window.switchSettingsPage = function(pageNum) {
         const page1 = document.getElementById('settings-page-1');
