@@ -123,6 +123,38 @@ def test_admin_html_barcode_readonly_and_restock_ui():
     assert 'id="admin-action-settings"' not in html
 
 
+def test_admin_html_delete_product_modal_has_password_field():
+    html = (ROOT / "templates/admin.html").read_text(encoding="utf-8")
+    assert 'id="delete-product-modal"' in html
+    assert 'id="delete-product-name-confirm"' in html
+    assert 'id="delete-product-admin-password"' in html
+    assert 'type="password"' in html
+    assert 'for="delete-product-admin-password"' in html
+    assert "Administrator Password" in html
+    assert 'id="btn-delete-product-confirm"' in html
+    assert 'id="btn-delete-product-cancel"' in html
+
+
+def test_admin_js_delete_requires_name_and_password_no_prompt():
+    src = (ROOT / "static/js/admin.js").read_text(encoding="utf-8")
+    assert "openDeleteProductModal" in src
+    assert "submitDeleteProduct" in src
+    assert "deleteProductInFlight" in src
+    assert "closeDeleteProductModal" in src
+    start = src.find("async function submitDeleteProduct")
+    end = src.find("window.deleteAdminProduct = async function deleteAdminProduct")
+    assert start != -1 and end != -1 and end > start
+    delete_block = src[start:end]
+    assert "admin_password" in delete_block
+    assert "delete-product-admin-password" in delete_block
+    assert "delete-product-name-confirm" in delete_block
+    assert "Administrator password is required" in delete_block
+    assert "Type the exact product name" in delete_block
+    # Must not use browser prompt() for the password (that caused product-name → Invalid password).
+    assert "prompt(" not in delete_block
+    assert "deleteProductInFlight = true" in delete_block
+
+
 def test_admin_js_edit_omits_stock_and_restock_uses_quantity_added():
     src = (ROOT / "static/js/admin.js").read_text(encoding="utf-8")
     assert "Do not send stock_qty on edit" in src

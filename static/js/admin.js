@@ -602,28 +602,97 @@ async function loadAdminProducts(opts) {
     }
 }
 
-window.deleteAdminProduct = async function deleteAdminProduct(id) {
-    const product = (adminProducts || []).find((x) => x.id === id);
-    const label = product && product.name ? product.name : '#' + id;
-    if (!confirm('Delete "' + label + '" from stock?\n\nThis cannot be undone for unused products. Products with sales history stay inactive for reports.')) {
+let deleteProductInFlight = false;
+let pendingDeleteProductId = null;
+let pendingDeleteProductName = '';
+
+function closeDeleteProductModal() {
+    const modal = document.getElementById('delete-product-modal');
+    if (modal) modal.hidden = true;
+    pendingDeleteProductId = null;
+    pendingDeleteProductName = '';
+    deleteProductInFlight = false;
+    const nameInput = document.getElementById('delete-product-name-confirm');
+    const pwInput = document.getElementById('delete-product-admin-password');
+    const msg = document.getElementById('delete-product-message');
+    const saveBtn = document.getElementById('btn-delete-product-confirm');
+    if (nameInput) nameInput.value = '';
+    if (pwInput) pwInput.value = '';
+    if (msg) {
+        msg.textContent = '';
+        msg.style.color = '';
+    }
+    if (saveBtn) saveBtn.disabled = false;
+}
+
+function openDeleteProductModal(id, product) {
+    const modal = document.getElementById('delete-product-modal');
+    if (!modal) {
+        console.error('delete-product-modal not found');
         return;
     }
-    const adminPassword = prompt(
-        'Admin password required\n\nEnter your admin password to delete "' + label + '":'
+    const label = product && product.name ? String(product.name) : '#' + id;
+    pendingDeleteProductId = id;
+    pendingDeleteProductName = product && product.name ? String(product.name) : '';
+    deleteProductInFlight = false;
+    document.getElementById('delete-product-name-display').textContent = label;
+    document.getElementById('delete-product-barcode').textContent =
+        (product && product.barcode) || '—';
+    const nameInput = document.getElementById('delete-product-name-confirm');
+    const pwInput = document.getElementById('delete-product-admin-password');
+    const msg = document.getElementById('delete-product-message');
+    const saveBtn = document.getElementById('btn-delete-product-confirm');
+    if (nameInput) nameInput.value = '';
+    if (pwInput) pwInput.value = '';
+    if (msg) {
+        msg.textContent = '';
+        msg.style.color = '';
+    }
+    if (saveBtn) saveBtn.disabled = false;
+    modal.hidden = false;
+    if (nameInput) {
+        setTimeout(function () {
+            nameInput.focus();
+        }, 50);
+    }
+}
+
+async function submitDeleteProduct() {
+    const msg = document.getElementById('delete-product-message');
+    const saveBtn = document.getElementById('btn-delete-product-confirm');
+    if (deleteProductInFlight || pendingDeleteProductId == null) return;
+
+    const typedName = String(
+        (document.getElementById('delete-product-name-confirm') || {}).value || ''
+    ).trim();
+    const adminPassword = String(
+        (document.getElementById('delete-product-admin-password') || {}).value || ''
     );
-    if (adminPassword === null) {
+
+    if (!pendingDeleteProductName || typedName !== pendingDeleteProductName.trim()) {
+        if (msg) {
+            msg.textContent = 'Type the exact product name to confirm deletion.';
+            msg.style.color = 'rgba(239, 68, 68, 1)';
+        }
         return;
     }
-    if (!String(adminPassword).trim()) {
-        alert('Admin password is required to delete a product.');
+    if (!adminPassword.trim()) {
+        if (msg) {
+            msg.textContent = 'Administrator password is required.';
+            msg.style.color = 'rgba(239, 68, 68, 1)';
+        }
         return;
     }
+
+    const productId = pendingDeleteProductId;
+    deleteProductInFlight = true;
+    if (saveBtn) saveBtn.disabled = true;
     try {
-        const result = await adminApi('/api/products/' + encodeURIComponent(id), {
+        const result = await adminApi('/api/products/' + encodeURIComponent(productId), {
             method: 'DELETE',
-            body: JSON.stringify({ admin_password: String(adminPassword).trim() }),
+            body: JSON.stringify({ admin_password: adminPassword.trim() }),
         });
-        adminProducts = (adminProducts || []).filter((x) => x.id !== id);
+        adminProducts = (adminProducts || []).filter((x) => x.id !== productId);
         window.adminProducts = adminProducts;
         if (typeof adminProductTotalCount === 'number' && adminProductTotalCount > 0) {
             adminProductTotalCount -= 1;
@@ -637,18 +706,50 @@ window.deleteAdminProduct = async function deleteAdminProduct(id) {
             );
         }
         paintAdminProductsTable(adminProducts);
-        const msg = document.getElementById('prod-message');
-        if (msg) {
-            msg.textContent = (result && result.message) || 'Product deleted.';
-            msg.style.color = 'rgba(34, 197, 94, 1)';
-        }
-        if (editingProductId === id) {
+        const successText = (result && result.message) || 'Product deleted.';
+        if (editingProductId === productId) {
             clearProductForm();
+        } else {
+            closeDeleteProductModal();
+        }
+        const prodMsg = document.getElementById('prod-message');
+        if (prodMsg) {
+            prodMsg.textContent = successText;
+            prodMsg.style.color = 'rgba(34, 197, 94, 1)';
+        }
+        if (typeof loadAdminProducts === 'function') {
+            await loadAdminProducts();
         }
     } catch (e) {
         console.error(e);
-        alert(e.message || 'Failed to delete product');
+        if (msg) {
+            msg.textContent = (e && e.message) ? e.message : 'Failed to delete product';
+            msg.style.color = 'rgba(239, 68, 68, 1)';
+        }
+        deleteProductInFlight = false;
+        if (saveBtn) saveBtn.disabled = false;
+        const pwInput = document.getElementById('delete-product-admin-password');
+        if (pwInput) {
+            pwInput.value = '';
+            pwInput.focus();
+        }
     }
+}
+
+window.deleteAdminProduct = async function deleteAdminProduct(id) {
+    let product = (adminProducts || []).find((x) => x.id === id);
+    if (!product) {
+        try {
+            product = await adminApi('/api/products/' + encodeURIComponent(id), {
+                method: 'GET',
+            });
+        } catch (e) {
+            console.error(e);
+            alert((e && e.message) || 'Could not load product for deletion.');
+            return;
+        }
+    }
+    openDeleteProductModal(id, product || { name: '#' + id });
 };
 
 // Make startEditProduct globally accessible  
@@ -907,6 +1008,7 @@ function clearProductForm() {
     document.getElementById('prod-expiry').value = '';
     document.getElementById('prod-message').textContent = '';
     closeRestockModal();
+    closeDeleteProductModal();
     // Hide the product form panel after clearing
     const formCard = document.getElementById('product-form-card');
     if (formCard) {
@@ -3296,6 +3398,35 @@ function setupAdminEvents() {
         btnRestockCancel.dataset.restockBound = '1';
         btnRestockCancel.addEventListener('click', function () {
             closeRestockModal();
+        });
+    }
+
+    const btnDeleteConfirm = document.getElementById('btn-delete-product-confirm');
+    if (btnDeleteConfirm && btnDeleteConfirm.dataset.deleteBound !== '1') {
+        btnDeleteConfirm.dataset.deleteBound = '1';
+        btnDeleteConfirm.addEventListener('click', function (e) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            submitDeleteProduct();
+        });
+    }
+    const btnDeleteCancel = document.getElementById('btn-delete-product-cancel');
+    if (btnDeleteCancel && btnDeleteCancel.dataset.deleteBound !== '1') {
+        btnDeleteCancel.dataset.deleteBound = '1';
+        btnDeleteCancel.addEventListener('click', function () {
+            closeDeleteProductModal();
+        });
+    }
+    const deletePwInput = document.getElementById('delete-product-admin-password');
+    if (deletePwInput && deletePwInput.dataset.deleteBound !== '1') {
+        deletePwInput.dataset.deleteBound = '1';
+        deletePwInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                submitDeleteProduct();
+            }
         });
     }
     

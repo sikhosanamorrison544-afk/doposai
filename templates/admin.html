@@ -238,6 +238,21 @@
                 </div>
                 <div id="restock-message" class="info" style="margin-top:6px;"></div>
             </div>
+            <div id="delete-product-modal" class="card product-form-card" hidden style="max-width:420px;margin:8px 0;padding:12px;">
+                <h3 style="margin:0 0 8px 0;font-size:14px;">Delete product</h3>
+                <p class="info" style="margin:0 0 8px 0;">This cannot be undone for unused products. Products with sales history stay inactive for reports.</p>
+                <p style="margin:0 0 4px 0;font-weight:600;">Product: <span id="delete-product-name-display">—</span></p>
+                <p class="info" style="margin:0 0 8px 0;">Barcode: <span id="delete-product-barcode">—</span></p>
+                <label for="delete-product-name-confirm">Type the product name to confirm</label>
+                <input type="text" id="delete-product-name-confirm" autocomplete="off" spellcheck="false" placeholder="Exact product name">
+                <label for="delete-product-admin-password" style="margin-top:8px;display:block;">Administrator Password</label>
+                <input type="password" id="delete-product-admin-password" autocomplete="current-password" required placeholder="Your admin password">
+                <div style="display:flex;gap:8px;margin-top:10px;">
+                    <button type="button" id="btn-delete-product-confirm" class="primary small">Delete product</button>
+                    <button type="button" id="btn-delete-product-cancel" class="small">Cancel</button>
+                </div>
+                <div id="delete-product-message" class="info" style="margin-top:6px;"></div>
+            </div>
             <div id="products-mobile-list" class="admin-mobile-only" role="list" aria-label="Products"></div>
             <div id="products-table" style="margin-top:8px;overflow-y:auto;overflow-x:auto;flex:1;min-height:0;display:block;">
                 <table>
@@ -460,7 +475,7 @@
     <script src="/static/js/pos-android.js?v=3"></script>
     <script src="/static/js/plan-features.js?v=2"></script>
     <script src="/static/js/list-fetch.js?v=2"></script>
-    <script src="/static/js/admin.js?v=37"></script>
+    <script src="/static/js/admin.js?v=38"></script>
     <script src="/static/js/admin-android.js?v=8"></script>
     <script>
         // Disable 3D background on admin page for better performance
