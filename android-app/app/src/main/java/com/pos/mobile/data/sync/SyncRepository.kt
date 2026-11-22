@@ -388,6 +388,12 @@ class SyncRepository(
         if (pushed > 0) {
             Log.i(TAG, "drainPendingSales: uploaded $pushed sale(s), remaining=$remaining")
         }
+        SaleSyncLog.event(
+            clientSaleId = null,
+            result = if (remaining == 0) "QUEUE_EMPTY" else "QUEUE_OPEN_$remaining",
+            action = "drain_complete",
+            attempt = pushed,
+        )
         syncQueueDao.pruneSyncedOlderThan(System.currentTimeMillis() - SyncPolicy.SYNC_DEADLINE_MS)
         PushDrainResult(pushed, remaining, age, hadRetryableFailures || remaining > 0)
     }

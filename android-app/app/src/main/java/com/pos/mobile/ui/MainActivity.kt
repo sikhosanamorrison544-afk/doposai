@@ -606,19 +606,41 @@ class MainActivity : AppCompatActivity() {
         return SyncWorker.createRepository(this, baseUrl, api, db)
     }
 
-    /** Pull master DB snapshot (products, reports, debts, pages) for offline use. */
-    private suspend fun syncEssentialData(token: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val ok = createSyncRepository().syncMasterDatabase(this@MainActivity, token).isSuccess
-            if (ok) {
-                SessionStore(this@MainActivity).recordOfflineAnchor()
+    /** Upload queued sales, refresh catalog, then optional enterprise/cache snapshot for offline use. */
+    private suspend fun syncEssentialData(@Suppress("UNUSED_PARAMETER") token: String): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
+                val repo = createSyncRepository(readTimeoutSec = 60)
+                com.pos.mobile.sync.SaleSyncLog.event(
+                    clientSaleId = null,
+                    action = "session_sync_start",
+                    attempt = AppDatabase.getInstance(this@MainActivity).syncQueueDao().countOpenUploads(),
+                )
+                val pipeline = com.pos.mobile.sync.SaleSyncPipeline.run(
+                    context = this@MainActivity,
+                    repo = repo,
+                    refreshCatalog = true,
+                )
+                if (pipeline.offline || pipeline.authRequired || pipeline.openUploads > 0) {
+                    return@withContext false
+                }
+                val bearer = pipeline.token ?: return@withContext pipeline.catalogRefreshed
+                var ok = pipeline.catalogRefreshed
+                if (ok && NetworkUtils.isGoodNetworkForHeavySync(this@MainActivity)) {
+                    repo.pullEnterpriseData(bearer)
+                    repo.prefetchApiCache(bearer, fullCache = true).onSuccess {
+                        ok = true
+                    }
+                }
+                if (ok) {
+                    SessionStore(this@MainActivity).recordOfflineAnchor()
+                }
+                ok
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Master data sync failed", e)
+                false
             }
-            ok
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Master data sync failed", e)
-            false
         }
-    }
 
     private fun showSyncResultToast(synced: Boolean, productCount: Int, cacheCount: Int = 0) {
         when {
@@ -1303,6 +1325,12 @@ class MainActivity : AppCompatActivity() {
     private suspend fun performManualSync(): ManualSyncOutcome {
         val repo = createSyncRepository(readTimeoutSec = 60)
         val db = AppDatabase.getInstance(this)
+        val pendingBefore = db.syncQueueDao().countOpenUploads()
+        com.pos.mobile.sync.SaleSyncLog.event(
+            clientSaleId = null,
+            action = "manual_sync",
+            attempt = pendingBefore,
+        )
         val pipeline = com.pos.mobile.sync.SaleSyncPipeline.run(
             context = this,
             repo = repo,

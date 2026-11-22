@@ -70,10 +70,14 @@ interface SyncQueueDao {
     )
     suspend fun requeueOrphanedSyncing(): Int
 
+    /**
+     * Sales not yet acknowledged by the server (includes `failed` rows).
+     * Catalog pull must not run while any remain — local stock was already deducted.
+     */
     @Query(
         """
         SELECT COUNT(*) FROM sync_queue
-        WHERE status IN ('pending', 'syncing')
+        WHERE status IN ('pending', 'syncing', 'failed')
         """,
     )
     suspend fun countOpenUploads(): Int
