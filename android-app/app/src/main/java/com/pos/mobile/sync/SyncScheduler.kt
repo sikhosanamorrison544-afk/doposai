@@ -166,14 +166,17 @@ object SyncScheduler {
         )
     }
 
-    /** After sale or reconnect: upload pending sales, then refresh local stock from server. */
+    /**
+     * After sale or reconnect: upload pending sales first, then refresh stock.
+     *
+     * Do NOT enqueue push-only and catalog workers in parallel — a catalog pull
+     * that races an in-flight sale upload restores pre-sale stock locally while
+     * the server may already have deducted (or the sale may still be uploading).
+     */
     fun enqueueAfterSaleOrReconnect(context: Context) {
         enqueueStickyDrain(context, expedite = true)
-        enqueuePushOnly(context)
+        // One sequenced job: drain queue, then pull catalog when empty.
         enqueueCatalogSync(context)
-        if (NetworkUtils.isGoodNetworkForHeavySync(context)) {
-            enqueueFullSyncIfGoodNetwork(context, fullCache = false)
-        }
     }
 
     /** Periodic safety net (≤15 min when constraints allow). */

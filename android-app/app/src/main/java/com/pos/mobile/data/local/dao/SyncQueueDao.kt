@@ -34,6 +34,27 @@ interface SyncQueueDao {
     )
     suspend fun requeueRetriableFailed(maxRetries: Int): Int
 
+    /**
+     * Recover rows left in `syncing` after a crash/kill mid-POST.
+     * Drain only loads `pending`, so orphaned syncing sales never uploaded
+     * (and never deducted server stock) until reset.
+     */
+    @Query(
+        """
+        UPDATE sync_queue SET status = 'pending'
+        WHERE status = 'syncing'
+        """,
+    )
+    suspend fun requeueOrphanedSyncing(): Int
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM sync_queue
+        WHERE status IN ('pending', 'syncing')
+        """,
+    )
+    suspend fun countOpenUploads(): Int
+
     @Query("DELETE FROM sync_queue WHERE status = :status")
     suspend fun deleteByStatus(status: String)
 

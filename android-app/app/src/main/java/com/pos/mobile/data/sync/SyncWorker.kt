@@ -103,7 +103,9 @@ class SyncWorker(
                 needsRetry = true
             }
 
-            if (!pushOnly) {
+            // Catalog pull only after uploads are empty. Parallel pull while
+            // sales are still syncing restores pre-sale stock on device.
+            if (!pushOnly && salesRemaining == 0 && mutationsRemaining == 0) {
                 try {
                     val essentials = repo.syncEssentials(applicationContext, token)
                     if (essentials.isSuccess) {
@@ -132,6 +134,24 @@ class SyncWorker(
                     }
                 } else {
                     Log.i(TAG, "Heavy API cache deferred — Wi‑Fi/unmetered only")
+                }
+            } else if (!pushOnly) {
+                Log.i(
+                    TAG,
+                    "Defer catalog pull until queue empty " +
+                        "(sales=$salesRemaining mut=$mutationsRemaining)",
+                )
+            } else if (pushOnly && salesPushed > 0 && salesRemaining == 0 && mutationsRemaining == 0) {
+                // After a successful push-only drain, refresh stock so Android
+                // matches server deductions without waiting for a later catalog job.
+                try {
+                    val essentials = repo.syncEssentials(applicationContext, token)
+                    if (essentials.isSuccess) {
+                        Log.i(TAG, "Post-push stock refresh OK")
+                        SessionStore(applicationContext).recordOfflineAnchor()
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Post-push stock refresh failed", e)
                 }
             }
 

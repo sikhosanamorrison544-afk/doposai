@@ -1298,12 +1298,17 @@ class MainActivity : AppCompatActivity() {
         val db = AppDatabase.getInstance(this)
         val salesDrain = repo.drainPendingSales(auth)
         repo.drainOfflineMutations(auth)
-        val productsOk = repo.pullProductsAndCustomers(auth).isSuccess
+        // Pull catalog only when uploads are clear (pullProductsAndCustomers also guards).
+        val productsOk = if (salesDrain.remaining == 0) {
+            repo.pullProductsAndCustomers(auth).isSuccess
+        } else {
+            false
+        }
         if (productsOk) {
             repo.persistStoreSettings(this@MainActivity, auth)
             SessionStore(this).recordOfflineAnchor()
         }
-        val stillPending = db.syncQueueDao().countByStatus(SyncQueueEntity.STATUS_PENDING) +
+        val stillPending = db.syncQueueDao().countOpenUploads() +
             db.offlineMutationDao().countByStatus(
                 com.pos.mobile.data.local.entity.OfflineMutationEntity.STATUS_PENDING,
             )

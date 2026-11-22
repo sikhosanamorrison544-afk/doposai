@@ -84,6 +84,18 @@ class SyncRepository(
 
     suspend fun pullProductsAndCustomers(token: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            // Never replace local catalog while sales still need upload — that
+            // restores pre-sale stock and makes deductions look "undone".
+            val openUploads = syncQueueDao.countOpenUploads()
+            if (openUploads > 0) {
+                Log.w(
+                    TAG,
+                    "Defer catalog pull — $openUploads sale(s) still pending/syncing",
+                )
+                return@withContext Result.failure(
+                    Exception("Catalog pull deferred: $openUploads sale upload(s) open"),
+                )
+            }
             val now = System.currentTimeMillis()
             val auth = "Bearer $token"
             val productsResult = fetchAllProducts(auth)
@@ -272,6 +284,10 @@ class SyncRepository(
     }
 
     suspend fun drainPendingSales(token: String): PushDrainResult = withContext(Dispatchers.IO) {
+        val orphans = syncQueueDao.requeueOrphanedSyncing()
+        if (orphans > 0) {
+            Log.w(TAG, "Requeued $orphans orphaned syncing sale(s) for upload")
+        }
         syncQueueDao.requeueRetriableFailed(SyncPolicy.MAX_PUSH_ATTEMPTS)
         var pushed = 0
         var hadRetryableFailures = false
@@ -290,8 +306,10 @@ class SyncRepository(
                 Log.w(TAG, "Push failed for queue id ${item.id}: $it")
             }
         }
-        val remaining = syncQueueDao.countByStatus(SyncQueueEntity.STATUS_PENDING)
-        val oldest = syncQueueDao.oldestCreatedAt(SyncQueueEntity.STATUS_PENDING)
+        val remaining = syncQueueDao.countOpenUploads()
+        val oldestPending = syncQueueDao.oldestCreatedAt(SyncQueueEntity.STATUS_PENDING)
+        val oldestSyncing = syncQueueDao.oldestCreatedAt(SyncQueueEntity.STATUS_SYNCING)
+        val oldest = listOfNotNull(oldestPending, oldestSyncing).minOrNull()
         val age = if (oldest != null) SyncPolicy.ageMs(oldest) else 0L
         if (pushed > 0) {
             Log.i(TAG, "drainPendingSales: uploaded $pushed sale(s), remaining=$remaining")

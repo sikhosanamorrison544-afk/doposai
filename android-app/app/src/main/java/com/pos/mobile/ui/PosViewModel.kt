@@ -265,8 +265,39 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 emitFailed(msg)
             } finally {
                 _isCompletingSale.value = false
-                SyncScheduler.enqueueAfterSaleOrReconnect(getApplication())
+                // Online: push immediately so server stock deducts in create_sale
+                // without waiting for WorkManager. Always enqueue sticky drain too.
+                viewModelScope.launch {
+                    tryImmediateSalePush()
+                    SyncScheduler.enqueueAfterSaleOrReconnect(getApplication())
+                }
             }
+        }
+    }
+
+    /**
+     * Best-effort immediate upload + catalog refresh when the network is validated.
+     * Failures leave the queue pending for SyncWorker (idempotent client_sale_id).
+     */
+    private suspend fun tryImmediateSalePush() {
+        if (!NetworkUtils.hasValidatedInternet(getApplication())) return
+        val bearer = when (val b = PosAuth.ensureBearer(getApplication())) {
+            is BearerResult.Ok -> b.bearer.removePrefix("Bearer ").trim()
+            else -> return
+        }
+        if (bearer.isBlank()) return
+        try {
+            val prefs = getApplication<Application>().getSharedPreferences("pos", android.content.Context.MODE_PRIVATE)
+            val baseUrl = prefs.getString("base_url", BuildConfig.DEFAULT_API_BASE_URL)
+                ?: BuildConfig.DEFAULT_API_BASE_URL
+            val api = SyncWorker.createApi(baseUrl)
+            val repo = SyncWorker.createRepository(getApplication(), baseUrl, api, db)
+            val drain = repo.drainPendingSales(bearer)
+            if (drain.remaining == 0) {
+                repo.pullProductsAndCustomers(bearer)
+            }
+        } catch (_: Exception) {
+            // WorkManager sticky drain will retry.
         }
     }
 

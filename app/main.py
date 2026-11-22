@@ -2008,42 +2008,53 @@ async def create_sale(
         raise HTTPException(status_code=409, detail="Could not create sale")
 
     tid = tenant_scope.tenant_id_for_row(current_user)
-    # Create sale items and update branch stock (authoritative)
-    for item in sale_data.items:
-        product = tenant_scope.require_product(db, item.product_id, current_user)
-        item_qty = int(item.quantity)
-        if item_qty <= 0:
-            raise HTTPException(status_code=400, detail="Quantity must be a positive integer")
+    # Create sale items and update branch stock (authoritative).
+    # Any failure after sale.flush() must roll back so a retried client_sale_id
+    # cannot return an existing sale that never deducted stock (Android sync).
+    try:
+        for item in sale_data.items:
+            product = tenant_scope.require_product(db, item.product_id, current_user)
+            item_qty = int(item.quantity)
+            if item_qty <= 0:
+                raise HTTPException(status_code=400, detail="Quantity must be a positive integer")
 
-        collection_reason = (
-            "Sale (to collect)" if sale_data.collection_status == "to_collect" else "Sale (collected)"
-        )
-        decrease_branch_stock(
-            db,
-            tenant_id=tid,
-            branch_id=sale_branch_id,
-            product_id=product.id,
-            quantity=item_qty,
-            reason=f"{collection_reason} #{sale.id}",
-            movement_type=MOVEMENT_SALE,
-            actor_user_id=current_user.id,
-            check_reserved=True,
-        )
+            collection_reason = (
+                "Sale (to collect)" if sale_data.collection_status == "to_collect" else "Sale (collected)"
+            )
+            decrease_branch_stock(
+                db,
+                tenant_id=tid,
+                branch_id=sale_branch_id,
+                product_id=product.id,
+                quantity=item_qty,
+                reason=f"{collection_reason} #{sale.id}",
+                movement_type=MOVEMENT_SALE,
+                actor_user_id=current_user.id,
+                check_reserved=True,
+            )
 
-        line_total = (Decimal(str(item.unit_price)) * Decimal(str(item.quantity))) - Decimal(str(item.discount))
-        sale_item = SaleItem(
-            sale_id=sale.id,
-            product_id=product.id,
-            quantity=item_qty,
-            unit_price=item.unit_price,
-            discount=item.discount,
-            line_total=line_total,
-            unit_cost=Decimal(str(product.cost_price)),
-        )
-        db.add(sale_item)
-    
-    # Flush sale items so they're available for accounting
-    db.flush()
+            line_total = (Decimal(str(item.unit_price)) * Decimal(str(item.quantity))) - Decimal(
+                str(item.discount)
+            )
+            sale_item = SaleItem(
+                sale_id=sale.id,
+                product_id=product.id,
+                quantity=item_qty,
+                unit_price=item.unit_price,
+                discount=item.discount,
+                line_total=line_total,
+                unit_cost=Decimal(str(product.cost_price)),
+            )
+            db.add(sale_item)
+
+        # Flush sale items so they're available for accounting
+        db.flush()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise
 
     # Update shift totals if shift exists
     if active_shift:
