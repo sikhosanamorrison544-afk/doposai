@@ -49,8 +49,17 @@ class Branch(Base):
     address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     phone: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    # Circular FK with users.branch_id → branches.id. use_alter=True breaks the
+    # metadata sort cycle (SAWarning on Base.metadata.sorted_tables / create_all)
+    # without changing ownership semantics: manager remains an optional user ref.
     manager_user_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("users.id"), nullable=True, index=True
+        ForeignKey(
+            "users.id",
+            use_alter=True,
+            name="fk_branches_manager_user_id",
+        ),
+        nullable=True,
+        index=True,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     # Main Branch flag (Section 12 ``is_main`` synonym).
