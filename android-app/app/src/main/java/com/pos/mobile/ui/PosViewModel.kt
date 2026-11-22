@@ -224,13 +224,21 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                     if (cardAmt > 0) payments.add(PaymentEntity(saleLocalId = saleLocalId, method = "card", amount = cardAmt))
                     if (creditAmt > 0) payments.add(PaymentEntity(saleLocalId = saleLocalId, method = "credit", amount = creditAmt))
                     paymentDao.insertAll(payments)
+                    val clientUuid = java.util.UUID.randomUUID().toString()
                     val queueId = syncQueueDao.insert(
                         SyncQueueEntity(
                             saleLocalId = saleLocalId,
                             createdAt = now,
                             status = SyncQueueEntity.STATUS_PENDING,
-                            clientSaleUuid = java.util.UUID.randomUUID().toString(),
+                            clientSaleUuid = clientUuid,
                         ),
+                    )
+                    com.pos.mobile.sync.SaleSyncLog.event(
+                        clientSaleId = clientUuid,
+                        queueId = queueId,
+                        status = SyncQueueEntity.STATUS_PENDING,
+                        attempt = 0,
+                        action = "enqueued_local",
                     )
                     for (line in cartList) {
                         productDao.deductStock(line.product.id, line.quantity.toDouble())
@@ -293,6 +301,12 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
             val api = SyncWorker.createApi(baseUrl)
             val repo = SyncWorker.createRepository(getApplication(), baseUrl, api, db)
             val drain = repo.drainPendingSales(bearer)
+            com.pos.mobile.sync.SaleSyncLog.event(
+                clientSaleId = null,
+                status = if (drain.remaining == 0) "QUEUE_EMPTY" else "QUEUE_OPEN",
+                result = "immediate_push_pushed=${drain.pushed}",
+                action = if (drain.remaining == 0) "refresh_catalog" else "defer_catalog",
+            )
             if (drain.remaining == 0) {
                 repo.pullProductsAndCustomers(bearer)
             }

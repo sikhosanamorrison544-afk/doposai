@@ -47,20 +47,20 @@ class SyncWorker(
         val token = when (bearerResult) {
             is BearerResult.Ok -> bearerResult.bearer.removePrefix("Bearer ").trim()
             BearerResult.Offline -> {
+                Log.i(TAG, "SALE_SYNC: result=NETWORK_UNAVAILABLE action=retry")
                 SyncScheduler.enqueueStickyDrain(applicationContext)
                 return Result.retry()
             }
             BearerResult.Missing, BearerResult.Expired -> {
-                // Keep sticky work for when the user logs in / refreshes session.
-                val fallback = inputData.getString(KEY_TOKEN)
-                    ?: SessionStore(applicationContext).getAccessToken()
-                    ?: prefs.getString("token", null)
-                if (fallback.isNullOrBlank()) {
-                    Log.w(TAG, "No valid auth for sync — will retry later")
-                    SyncScheduler.enqueueStickyDrain(applicationContext)
-                    return Result.retry()
-                }
-                fallback.removePrefix("Bearer ").trim()
+                // Never POST /api/sales with a dead JWT — that burned retry counts with
+                // HTTP 401 while offline sales stayed stuck. Keep the queue and retry
+                // after refresh/re-login (ConnectivitySyncMonitor + sticky drain).
+                Log.w(
+                    TAG,
+                    "SALE_SYNC: result=AUTH_${bearerResult.javaClass.simpleName.uppercase()} action=retry_auth",
+                )
+                SyncScheduler.enqueueStickyDrain(applicationContext)
+                return Result.retry()
             }
         }
 
@@ -156,12 +156,13 @@ class SyncWorker(
             }
 
             val remaining = salesRemaining + mutationsRemaining
+            // Never report success while unsynchronized sales remain.
             if (remaining > 0 || needsRetry) {
                 val expedite = oldestAgeMs >= SyncPolicy.SYNC_WARN_AGE_MS
                 SyncScheduler.enqueueStickyDrain(applicationContext, expedite = expedite)
                 Log.i(
                     TAG,
-                    "Queue not empty (sales=$salesRemaining mut=$mutationsRemaining) — retry scheduled",
+                    "SALE_SYNC: result=QUEUE_REMAINING sales=$salesRemaining mut=$mutationsRemaining action=retry",
                 )
                 return Result.retry()
             }

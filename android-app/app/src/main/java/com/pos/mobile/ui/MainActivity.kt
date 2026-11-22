@@ -216,9 +216,10 @@ class MainActivity : AppCompatActivity() {
                         val data = res.body()!!
                         session.saveSession(
                             accessToken = data.access_token,
-                            refreshToken = "",
+                            // Must persist refresh so offline sales can upload after JWT expiry.
+                            refreshToken = data.refresh_token?.trim().orEmpty(),
                             userId = 0,
-                            tenantId = null,
+                            tenantId = data.tenant_id,
                             tenantUid = null,
                             username = data.username ?: user,
                             role = data.role ?: "cashier",

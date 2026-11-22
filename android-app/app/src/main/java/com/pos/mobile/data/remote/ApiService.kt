@@ -238,7 +238,11 @@ data class TokenResponse(
     val access_token: String,
     val token_type: String = "bearer",
     val username: String? = null,
-    val role: String? = null
+    val role: String? = null,
+    val tenant_id: Int? = null,
+    /** Present after server issues opaque refresh (Android offline sale drain). */
+    val refresh_token: String? = null,
+    val expires_in: Int? = null,
 )
 
 data class OkMessageResponse(

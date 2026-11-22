@@ -33,8 +33,8 @@ android {
         applicationId = "com.pos.mobile"
         minSdk = 24
         targetSdk = 36
-        versionCode = 30
-        versionName = "1.4.5"
+        versionCode = 31
+        versionName = "1.4.6"
         // Default API: https://doposai.com/ — override with pos.api.base.url in local.properties for dev only.
         buildConfigField("String", "DEFAULT_API_BASE_URL", "\"$defaultApiBaseUrl\"")
     }
@@ -111,4 +111,6 @@ dependencies {
 
     // Encrypted storage for saved login credentials (pre-fill only)
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    testImplementation("junit:junit:4.13.2")
 }

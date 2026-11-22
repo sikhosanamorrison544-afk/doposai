@@ -24,7 +24,6 @@ object ConnectivitySyncMonitor {
         val cb = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 Log.i(TAG, "Network available — scheduling pending sync drain")
-                SyncScheduler.enqueueStickyDrain(app)
                 SyncScheduler.enqueueAfterSaleOrReconnect(app)
             }
 
@@ -32,7 +31,7 @@ object ConnectivitySyncMonitor {
                 if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) &&
                     caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                 ) {
-                    SyncScheduler.enqueueStickyDrain(app)
+                    SyncScheduler.enqueueAfterSaleOrReconnect(app)
                 }
             }
         }

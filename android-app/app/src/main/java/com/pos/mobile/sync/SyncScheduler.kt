@@ -12,6 +12,7 @@ import androidx.work.OutOfQuotaPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
+import com.pos.mobile.BuildConfig
 import com.pos.mobile.auth.SessionStore
 import com.pos.mobile.data.sync.SyncWorker
 import java.util.concurrent.TimeUnit
@@ -64,8 +65,11 @@ object SyncScheduler {
     /**
      * Always schedule a CONNECTED push drain (even if currently offline).
      * WorkManager runs it when the network returns — critical for ≤3 day delivery.
+     *
+     * @param replace when true (after a new sale), replace any backoff-delayed drain
+     * so the new sale is not stuck behind a KEEP'd failed worker.
      */
-    fun enqueueStickyDrain(context: Context, expedite: Boolean = false) {
+    fun enqueueStickyDrain(context: Context, expedite: Boolean = false, replace: Boolean = false) {
         val (baseUrl, token) = credentials(context) ?: run {
             Log.d(TAG, "Skip sticky drain — missing credentials")
             return
@@ -93,12 +97,13 @@ object SyncScheduler {
                 // Older devices / quota — still enqueued as normal work.
             }
         }
+        val policy = if (replace || expedite) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
         WorkManager.getInstance(context).enqueueUniqueWork(
             WORK_DRAIN,
-            ExistingWorkPolicy.KEEP,
+            policy,
             builder.build(),
         )
-        Log.i(TAG, "Sticky drain enqueued (expedite=$expedite)")
+        Log.i(TAG, "Sticky drain enqueued (expedite=$expedite replace=${replace || expedite})")
     }
 
     /** Full master DB sync — only when network quality is good. */
@@ -135,6 +140,7 @@ object SyncScheduler {
     /**
      * Download products/stock (and customers) into local Room DB.
      * Runs on any validated internet (Wi‑Fi or mobile data).
+     * SyncWorker itself refuses catalog pull while uploads remain open.
      */
     fun enqueueCatalogSync(context: Context) {
         if (!NetworkUtils.hasValidatedInternet(context)) {
@@ -167,16 +173,14 @@ object SyncScheduler {
     }
 
     /**
-     * After sale or reconnect: upload pending sales first, then refresh stock.
+     * After sale or reconnect: upload pending sales first.
      *
-     * Do NOT enqueue push-only and catalog workers in parallel — a catalog pull
-     * that races an in-flight sale upload restores pre-sale stock locally while
-     * the server may already have deducted (or the sale may still be uploading).
+     * Do NOT enqueue a parallel catalog worker here — a racing catalog pull can
+     * restore pre-sale stock while uploads are still in flight. SyncWorker's
+     * push-only drain refreshes catalog after the queue is empty.
      */
     fun enqueueAfterSaleOrReconnect(context: Context) {
-        enqueueStickyDrain(context, expedite = true)
-        // One sequenced job: drain queue, then pull catalog when empty.
-        enqueueCatalogSync(context)
+        enqueueStickyDrain(context, expedite = true, replace = true)
     }
 
     /** Periodic safety net (≤15 min when constraints allow). */
@@ -205,7 +209,13 @@ object SyncScheduler {
 
     private fun credentials(context: Context): Pair<String, String>? {
         val prefs = context.getSharedPreferences("pos", Context.MODE_PRIVATE)
-        val baseUrl = prefs.getString("base_url", null)?.trim().orEmpty()
+        var baseUrl = prefs.getString("base_url", null)?.trim().orEmpty()
+        if (baseUrl.isEmpty()) {
+            baseUrl = BuildConfig.DEFAULT_API_BASE_URL.trim()
+            if (baseUrl.isNotEmpty()) {
+                prefs.edit().putString("base_url", baseUrl).apply()
+            }
+        }
         if (baseUrl.isEmpty()) return null
         val token = SessionStore(context).getAccessToken()
             ?: prefs.getString("token", null)

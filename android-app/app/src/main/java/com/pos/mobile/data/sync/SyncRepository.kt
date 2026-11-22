@@ -12,6 +12,7 @@ import com.pos.mobile.data.remote.PaymentInputDto
 import com.pos.mobile.sync.MasterSyncEndpoints
 import com.pos.mobile.sync.MasterSyncResult
 import com.pos.mobile.sync.OfflineCacheKeys
+import com.pos.mobile.sync.SaleSyncLog
 import com.pos.mobile.sync.SyncPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -218,24 +219,62 @@ class SyncRepository(
                 client_sale_id = clientUuid,
             )
             syncQueueDao.updateStatus(queueItem.id, SyncQueueEntity.STATUS_SYNCING, null)
+            val attempt = queueItem.retryCount + 1
+            SaleSyncLog.event(
+                clientSaleId = clientUuid,
+                queueId = queueItem.id,
+                status = SyncQueueEntity.STATUS_SYNCING,
+                attempt = attempt,
+                endpoint = "/api/sales",
+                action = "post",
+            )
             val response = api.createSale("Bearer $token", dto)
             if (!response.isSuccessful) {
                 val code = response.code()
                 val err = response.errorBody()?.string() ?: "HTTP $code"
-                syncQueueDao.incrementRetry(queueItem.id, err)
-                val attempts = queueItem.retryCount + 1
-                val retryable = SyncPolicy.isRetryableHttp(code) || SyncPolicy.isRetryableErrorMessage(err)
-                if (!retryable || attempts >= SyncPolicy.MAX_PUSH_ATTEMPTS) {
+                // Auth failures keep the sale queued forever until refresh/re-login.
+                if (!SyncPolicy.isAuthHttp(code)) {
+                    syncQueueDao.incrementRetry(queueItem.id, err)
+                } else {
+                    syncQueueDao.updateStatus(
+                        queueItem.id,
+                        SyncQueueEntity.STATUS_PENDING,
+                        err.take(500),
+                    )
+                }
+                val attempts = if (SyncPolicy.isAuthHttp(code)) queueItem.retryCount else queueItem.retryCount + 1
+                val markFailed = SyncPolicy.shouldMarkFailed(code, attempts, err)
+                if (markFailed) {
                     syncQueueDao.updateStatus(
                         queueItem.id,
                         SyncQueueEntity.STATUS_FAILED,
                         err.take(500),
+                    )
+                    SaleSyncLog.event(
+                        clientSaleId = clientUuid,
+                        queueId = queueItem.id,
+                        status = SyncQueueEntity.STATUS_FAILED,
+                        attempt = attempts,
+                        endpoint = "/api/sales",
+                        httpStatus = code,
+                        result = "HTTP_$code",
+                        action = "retain_failed",
                     )
                 } else {
                     syncQueueDao.updateStatus(
                         queueItem.id,
                         SyncQueueEntity.STATUS_PENDING,
                         err.take(500),
+                    )
+                    SaleSyncLog.event(
+                        clientSaleId = clientUuid,
+                        queueId = queueItem.id,
+                        status = SyncQueueEntity.STATUS_PENDING,
+                        attempt = attempts,
+                        endpoint = "/api/sales",
+                        httpStatus = code,
+                        result = "HTTP_$code",
+                        action = if (SyncPolicy.isAuthHttp(code)) "retry_auth" else "retry",
                     )
                 }
                 return@withContext Result.failure(Exception(err))
@@ -244,6 +283,14 @@ class SyncRepository(
             val now = System.currentTimeMillis()
             saleDao.markSynced(queueItem.saleLocalId, serverId, now)
             syncQueueDao.updateStatus(queueItem.id, SyncQueueEntity.STATUS_SYNCED, null)
+            SaleSyncLog.event(
+                clientSaleId = clientUuid,
+                queueId = queueItem.id,
+                status = SyncQueueEntity.STATUS_SYNCED,
+                endpoint = "/api/sales",
+                result = "HTTP_${response.code()}",
+                serverSaleId = serverId,
+            )
             syncMetadataDao.insert(
                 SyncMetadataEntity(
                     key = SyncMetadataEntity.KEY_SALES_PUSH,
@@ -253,11 +300,11 @@ class SyncRepository(
             )
             Result.success(serverId)
         } catch (e: Exception) {
+            val errType = e.javaClass.simpleName
             syncQueueDao.incrementRetry(queueItem.id, e.message)
             val attempts = queueItem.retryCount + 1
-            if (attempts >= SyncPolicy.MAX_PUSH_ATTEMPTS &&
-                !SyncPolicy.isRetryableErrorMessage(e.message)
-            ) {
+            val markFailed = SyncPolicy.shouldMarkFailed(null, attempts, e.message)
+            if (markFailed) {
                 syncQueueDao.updateStatus(
                     queueItem.id,
                     SyncQueueEntity.STATUS_FAILED,
@@ -270,6 +317,15 @@ class SyncRepository(
                     e.message?.take(500),
                 )
             }
+            SaleSyncLog.event(
+                clientSaleId = queueItem.clientSaleUuid,
+                queueId = queueItem.id,
+                status = if (markFailed) SyncQueueEntity.STATUS_FAILED else SyncQueueEntity.STATUS_PENDING,
+                attempt = attempts,
+                endpoint = "/api/sales",
+                result = "NETWORK_$errType",
+                action = if (markFailed) "retain_failed" else "retry",
+            )
             Result.failure(e)
         }
     }
@@ -287,6 +343,13 @@ class SyncRepository(
         val orphans = syncQueueDao.requeueOrphanedSyncing()
         if (orphans > 0) {
             Log.w(TAG, "Requeued $orphans orphaned syncing sale(s) for upload")
+            SaleSyncLog.event(
+                clientSaleId = null,
+                status = SyncQueueEntity.STATUS_PENDING,
+                result = "REQUEUED_ORPHAN_SYNCING",
+                action = "retry",
+                attempt = orphans,
+            )
         }
         syncQueueDao.requeueRetriableFailed(SyncPolicy.MAX_PUSH_ATTEMPTS)
         var pushed = 0
@@ -298,6 +361,13 @@ class SyncRepository(
                     "Sale queue id=${item.id} older than 3-day deadline — still attempting upload",
                 )
             }
+            SaleSyncLog.event(
+                clientSaleId = item.clientSaleUuid,
+                queueId = item.id,
+                status = SyncQueueEntity.STATUS_PENDING,
+                attempt = item.retryCount + 1,
+                action = "drain",
+            )
             pushSale(token, item).onSuccess {
                 pushed++
                 Log.i(TAG, "Uploaded sale localId=${item.saleLocalId} -> server id=$it")

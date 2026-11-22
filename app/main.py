@@ -675,6 +675,10 @@ class Token(BaseModel):
     activeBranch: Optional[dict] = None
     availableBranches: List[dict] = []
     branchScope: str = "branch"
+    # Opaque refresh so Android username login can renew JWT after expiry
+    # and drain offline sales without asking the cashier to re-enter the sale.
+    refresh_token: Optional[str] = None
+    expires_in: Optional[int] = None
 
 
 @app.post("/api/auth/token", response_model=Token)
@@ -683,7 +687,10 @@ async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
+    from datetime import datetime, timedelta
+
     from .http_rate_limit import rate_limit_hit
+    from .saas_models import RefreshToken
 
     rate_limit_hit(request, "legacy_oauth_token", max_calls=40, window_sec=60)
     logging.info(f"Login attempt for username: {form_data.username}")
@@ -716,6 +723,15 @@ async def login_for_access_token(
     if ab and ab.get("id") is not None:
         payload["bid"] = int(ab["id"])
     access_token = auth.create_access_token(data=payload)
+    raw_refresh = auth.new_opaque_refresh_token()
+    db.add(
+        RefreshToken(
+            user_id=user.id,
+            token_hash=auth.hash_token(raw_refresh),
+            expires_at=datetime.utcnow() + timedelta(days=auth.REFRESH_TOKEN_EXPIRE_DAYS),
+        )
+    )
+    db.commit()
     body = Token(
         access_token=access_token,
         username=user.username,
@@ -728,6 +744,8 @@ async def login_for_access_token(
         activeBranch=branch_payload.get("activeBranch"),
         availableBranches=branch_payload.get("availableBranches") or [],
         branchScope=branch_payload.get("branchScope") or "branch",
+        refresh_token=raw_refresh,
+        expires_in=auth.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
     response = JSONResponse(content=body.model_dump())
     auth.attach_access_cookie(response, access_token)

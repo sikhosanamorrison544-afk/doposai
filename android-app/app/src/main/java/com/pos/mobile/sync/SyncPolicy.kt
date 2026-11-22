@@ -28,6 +28,16 @@ object SyncPolicy {
     fun isRetryableHttp(code: Int): Boolean =
         code == 401 || code == 408 || code == 429 || code >= 500
 
+    /** Auth must never permanently drop a queued sale — refresh / re-login recovers. */
+    fun isAuthHttp(code: Int): Boolean = code == 401
+
+    /**
+     * 403 = retain the queue item as failed (do not delete the local sale).
+     * Validation/malformed payloads also permanent-fail so we do not spin forever.
+     */
+    fun isPermanentFailureHttp(code: Int): Boolean =
+        code == 400 || code == 403 || code == 404 || code == 409 || code == 422
+
     fun isRetryableErrorMessage(message: String?): Boolean {
         val m = (message ?: "").lowercase()
         if (m.isBlank()) return true
@@ -37,10 +47,32 @@ object SyncPolicy {
             m.contains("connection") ||
             m.contains("ssl") ||
             m.contains("unreachable") ||
+            m.contains("network") ||
             m.contains("http 401") ||
             m.contains("http 408") ||
             m.contains("http 429") ||
             m.contains("http 5") ||
             Regex("http\\s*5\\d\\d").containsMatchIn(m)
+    }
+
+    /**
+     * Decide whether a failed push should stay PENDING (retry) or become FAILED.
+     * Auth failures always stay PENDING so reconnect/re-login can drain them.
+     */
+    fun shouldMarkFailed(
+        httpCode: Int?,
+        attempts: Int,
+        errorMessage: String?,
+    ): Boolean {
+        if (httpCode != null && isAuthHttp(httpCode)) return false
+        if (httpCode != null && isPermanentFailureHttp(httpCode)) return true
+        if (httpCode != null && isRetryableHttp(httpCode)) {
+            return attempts >= MAX_PUSH_ATTEMPTS
+        }
+        if (isRetryableErrorMessage(errorMessage)) {
+            return attempts >= MAX_PUSH_ATTEMPTS
+        }
+        // Unknown / validation-style body without a clear retry signal
+        return attempts >= 3
     }
 }

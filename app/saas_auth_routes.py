@@ -293,9 +293,21 @@ def _issue_tokens(db: Session, user: User, tenant: Optional[Tenant]) -> AuthResp
     tid = user.tenant_id
     tenant_uid = tenant.tenant_uid if tenant else None
     sub_status = _subscription_effective(db, tenant)
-    payload: Dict[str, Any] = {"sub": user.username, "role": user.role}
+    # Include branch claims so Android email-login cashiers can POST /api/sales
+    # without an X-Branch-Id header (same shape as /api/auth/token).
+    from .branch_service import build_auth_branch_payload
+
+    branch_payload = build_auth_branch_payload(db, user)
+    payload: Dict[str, Any] = {
+        "sub": user.username,
+        "role": user.role,
+        "bscope": branch_payload.get("branchScope") or "branch",
+    }
     if tid is not None:
         payload["tid"] = tid
+    ab = branch_payload.get("activeBranch")
+    if ab and ab.get("id") is not None:
+        payload["bid"] = int(ab["id"])
     access = auth.create_access_token(data=payload)
     raw_refresh = auth.new_opaque_refresh_token()
     rhash = auth.hash_token(raw_refresh)
