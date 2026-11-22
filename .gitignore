@@ -20,3 +20,6 @@ android-app/keystore.properties
 
 .DS_Store
 .idea/
+
+# Generated Android release artifacts (keep README only)
+releases/*.apk

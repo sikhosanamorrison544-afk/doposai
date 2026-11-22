@@ -26,14 +26,15 @@ val defaultApiBaseUrl =
 
 android {
     namespace = "com.pos.mobile"
-    compileSdk = 34
+    // Android 16 (API 36) — installable on API 36+ while keeping minSdk 24.
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.pos.mobile"
         minSdk = 24
-        targetSdk = 34
-        versionCode = 29
-        versionName = "1.4.4"
+        targetSdk = 36
+        versionCode = 30
+        versionName = "1.4.5"
         // Default API: https://doposai.com/ — override with pos.api.base.url in local.properties for dev only.
         buildConfigField("String", "DEFAULT_API_BASE_URL", "\"$defaultApiBaseUrl\"")
     }
@@ -72,9 +73,16 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    // Android 15+/16 devices may use 16 KB memory pages; keep native libs uncompressed/aligned.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
 }
 
 dependencies {
+    // Keep dependency versions aligned with the existing AGP 8.2 toolchain cache.
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
