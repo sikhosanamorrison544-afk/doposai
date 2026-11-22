@@ -1238,18 +1238,13 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private data class ManualSyncOutcome(
-        val masterOk: Boolean,
-        val productCount: Int,
-        val salesPushed: Int,
-        val salesPending: Int,
-    )
-
-    /** User-triggered sync: refresh catalog and upload queued sales. */
+    /** User-triggered sync: upload ALL pending sales, then refresh catalog. */
     private fun runManualSync(prefs: android.content.SharedPreferences, syncButton: android.widget.Button) {
         if (manualSyncInProgress) return
         if (!NetworkUtils.isOnline(this)) {
-            Toast.makeText(this, R.string.sync_requires_network, Toast.LENGTH_LONG).show()
+            // Preserve queue; schedule drain for when connectivity returns.
+            Toast.makeText(this, R.string.sync_waiting_for_internet, Toast.LENGTH_LONG).show()
+            SyncScheduler.enqueueStickyDrain(this, expedite = true, replace = true)
             return
         }
         val session = SessionStore(this)
@@ -1263,11 +1258,15 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, R.string.sync_in_progress, Toast.LENGTH_SHORT).show()
         lifecycleScope.launch {
             val outcome = withContext(Dispatchers.IO) {
-                performManualSync(token)
+                performManualSync()
             }
             manualSyncInProgress = false
             syncButton.isEnabled = true
             val msg = when {
+                outcome.offline ->
+                    getString(R.string.sync_waiting_for_internet)
+                outcome.authRequired ->
+                    getString(R.string.sync_requires_login)
                 outcome.salesPushed > 0 && !outcome.masterOk ->
                     getString(R.string.sync_partial, outcome.salesPushed, outcome.salesPending) +
                         " " + getString(R.string.sync_products_failed_hint)
@@ -1286,39 +1285,63 @@ class MainActivity : AppCompatActivity() {
                     )
             }
             Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
-            triggerSyncWhenOnline()
+            if (outcome.salesPending > 0 || outcome.authRequired || outcome.offline) {
+                triggerSyncWhenOnline()
+            }
         }
     }
 
-    private suspend fun performManualSync(token: String): ManualSyncOutcome {
-        val auth = when (val b = PosAuth.ensureBearer(this)) {
-            is BearerResult.Ok -> b.bearer.removePrefix("Bearer ").trim()
-            else -> token.trim().removePrefix("Bearer ").trim()
-        }
+    private data class ManualSyncOutcome(
+        val masterOk: Boolean,
+        val productCount: Int,
+        val salesPushed: Int,
+        val salesPending: Int,
+        val offline: Boolean = false,
+        val authRequired: Boolean = false,
+    )
+
+    private suspend fun performManualSync(): ManualSyncOutcome {
         val repo = createSyncRepository(readTimeoutSec = 60)
         val db = AppDatabase.getInstance(this)
-        val salesDrain = repo.drainPendingSales(auth)
-        repo.drainOfflineMutations(auth)
-        // Pull catalog only when uploads are clear (pullProductsAndCustomers also guards).
-        val productsOk = if (salesDrain.remaining == 0) {
-            repo.pullProductsAndCustomers(auth).isSuccess
-        } else {
-            false
-        }
-        if (productsOk) {
-            repo.persistStoreSettings(this@MainActivity, auth)
-            SessionStore(this).recordOfflineAnchor()
-        }
-        val stillPending = db.syncQueueDao().countOpenUploads() +
-            db.offlineMutationDao().countByStatus(
-                com.pos.mobile.data.local.entity.OfflineMutationEntity.STATUS_PENDING,
+        val pipeline = com.pos.mobile.sync.SaleSyncPipeline.run(
+            context = this,
+            repo = repo,
+            refreshCatalog = true,
+        )
+        if (pipeline.offline) {
+            val pending = db.syncQueueDao().countOpenUploads()
+            return ManualSyncOutcome(
+                masterOk = false,
+                productCount = db.productDao().countActive(),
+                salesPushed = 0,
+                salesPending = pending,
+                offline = true,
             )
-        val productCount = db.productDao().countActive()
+        }
+        if (pipeline.authRequired) {
+            val pending = db.syncQueueDao().countOpenUploads()
+            return ManualSyncOutcome(
+                masterOk = false,
+                productCount = db.productDao().countActive(),
+                salesPushed = 0,
+                salesPending = pending,
+                authRequired = true,
+            )
+        }
+        val token = pipeline.token
+        if (pipeline.catalogRefreshed && token != null) {
+            repo.persistStoreSettings(this@MainActivity, token)
+        }
+        val stillPending = if (pipeline.salesRemaining >= 0) {
+            pipeline.openUploads
+        } else {
+            db.syncQueueDao().countOpenUploads()
+        }
         return ManualSyncOutcome(
-            masterOk = productsOk,
-            productCount = productCount,
-            salesPushed = salesDrain.pushed,
-            salesPending = stillPending,
+            masterOk = pipeline.catalogRefreshed,
+            productCount = db.productDao().countActive(),
+            salesPushed = pipeline.salesPushed,
+            salesPending = stillPending.coerceAtLeast(0),
         )
     }
 

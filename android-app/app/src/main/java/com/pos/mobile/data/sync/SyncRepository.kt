@@ -352,13 +352,17 @@ class SyncRepository(
             )
         }
         syncQueueDao.requeueRetriableFailed(SyncPolicy.MAX_PUSH_ATTEMPTS)
+        val recovered = syncQueueDao.requeueRecoverableFailed()
+        if (recovered > 0) {
+            Log.w(TAG, "Requeued $recovered recoverable failed sale(s)")
+        }
         var pushed = 0
         var hadRetryableFailures = false
         for (item in syncQueueDao.getByStatus(SyncQueueEntity.STATUS_PENDING)) {
             if (SyncPolicy.isPastDeadline(item.createdAt)) {
                 Log.w(
                     TAG,
-                    "Sale queue id=${item.id} older than 3-day deadline — still attempting upload",
+                    "Sale queue id=${item.id} older than 3-day warn window — still retained; uploading",
                 )
             }
             SaleSyncLog.event(

@@ -5,22 +5,20 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import com.pos.mobile.auth.SessionStore
 import com.pos.mobile.data.local.AppDatabase
 import com.pos.mobile.data.remote.ApiService
 import com.pos.mobile.sync.NetworkUtils
+import com.pos.mobile.sync.SaleSyncPipeline
 import com.pos.mobile.sync.SyncPolicy
 import com.pos.mobile.sync.SyncScheduler
-import com.pos.mobile.ui.BearerResult
-import com.pos.mobile.ui.PosAuth
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
- * Background sync: push unsynced transactions to the cloud API, then refresh catalog.
- * Schedules sticky drain retries until the queue is empty (target: within 3 days).
+ * Background sync: push unsynced transactions to the cloud API, then refresh catalog
+ * via [SaleSyncPipeline] (same order as the manual Sync button).
  */
 class SyncWorker(
     context: Context,
@@ -43,83 +41,43 @@ class SyncWorker(
             return Result.retry()
         }
 
-        val bearerResult = PosAuth.ensureBearer(applicationContext)
-        val token = when (bearerResult) {
-            is BearerResult.Ok -> bearerResult.bearer.removePrefix("Bearer ").trim()
-            BearerResult.Offline -> {
-                Log.i(TAG, "SALE_SYNC: result=NETWORK_UNAVAILABLE action=retry")
-                SyncScheduler.enqueueStickyDrain(applicationContext)
-                return Result.retry()
-            }
-            BearerResult.Missing, BearerResult.Expired -> {
-                // Never POST /api/sales with a dead JWT — that burned retry counts with
-                // HTTP 401 while offline sales stayed stuck. Keep the queue and retry
-                // after refresh/re-login (ConnectivitySyncMonitor + sticky drain).
-                Log.w(
-                    TAG,
-                    "SALE_SYNC: result=AUTH_${bearerResult.javaClass.simpleName.uppercase()} action=retry_auth",
-                )
-                SyncScheduler.enqueueStickyDrain(applicationContext)
-                return Result.retry()
-            }
-        }
-
         val db = AppDatabase.getInstance(applicationContext)
         val api = createApi(baseUrl)
         val repo = createRepository(applicationContext, baseUrl, api, db)
 
         return try {
-            var salesPushed = 0
-            var mutationsPushed = 0
-            var salesRemaining = 0
-            var mutationsRemaining = 0
-            var oldestAgeMs = 0L
-            var needsRetry = false
-
-            if (NetworkUtils.canSyncPendingSales(applicationContext)) {
-                val salesDrain = repo.drainPendingSales(token)
-                salesPushed = salesDrain.pushed
-                salesRemaining = salesDrain.remaining
-                oldestAgeMs = maxOf(oldestAgeMs, salesDrain.oldestPendingAgeMs)
-                needsRetry = needsRetry || salesDrain.hadRetryableFailures
-
-                val mutDrain = repo.drainOfflineMutations(token)
-                mutationsPushed = mutDrain.pushed
-                mutationsRemaining = mutDrain.remaining
-                oldestAgeMs = maxOf(oldestAgeMs, mutDrain.oldestPendingAgeMs)
-                needsRetry = needsRetry || mutDrain.hadRetryableFailures
-
-                if (mutationsPushed > 0) {
-                    Log.i(TAG, "Pushed $mutationsPushed offline mutation(s)")
-                }
-                if (oldestAgeMs >= SyncPolicy.SYNC_WARN_AGE_MS) {
-                    Log.w(
-                        TAG,
-                        "Pending sync aging: oldest=${oldestAgeMs / 3600000}h " +
-                            "(deadline=${SyncPolicy.SYNC_DEADLINE_MS / 3600000}h)",
-                    )
-                }
-            } else {
-                needsRetry = true
+            // Same pipeline as the manual Sync button: auth → drain → catalog
+            // (catalog only runs when the upload queue is empty).
+            val pipeline = SaleSyncPipeline.run(
+                context = applicationContext,
+                repo = repo,
+                refreshCatalog = true,
+            )
+            if (pipeline.offline || pipeline.authRequired) {
+                SyncScheduler.enqueueStickyDrain(applicationContext)
+                return Result.retry()
             }
 
-            // Catalog pull only after uploads are empty. Parallel pull while
-            // sales are still syncing restores pre-sale stock on device.
-            if (!pushOnly && salesRemaining == 0 && mutationsRemaining == 0) {
-                try {
-                    val essentials = repo.syncEssentials(applicationContext, token)
-                    if (essentials.isSuccess) {
-                        Log.i(TAG, "Local stock/catalog updated from server")
-                        SessionStore(applicationContext).recordOfflineAnchor()
-                    } else {
-                        Log.w(
-                            TAG,
-                            "Stock download failed: ${essentials.exceptionOrNull()?.message}",
-                        )
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Stock download failed", e)
-                }
+            val salesPushed = pipeline.salesPushed
+            val mutationsPushed = pipeline.mutationsPushed
+            val salesRemaining = pipeline.salesRemaining.coerceAtLeast(0)
+            val mutationsRemaining = pipeline.mutationsRemaining.coerceAtLeast(0)
+            val oldestAgeMs = pipeline.oldestPendingAgeMs
+            val token = pipeline.token
+
+            if (mutationsPushed > 0) {
+                Log.i(TAG, "Pushed $mutationsPushed offline mutation(s)")
+            }
+            if (oldestAgeMs >= SyncPolicy.SYNC_WARN_AGE_MS) {
+                Log.w(
+                    TAG,
+                    "Pending sync aging: oldest=${oldestAgeMs / 3600000}h " +
+                        "(warn_window=${SyncPolicy.SYNC_DEADLINE_MS / 3600000}h; pending retained)",
+                )
+            }
+
+            // Optional heavy API cache only after uploads are clear.
+            if (!pushOnly && salesRemaining == 0 && mutationsRemaining == 0 && token != null) {
                 if (NetworkUtils.isGoodNetworkForHeavySync(applicationContext)) {
                     try {
                         repo.prefetchApiCache(token, fullCache).onSuccess {
@@ -135,29 +93,11 @@ class SyncWorker(
                 } else {
                     Log.i(TAG, "Heavy API cache deferred — Wi‑Fi/unmetered only")
                 }
-            } else if (!pushOnly) {
-                Log.i(
-                    TAG,
-                    "Defer catalog pull until queue empty " +
-                        "(sales=$salesRemaining mut=$mutationsRemaining)",
-                )
-            } else if (pushOnly && salesPushed > 0 && salesRemaining == 0 && mutationsRemaining == 0) {
-                // After a successful push-only drain, refresh stock so Android
-                // matches server deductions without waiting for a later catalog job.
-                try {
-                    val essentials = repo.syncEssentials(applicationContext, token)
-                    if (essentials.isSuccess) {
-                        Log.i(TAG, "Post-push stock refresh OK")
-                        SessionStore(applicationContext).recordOfflineAnchor()
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Post-push stock refresh failed", e)
-                }
             }
 
             val remaining = salesRemaining + mutationsRemaining
             // Never report success while unsynchronized sales remain.
-            if (remaining > 0 || needsRetry) {
+            if (remaining > 0 || pipeline.hadRetryableFailures) {
                 val expedite = oldestAgeMs >= SyncPolicy.SYNC_WARN_AGE_MS
                 SyncScheduler.enqueueStickyDrain(applicationContext, expedite = expedite)
                 Log.i(

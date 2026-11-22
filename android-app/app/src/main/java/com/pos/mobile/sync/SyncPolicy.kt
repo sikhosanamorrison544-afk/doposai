@@ -3,17 +3,24 @@ package com.pos.mobile.sync
 /**
  * Offline → online delivery policy for queued POS data.
  *
- * Goal: once the device has validated internet and a valid session within
- * [SYNC_DEADLINE_MS] of enqueue, drain sales/mutations to the server.
+ * Cashiers may sell offline for at least [OFFLINE_OPERATING_WINDOW_MS] (3 days).
+ * Unsynchronized sales are retained until the server acknowledges them — never
+ * deleted for age. [SYNC_DEADLINE_MS] is only a warning/expedite signal.
  */
 object SyncPolicy {
-    /** Match SessionStore offline grace — queue must sync within this window. */
-    const val SYNC_DEADLINE_MS = 3L * 24 * 60 * 60 * 1000
+    /** Minimum offline operating window (match SessionStore offline grace). */
+    const val OFFLINE_OPERATING_WINDOW_MS = 3L * 24 * 60 * 60 * 1000
+
+    /** Warn / expedite WorkManager when a row is this old (not a deletion timer). */
+    const val SYNC_DEADLINE_MS = OFFLINE_OPERATING_WINDOW_MS
 
     /** Escalate UI / expedited work when pending rows are this old. */
     const val SYNC_WARN_AGE_MS = 2L * 24 * 60 * 60 * 1000
 
-    /** Cap per-row attempts before marking permanently failed (non-retryable path). */
+    /**
+     * Soft attempt counter for logging/backoff only.
+     * Transient failures must NOT permanently fail the sale when this is exceeded.
+     */
     const val MAX_PUSH_ATTEMPTS = 40
 
     fun ageMs(createdAt: Long, now: Long = System.currentTimeMillis()): Long =
@@ -57,7 +64,8 @@ object SyncPolicy {
 
     /**
      * Decide whether a failed push should stay PENDING (retry) or become FAILED.
-     * Auth failures always stay PENDING so reconnect/re-login can drain them.
+     * Auth / network / 5xx / 429 always stay PENDING (indefinite retention until sync).
+     * Only clear permanent client/authz errors become FAILED (sale row still kept).
      */
     fun shouldMarkFailed(
         httpCode: Int?,
@@ -66,13 +74,9 @@ object SyncPolicy {
     ): Boolean {
         if (httpCode != null && isAuthHttp(httpCode)) return false
         if (httpCode != null && isPermanentFailureHttp(httpCode)) return true
-        if (httpCode != null && isRetryableHttp(httpCode)) {
-            return attempts >= MAX_PUSH_ATTEMPTS
-        }
-        if (isRetryableErrorMessage(errorMessage)) {
-            return attempts >= MAX_PUSH_ATTEMPTS
-        }
-        // Unknown / validation-style body without a clear retry signal
+        if (httpCode != null && isRetryableHttp(httpCode)) return false
+        if (isRetryableErrorMessage(errorMessage)) return false
+        // Ambiguous client errors: fail after a few attempts so we do not spin forever
         return attempts >= 3
     }
 }

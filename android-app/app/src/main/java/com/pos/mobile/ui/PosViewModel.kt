@@ -289,27 +289,23 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
      */
     private suspend fun tryImmediateSalePush() {
         if (!NetworkUtils.hasValidatedInternet(getApplication())) return
-        val bearer = when (val b = PosAuth.ensureBearer(getApplication())) {
-            is BearerResult.Ok -> b.bearer.removePrefix("Bearer ").trim()
-            else -> return
-        }
-        if (bearer.isBlank()) return
         try {
             val prefs = getApplication<Application>().getSharedPreferences("pos", android.content.Context.MODE_PRIVATE)
             val baseUrl = prefs.getString("base_url", BuildConfig.DEFAULT_API_BASE_URL)
                 ?: BuildConfig.DEFAULT_API_BASE_URL
             val api = SyncWorker.createApi(baseUrl)
             val repo = SyncWorker.createRepository(getApplication(), baseUrl, api, db)
-            val drain = repo.drainPendingSales(bearer)
+            val pipeline = com.pos.mobile.sync.SaleSyncPipeline.run(
+                context = getApplication(),
+                repo = repo,
+                refreshCatalog = true,
+            )
             com.pos.mobile.sync.SaleSyncLog.event(
                 clientSaleId = null,
-                status = if (drain.remaining == 0) "QUEUE_EMPTY" else "QUEUE_OPEN",
-                result = "immediate_push_pushed=${drain.pushed}",
-                action = if (drain.remaining == 0) "refresh_catalog" else "defer_catalog",
+                status = if (pipeline.openUploads == 0) "QUEUE_EMPTY" else "QUEUE_OPEN",
+                result = "immediate_push_pushed=${pipeline.salesPushed}",
+                action = if (pipeline.catalogRefreshed) "refresh_catalog" else "defer_catalog",
             )
-            if (drain.remaining == 0) {
-                repo.pullProductsAndCustomers(bearer)
-            }
         } catch (_: Exception) {
             // WorkManager sticky drain will retry.
         }
