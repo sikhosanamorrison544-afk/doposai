@@ -59,3 +59,34 @@ class BillingLog(Base):
     event_type: Mapped[str] = mapped_column(String(64), index=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class ComplimentaryAccessGrant(Base):
+    """Auditable free-access entitlement — never tied to a payment row.
+
+    Distinct from paid SubscriptionPayment records. Access is evaluated via
+    ``billing.service.get_active_complimentary_grant`` / ``effective_status``.
+    ``ends_at`` NULL means permanent until revoked.
+    """
+
+    __tablename__ = "complimentary_access_grants"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
+    plan: Mapped[str] = mapped_column(String(32), default="pro")
+    reason: Mapped[str] = mapped_column(String(40), index=True)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    starts_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    ends_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, index=True)
+    granted_by_user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    granted_by_username: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, index=True)
+    revoked_by_user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    revoked_by_username: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    revoke_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )

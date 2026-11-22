@@ -232,6 +232,7 @@ from .billing.feature_middleware import PlanFeatureMiddleware
 app.add_middleware(PlanFeatureMiddleware)
 
 from .billing.routes import billing_router, payments_router, subscriptions_router
+from .billing import models as _billing_models  # noqa: F401 — register billing ORM tables
 from .platform_routes import router as platform_router
 from .saas_auth_routes import router as saas_auth_router
 from .enterprise.routes import router as enterprise_router

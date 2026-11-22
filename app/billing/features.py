@@ -151,6 +151,9 @@ def tenant_features(db: Session, tenant: Tenant, sub: Optional[Subscription] = N
         sub = billing_service.get_or_create_subscription(db, tenant)
     if _platform_owner_complimentary(db, tenant):
         return set(_PRO_FEATURES)
+    grant = billing_service.get_active_complimentary_grant(db, tenant.id)
+    if grant is not None:
+        return set(features_for_plan(grant.plan or "starter"))
     plan = resolve_effective_plan(sub)
     return set(features_for_plan(plan))
 

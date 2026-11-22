@@ -860,6 +860,9 @@ def audit_logs(
     user: User = Depends(dep_perm(Perm.VIEW_AUDIT)),
 ):
     q = filter_by_tenant(db.query(AuditLog), AuditLog, user)
+    # Platform-owner privileged actions are not editable by tenants and are
+    # hidden from the ordinary store audit UI (platform console owns them).
+    q = q.filter(~AuditLog.action.like("platform.%"))
     if entity_type:
         q = q.filter(AuditLog.entity_type == entity_type)
     if action:

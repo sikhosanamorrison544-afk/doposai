@@ -5,7 +5,7 @@
     <meta name="pos-build" content="{{ pos_build }}">
     <script>window.__POS_BUILD__={{ pos_build|tojson }};</script>
     <script src="/static/js/pos-client-boot.js?v={{ pos_build }}"></script>
-    <title>Platform tenants — {{ store_name }}</title>
+    <title>Platform Administration — {{ store_name }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="platform-motto" content="{{ platform_motto or 'Pecunia Non Olet' }}">
     <script>
@@ -788,6 +788,90 @@
         .reset-modal .actions .confirm:hover { background: #b91c1c; }
         .reset-modal .actions .confirm:disabled { opacity: 0.55; cursor: not-allowed; }
 
+        .platform-layout {
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+        .platform-side-nav {
+            position: sticky;
+            top: 72px;
+            background: rgba(15, 23, 42, 0.92);
+            color: #e2e8f0;
+            border-radius: 12px;
+            padding: 14px 10px;
+            box-shadow: 0 8px 28px rgba(15, 23, 42, 0.28);
+        }
+        .platform-side-nav__title {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #94a3b8;
+            padding: 4px 10px 10px;
+        }
+        .platform-side-nav button {
+            display: block;
+            width: 100%;
+            text-align: left;
+            border: none;
+            background: transparent;
+            color: #e2e8f0;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 2px;
+        }
+        .platform-side-nav button:hover { background: rgba(148, 163, 184, 0.18); }
+        .platform-side-nav button.active {
+            background: #22c55e;
+            color: #052e16;
+        }
+        .platform-section { display: none; }
+        .platform-section.active { display: block; }
+        .platform-filter-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 14px;
+            align-items: center;
+        }
+        .platform-filter-row input,
+        .platform-filter-row select {
+            min-height: 38px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(0,0,0,0.14);
+            font-size: 14px;
+            background: #fff;
+            color: #1a1a2e;
+        }
+        .platform-filter-row input { min-width: 220px; flex: 1; }
+        .pt-badge--complimentary {
+            background: rgba(14, 165, 233, 0.16);
+            color: #0369a1;
+        }
+        .platform-detail-card {
+            background: rgba(255,255,255,0.96);
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+        }
+        .platform-detail-card h3 { margin: 0 0 10px; font-size: 15px; }
+        .platform-kv { font-size: 13px; line-height: 1.55; color: #334155; }
+        .platform-kv strong { color: #0f172a; }
+
+        @media (max-width: 900px) {
+            .platform-layout { grid-template-columns: 1fr; }
+            .platform-side-nav { position: static; display: flex; flex-wrap: wrap; gap: 4px; }
+            .platform-side-nav__title { width: 100%; }
+            .platform-side-nav button { width: auto; }
+        }
         @media (max-width: 640px) {
             .platform-top-bar {
                 grid-template-columns: 1fr;
@@ -833,54 +917,239 @@
     <main class="platform-main">
         <div class="platform-hero">
             <div class="platform-hero__text">
-                <h1>All businesses</h1>
-                <p>Every registered tenant on this platform. Grant or revoke subscriptions, reset passwords, and view plan details.</p>
+                <h1>Platform Administration</h1>
+                <p>Oversee every registered business, user, and store. Grant complimentary access without inventing payments.</p>
             </div>
             <div class="platform-hero__actions">
-                <button type="button" id="platform-refresh-btn" class="platform-btn platform-btn--secondary">Refresh list</button>
-            </div>
-        </div>
-
-        <div class="platform-stats" id="platform-stats" style="display:none;">
-            <div class="platform-stat">
-                <span class="platform-stat__value" id="stat-total">—</span>
-                <span class="platform-stat__label">Total businesses</span>
-            </div>
-            <div class="platform-stat">
-                <span class="platform-stat__value" id="stat-active">—</span>
-                <span class="platform-stat__label">Active</span>
-            </div>
-            <div class="platform-stat">
-                <span class="platform-stat__value" id="stat-users">—</span>
-                <span class="platform-stat__label">Total users</span>
+                <button type="button" id="platform-refresh-btn" class="platform-btn platform-btn--secondary">Refresh</button>
             </div>
         </div>
 
         <div id="platform-error" class="platform-msg" style="display:none;" role="alert"></div>
 
-        <div id="platform-loading" class="platform-loading" style="display:none;">
-            <div class="platform-spinner" aria-hidden="true"></div>
-            <span>Loading businesses…</span>
-        </div>
+        <div class="platform-layout">
+            <nav class="platform-side-nav" aria-label="Platform sections">
+                <div class="platform-side-nav__title">Console</div>
+                <button type="button" class="js-platform-nav active" data-section="overview">Overview</button>
+                <button type="button" class="js-platform-nav" data-section="businesses">Businesses</button>
+                <button type="button" class="js-platform-nav" data-section="users">Platform Users</button>
+                <button type="button" class="js-platform-nav" data-section="stores">Stores / Branches</button>
+                <button type="button" class="js-platform-nav" data-section="subscriptions">Subscriptions</button>
+                <button type="button" class="js-platform-nav" data-section="grants">Free Access Grants</button>
+                <button type="button" class="js-platform-nav" data-section="payments">Payments</button>
+                <button type="button" class="js-platform-nav" data-section="audit">Audit Logs</button>
+                <button type="button" class="js-platform-nav" data-section="settings">Platform Settings</button>
+            </nav>
 
-        <div id="platform-table-container" class="platform-table-card" style="display:none;">
-            <div class="platform-table-scroll">
-                <table class="platform-table">
-                    <thead>
-                    <tr>
-                        <th class="col-business">Business</th>
-                        <th class="col-owner">Owner</th>
-                        <th class="col-contact">Contact</th>
-                        <th>Status</th>
-                        <th class="col-plan">Plan</th>
-                        <th class="col-date">Trial / ends</th>
-                        <th class="col-num">Users</th>
-                        <th class="col-admins">Admin logins</th>
-                        <th class="col-actions">Actions</th>
-                    </tr>
-                    </thead>
-                    <tbody id="platform-tenants-body"></tbody>
-                </table>
+            <div class="platform-content">
+                <div id="platform-loading" class="platform-loading" style="display:none;">
+                    <div class="platform-spinner" aria-hidden="true"></div>
+                    <span>Loading…</span>
+                </div>
+
+                <section id="section-overview" class="platform-section active">
+                    <div class="platform-stats" id="platform-stats">
+                        <div class="platform-stat"><span class="platform-stat__value" id="stat-total">—</span><span class="platform-stat__label">Businesses</span></div>
+                        <div class="platform-stat"><span class="platform-stat__value" id="stat-users">—</span><span class="platform-stat__label">Users</span></div>
+                        <div class="platform-stat"><span class="platform-stat__value" id="stat-stores">—</span><span class="platform-stat__label">Stores</span></div>
+                        <div class="platform-stat"><span class="platform-stat__value" id="stat-active">—</span><span class="platform-stat__label">Active</span></div>
+                        <div class="platform-stat"><span class="platform-stat__value" id="stat-suspended">—</span><span class="platform-stat__label">Suspended</span></div>
+                        <div class="platform-stat"><span class="platform-stat__value" id="stat-trial">—</span><span class="platform-stat__label">Trial</span></div>
+                        <div class="platform-stat"><span class="platform-stat__value" id="stat-paid">—</span><span class="platform-stat__label">Paid</span></div>
+                        <div class="platform-stat"><span class="platform-stat__value" id="stat-comp">—</span><span class="platform-stat__label">Complimentary</span></div>
+                        <div class="platform-stat"><span class="platform-stat__value" id="stat-expired">—</span><span class="platform-stat__label">Expired</span></div>
+                    </div>
+                    <div class="platform-detail-card">
+                        <h3>Recent registrations</h3>
+                        <div id="overview-recent-regs" class="platform-kv">—</div>
+                    </div>
+                    <div class="platform-detail-card">
+                        <h3>Recent subscription changes</h3>
+                        <div id="overview-recent-billing" class="platform-kv">—</div>
+                    </div>
+                </section>
+
+                <section id="section-businesses" class="platform-section">
+                    <div class="platform-filter-row">
+                        <input type="search" id="business-search" placeholder="Search businesses…">
+                    </div>
+                    <div id="platform-table-container" class="platform-table-card">
+                        <div class="platform-table-scroll">
+                            <table class="platform-table">
+                                <thead>
+                                <tr>
+                                    <th class="col-business">Business</th>
+                                    <th class="col-owner">Owner</th>
+                                    <th class="col-contact">Contact</th>
+                                    <th>Status</th>
+                                    <th class="col-plan">Plan</th>
+                                    <th class="col-date">Trial / ends</th>
+                                    <th class="col-num">Users</th>
+                                    <th class="col-num">Stores</th>
+                                    <th class="col-admins">Admin logins</th>
+                                    <th class="col-actions">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody id="platform-tenants-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div id="tenant-detail" class="platform-detail-card" style="display:none;"></div>
+                </section>
+
+                <section id="section-users" class="platform-section">
+                    <div class="platform-filter-row">
+                        <input type="search" id="users-search" placeholder="Search users…">
+                        <select id="users-status">
+                            <option value="">All statuses</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                        <button type="button" class="platform-btn platform-btn--secondary" id="users-search-btn">Search</button>
+                    </div>
+                    <div class="platform-table-card">
+                        <div class="platform-table-scroll">
+                            <table class="platform-table" style="min-width:1100px;">
+                                <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email / username</th>
+                                    <th>Business</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Registered</th>
+                                    <th>Last login</th>
+                                    <th>Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody id="platform-users-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="section-stores" class="platform-section">
+                    <div class="platform-filter-row">
+                        <input type="search" id="stores-search" placeholder="Search stores…">
+                        <button type="button" class="platform-btn platform-btn--secondary" id="stores-search-btn">Search</button>
+                    </div>
+                    <div class="platform-table-card">
+                        <div class="platform-table-scroll">
+                            <table class="platform-table" style="min-width:1000px;">
+                                <thead>
+                                <tr>
+                                    <th>Store</th>
+                                    <th>Business</th>
+                                    <th>Location</th>
+                                    <th>Status</th>
+                                    <th>Administrator</th>
+                                    <th>Created</th>
+                                </tr>
+                                </thead>
+                                <tbody id="platform-stores-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="section-subscriptions" class="platform-section">
+                    <p class="platform-kv" style="margin-bottom:12px;">Subscription status is derived from paid, trial, and complimentary entitlements. Open a business for full history.</p>
+                    <div class="platform-table-card">
+                        <div class="platform-table-scroll">
+                            <table class="platform-table" style="min-width:1100px;">
+                                <thead>
+                                <tr>
+                                    <th>Business</th>
+                                    <th>Plan</th>
+                                    <th>Billing status</th>
+                                    <th>Effective</th>
+                                    <th>Source</th>
+                                    <th>Ends</th>
+                                    <th>Access</th>
+                                </tr>
+                                </thead>
+                                <tbody id="platform-subs-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="section-grants" class="platform-section">
+                    <div class="platform-filter-row">
+                        <button type="button" class="platform-btn platform-btn--secondary" id="open-comp-grant-btn" style="background:#0369a1;color:#fff;border:none;">Grant free access</button>
+                        <label style="font-size:13px;display:flex;align-items:center;gap:6px;">
+                            <input type="checkbox" id="grants-active-only"> Active only
+                        </label>
+                        <button type="button" class="platform-btn platform-btn--secondary" id="grants-refresh-btn">Refresh grants</button>
+                    </div>
+                    <div class="platform-table-card">
+                        <div class="platform-table-scroll">
+                            <table class="platform-table" style="min-width:1200px;">
+                                <thead>
+                                <tr>
+                                    <th>Business</th>
+                                    <th>Plan</th>
+                                    <th>Reason</th>
+                                    <th>Starts</th>
+                                    <th>Ends</th>
+                                    <th>Status</th>
+                                    <th>Granted by</th>
+                                    <th>Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody id="platform-grants-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="section-payments" class="platform-section">
+                    <div class="platform-table-card">
+                        <div class="platform-table-scroll">
+                            <table class="platform-table" style="min-width:1100px;">
+                                <thead>
+                                <tr>
+                                    <th>Business</th>
+                                    <th>Reference</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Plan</th>
+                                    <th>Created</th>
+                                    <th>Paid at</th>
+                                </tr>
+                                </thead>
+                                <tbody id="platform-payments-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="section-audit" class="platform-section">
+                    <div class="platform-table-card">
+                        <div class="platform-table-scroll">
+                            <table class="platform-table" style="min-width:1100px;">
+                                <thead>
+                                <tr>
+                                    <th>When</th>
+                                    <th>Operator</th>
+                                    <th>Action</th>
+                                    <th>Entity</th>
+                                    <th>Tenant</th>
+                                    <th>Details</th>
+                                </tr>
+                                </thead>
+                                <tbody id="platform-audit-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="section-settings" class="platform-section">
+                    <div class="platform-detail-card" id="platform-settings-card">
+                        <h3>Platform settings</h3>
+                        <div class="platform-kv" id="platform-settings-body">—</div>
+                    </div>
+                </section>
             </div>
         </div>
     </main>
@@ -922,8 +1191,19 @@
 
         <label for="grant-sub-mode">Access type</label>
         <select id="grant-sub-mode">
-            <option value="active">Active subscription (paid access)</option>
+            <option value="active">Active subscription (manual, no payment row)</option>
             <option value="trial">Trial (all Pro features for trial period)</option>
+            <option value="complimentary">Complimentary / free access (audited entitlement)</option>
+        </select>
+
+        <label for="grant-sub-reason" id="grant-sub-reason-label" style="display:none;">Complimentary reason</label>
+        <select id="grant-sub-reason" style="display:none;">
+            <option value="promotional">Promotional access</option>
+            <option value="demo">Product demonstration</option>
+            <option value="testing">Testing</option>
+            <option value="partnership">Partnership</option>
+            <option value="special">Special approval</option>
+            <option value="support">Customer support</option>
         </select>
 
         <label for="grant-sub-plan">Plan</label>
@@ -954,7 +1234,52 @@
     </div>
 </div>
 
-<script src="/static/js/platform-tenants.js?v=5"></script>
+<div id="comp-grant-modal-backdrop" class="reset-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="comp-grant-modal-title">
+    <div class="reset-modal">
+        <h2 id="comp-grant-modal-title">Grant complimentary access</h2>
+        <p class="ctx">Creates an auditable free-access entitlement. No payment transaction is created.</p>
+
+        <label for="comp-grant-tenant">Business ID</label>
+        <input type="number" id="comp-grant-tenant" min="1" placeholder="Tenant / business ID">
+
+        <label for="comp-grant-plan">Plan</label>
+        <select id="comp-grant-plan">
+            <option value="starter">Starter</option>
+            <option value="business">Business</option>
+            <option value="pro" selected>Pro</option>
+        </select>
+
+        <label for="comp-grant-reason">Reason</label>
+        <select id="comp-grant-reason">
+            <option value="promotional">Promotional access</option>
+            <option value="demo">Product demonstration</option>
+            <option value="testing">Testing</option>
+            <option value="partnership">Partnership</option>
+            <option value="special">Special approval</option>
+            <option value="support">Customer support</option>
+        </select>
+
+        <label for="comp-grant-duration">Duration</label>
+        <select id="comp-grant-duration">
+            <option value="30">30 days</option>
+            <option value="90">90 days</option>
+            <option value="365">1 year</option>
+            <option value="permanent" selected>Permanent (until revoked)</option>
+        </select>
+
+        <label for="comp-grant-note">Reason note</label>
+        <input type="text" id="comp-grant-note" placeholder="Optional details for the audit log">
+
+        <div class="modal-msg" id="comp-grant-modal-msg" role="status" aria-live="polite"></div>
+
+        <div class="actions">
+            <button type="button" class="cancel" id="comp-grant-modal-cancel">Cancel</button>
+            <button type="button" class="confirm" id="comp-grant-modal-confirm" style="background:#0369a1;">Confirm grant</button>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/platform-tenants.js?v=6"></script>
 <script src="/static/js/password-toggle.js?v=1"></script>
 <script src="/static/js/store-branding.js?v=3"></script>
 </body>

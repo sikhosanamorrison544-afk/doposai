@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from ..config import OFFLINE_GRACE_HOURS_DEFAULT, PLATFORM_BRAND_NAME, TRIAL_DAYS_DEFAULT
 from ..firestore_service import append_billing_event, sync_subscription_firestore
 from ..quotation_models import Tenant
-from .models import BillingLog, Subscription, SubscriptionPayment
+from .models import BillingLog, ComplimentaryAccessGrant, Subscription, SubscriptionPayment
 from .paynow_client import PaynowClient, get_paynow_client
 from .features import (
     COMPLIMENTARY_PRO_YEARS,
@@ -23,9 +23,68 @@ from .plans import VALID_PLANS, VALID_STATUSES, get_price
 
 logger = logging.getLogger(__name__)
 
+VALID_COMPLIMENTARY_REASONS = frozenset(
+    {
+        "promotional",
+        "demo",
+        "testing",
+        "partnership",
+        "special",
+        "support",
+    }
+)
+
 
 def _log(db: Session, tenant_id: int, event_type: str, description: str) -> None:
     db.add(BillingLog(tenant_id=tenant_id, event_type=event_type, description=description))
+
+
+def get_active_complimentary_grant(
+    db: Session, tenant_id: int, *, at: Optional[datetime] = None
+) -> Optional[ComplimentaryAccessGrant]:
+    """Return the newest non-revoked complimentary grant that covers ``at``."""
+    now = at or datetime.utcnow()
+    candidates = (
+        db.query(ComplimentaryAccessGrant)
+        .filter(
+            ComplimentaryAccessGrant.tenant_id == tenant_id,
+            ComplimentaryAccessGrant.revoked_at.is_(None),
+            ComplimentaryAccessGrant.starts_at <= now,
+        )
+        .order_by(ComplimentaryAccessGrant.id.desc())
+        .all()
+    )
+    for g in candidates:
+        if g.ends_at is None or g.ends_at > now:
+            return g
+    return None
+
+
+def complimentary_grant_to_dict(g: ComplimentaryAccessGrant) -> Dict[str, Any]:
+    now = datetime.utcnow()
+    active = (
+        g.revoked_at is None
+        and g.starts_at <= now
+        and (g.ends_at is None or g.ends_at > now)
+    )
+    return {
+        "id": g.id,
+        "tenant_id": g.tenant_id,
+        "plan": g.plan,
+        "reason": g.reason,
+        "note": g.note,
+        "starts_at": g.starts_at.isoformat() + "Z" if g.starts_at else None,
+        "ends_at": g.ends_at.isoformat() + "Z" if g.ends_at else None,
+        "permanent": g.ends_at is None and g.revoked_at is None,
+        "active": active,
+        "granted_by_user_id": g.granted_by_user_id,
+        "granted_by_username": g.granted_by_username,
+        "revoked_at": g.revoked_at.isoformat() + "Z" if g.revoked_at else None,
+        "revoked_by_user_id": g.revoked_by_user_id,
+        "revoked_by_username": g.revoked_by_username,
+        "revoke_reason": g.revoke_reason,
+        "created_at": g.created_at.isoformat() + "Z" if g.created_at else None,
+    }
 
 
 def get_or_create_subscription(db: Session, tenant: Tenant) -> Subscription:
@@ -88,9 +147,15 @@ def effective_status(
     """
     Returns (status_for_client, access_allowed, subscription_end_or_trial_end).
     access_allowed uses offline grace after last verification.
+
+    Entitlement sources (highest priority first after account lock):
+    platform-owner tenant → complimentary grant → paid/trial subscription.
     """
     now = datetime.utcnow()
     grace = timedelta(hours=grace_hours)
+
+    if tenant is not None and not bool(tenant.is_active):
+        return "suspended", False, sub.subscription_end or sub.trial_end
 
     if tenant is not None and db is not None:
         from ..platform_routes import is_platform_owner_tenant
@@ -98,6 +163,10 @@ def effective_status(
         if is_platform_owner_tenant(db, tenant):
             end = sub.subscription_end or (now + timedelta(days=365 * COMPLIMENTARY_PRO_YEARS))
             return "active", True, end
+
+        grant = get_active_complimentary_grant(db, tenant.id, at=now)
+        if grant is not None:
+            return "complimentary", True, grant.ends_at
 
     if sub.status == "suspended":
         return "suspended", False, sub.subscription_end or sub.trial_end
@@ -124,9 +193,19 @@ def effective_status(
 
     if sub.status == "expired":
         end = sub.subscription_end or sub.trial_end
-        if tenant and tenant.last_subscription_verified_at:
-            if now <= tenant.last_subscription_verified_at + grace:
-                return "expired", True, end
+        # Prefer end-date grace (paid period just ended). last_verified grace is
+        # only for short offline windows after a real paid/trial end — not after
+        # complimentary-only access that left subscription_end far in the past.
+        if end and now <= end + grace:
+            return "expired", True, end
+        if (
+            end
+            and tenant
+            and tenant.last_subscription_verified_at
+            and now <= tenant.last_subscription_verified_at + grace
+            and now <= end + grace
+        ):
+            return "expired", True, end
         return "expired", False, end
 
     return sub.status or "trial", True, sub.trial_end
@@ -143,13 +222,18 @@ def subscription_status_payload(db: Session, tenant: Tenant) -> Dict[str, Any]:
     sub = get_or_create_subscription(db, tenant)
     from ..platform_routes import is_platform_owner_tenant
 
-    complimentary = is_platform_owner_tenant(db, tenant)
+    owner_comp = is_platform_owner_tenant(db, tenant)
+    grant = get_active_complimentary_grant(db, tenant.id)
     status, allowed, ends = effective_status(sub, tenant, db=db)
     trial_end = sub.trial_end
     sub_end = sub.subscription_end
     days_trial = _days_remaining(trial_end) if trial_end else None
     days_sub = _days_remaining(sub_end) if sub_end else None
-    if sub.status == "active" and sub_end:
+    if status == "complimentary" and ends:
+        days_remaining = _days_remaining(ends)
+    elif status == "complimentary" and ends is None:
+        days_remaining = None
+    elif sub.status == "active" and sub_end:
         days_remaining = days_sub
     elif trial_end and status in ("trial", "trial_expired", "pending_payment", "expired"):
         days_remaining = days_trial
@@ -157,8 +241,21 @@ def subscription_status_payload(db: Session, tenant: Tenant) -> Dict[str, Any]:
         days_remaining = days_sub
     else:
         days_remaining = None
-    effective_plan = resolve_effective_plan(sub, force_pro=complimentary)
+    force_pro = owner_comp or (grant is not None and (grant.plan or "").lower() == "pro")
+    if grant is not None and not owner_comp:
+        effective_plan = (grant.plan or "starter").lower()
+        if effective_plan not in VALID_PLANS:
+            effective_plan = "starter"
+    else:
+        effective_plan = resolve_effective_plan(sub, force_pro=force_pro)
     feats = sorted(tenant_features(db, tenant, sub))
+    entitlement_source = "platform_owner" if owner_comp else (
+        "complimentary" if grant is not None and status == "complimentary" else (
+            "trial" if status == "trial" else (
+                "paid" if status == "active" else status
+            )
+        )
+    )
     return {
         "tenant_id": tenant.id,
         "tenant_uid": tenant.tenant_uid,
@@ -168,8 +265,10 @@ def subscription_status_payload(db: Session, tenant: Tenant) -> Dict[str, Any]:
         "status": sub.status,
         "effective_status": status,
         "access_allowed": allowed,
+        "entitlement_source": entitlement_source,
         "features": feats,
-        "platform_owner_complimentary": complimentary,
+        "platform_owner_complimentary": owner_comp,
+        "complimentary_grant": complimentary_grant_to_dict(grant) if grant else None,
         "trial_all_features": effective_plan == "pro" and sub.status == "trial",
         "plan_feature_summaries": PLAN_FEATURE_SUMMARIES,
         "trial_start": sub.trial_start.isoformat() + "Z" if sub.trial_start else None,
@@ -200,6 +299,8 @@ def _sync_tenant_and_firestore(
     tenant.subscription_status = eff if eff != "trial_expired" else "trial_expired"
     if eff == "active":
         tenant.subscription_status = "active"
+    elif eff == "complimentary":
+        tenant.subscription_status = "complimentary"
     elif eff == "trial":
         tenant.subscription_status = "trial"
     elif eff in ("expired", "trial_expired"):
@@ -637,3 +738,160 @@ def platform_revoke_subscription(
     db.commit()
     db.refresh(sub)
     return subscription_status_payload(db, tenant)
+
+
+def grant_complimentary_access(
+    db: Session,
+    tenant: Tenant,
+    *,
+    plan: str,
+    reason: str,
+    note: Optional[str] = None,
+    ends_at: Optional[datetime] = None,
+    permanent: bool = False,
+    operator_user_id: Optional[int] = None,
+    operator_username: str = "platform",
+) -> ComplimentaryAccessGrant:
+    """Create a complimentary entitlement without creating any payment record.
+
+    Does not invent Paynow references or SubscriptionPayment rows. Optionally
+    mirrors the plan onto the Subscription row for UI consistency only.
+    """
+    plan = (plan or "pro").lower()
+    if plan not in VALID_PLANS:
+        raise ValueError(f"Invalid plan. Choose one of: {', '.join(VALID_PLANS)}")
+    reason_key = (reason or "").strip().lower()
+    if reason_key not in VALID_COMPLIMENTARY_REASONS:
+        raise ValueError(
+            "reason must be one of: " + ", ".join(sorted(VALID_COMPLIMENTARY_REASONS))
+        )
+    if permanent:
+        ends_at = None
+    elif ends_at is not None and ends_at <= datetime.utcnow():
+        raise ValueError("ends_at must be in the future")
+
+    now = datetime.utcnow()
+    # Supersede prior active grants so only one entitlement is in force.
+    prior = (
+        db.query(ComplimentaryAccessGrant)
+        .filter(
+            ComplimentaryAccessGrant.tenant_id == tenant.id,
+            ComplimentaryAccessGrant.revoked_at.is_(None),
+        )
+        .all()
+    )
+    for old in prior:
+        if old.ends_at is None or old.ends_at > now:
+            old.revoked_at = now
+            old.revoked_by_user_id = operator_user_id
+            old.revoked_by_username = operator_username
+            old.revoke_reason = "Superseded by new complimentary grant"
+
+    grant = ComplimentaryAccessGrant(
+        tenant_id=tenant.id,
+        plan=plan,
+        reason=reason_key,
+        note=note,
+        starts_at=now,
+        ends_at=ends_at,
+        granted_by_user_id=operator_user_id,
+        granted_by_username=operator_username,
+    )
+    db.add(grant)
+
+    # Mirror plan for display; do not mark as paid / do not touch payments.
+    sub = get_or_create_subscription(db, tenant)
+    sub.plan = plan
+    if sub.status == "suspended":
+        # Clear suspend flag so complimentary entitlement can take effect;
+        # do not invent a paid window — leave end in the past if present.
+        sub.status = "expired"
+
+    desc = (
+        f"Complimentary {plan} ({reason_key}) by {operator_username}"
+        + (f" until {ends_at.isoformat()}" if ends_at else " (permanent)")
+        + (f": {note}" if note else "")
+    )
+    _log(db, tenant.id, "complimentary_grant_created", desc)
+    db.flush()
+    _sync_tenant_and_firestore(db, tenant, sub, payment_verified=False)
+    db.commit()
+    db.refresh(grant)
+    return grant
+
+
+def extend_complimentary_grant(
+    db: Session,
+    grant: ComplimentaryAccessGrant,
+    *,
+    ends_at: Optional[datetime] = None,
+    permanent: bool = False,
+    note: Optional[str] = None,
+    operator_user_id: Optional[int] = None,
+    operator_username: str = "platform",
+) -> ComplimentaryAccessGrant:
+    if grant.revoked_at is not None:
+        raise ValueError("Cannot extend a revoked complimentary grant")
+    old_end = grant.ends_at
+    if permanent:
+        grant.ends_at = None
+    elif ends_at is not None:
+        if ends_at <= datetime.utcnow():
+            raise ValueError("ends_at must be in the future")
+        grant.ends_at = ends_at
+    else:
+        raise ValueError("Provide ends_at or permanent=true")
+    if note:
+        grant.note = ((grant.note or "") + "\n" + note).strip()
+    tenant = db.query(Tenant).filter(Tenant.id == grant.tenant_id).first()
+    if not tenant:
+        raise ValueError("Tenant not found for grant")
+    sub = get_or_create_subscription(db, tenant)
+    _log(
+        db,
+        tenant.id,
+        "complimentary_grant_extended",
+        f"Grant #{grant.id} extended by {operator_username} "
+        f"(was {old_end}, now {grant.ends_at}; op={operator_user_id})",
+    )
+    db.flush()
+    _sync_tenant_and_firestore(db, tenant, sub, payment_verified=False)
+    db.commit()
+    db.refresh(grant)
+    return grant
+
+
+def revoke_complimentary_grant(
+    db: Session,
+    grant: ComplimentaryAccessGrant,
+    *,
+    reason: Optional[str] = None,
+    operator_user_id: Optional[int] = None,
+    operator_username: str = "platform",
+) -> ComplimentaryAccessGrant:
+    if grant.revoked_at is not None:
+        return grant
+    now = datetime.utcnow()
+    grant.revoked_at = now
+    grant.revoked_by_user_id = operator_user_id
+    grant.revoked_by_username = operator_username
+    grant.revoke_reason = reason or f"Revoked by {operator_username}"
+    tenant = db.query(Tenant).filter(Tenant.id == grant.tenant_id).first()
+    if tenant:
+        sub = get_or_create_subscription(db, tenant)
+        _log(
+            db,
+            tenant.id,
+            "complimentary_grant_revoked",
+            f"Grant #{grant.id} revoked by {operator_username}: {grant.revoke_reason}",
+        )
+        # Drop offline grace so revoke takes effect immediately (no fake paid window).
+        tenant.last_subscription_verified_at = None
+        db.flush()
+        _sync_tenant_and_firestore(db, tenant, sub, payment_verified=False)
+        # _sync refreshes last_verified; clear again after entitlement recompute.
+        tenant.last_subscription_verified_at = None
+        db.flush()
+    db.commit()
+    db.refresh(grant)
+    return grant
