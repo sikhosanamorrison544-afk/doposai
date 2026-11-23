@@ -88,11 +88,12 @@ def _auth(token: str):
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_admin_does_not_get_sales_permission():
+def test_admin_gets_sales_permission_for_mobile_pos():
     admin = User(username="a", role="admin", password_hash="x", is_active=True)
-    assert not has_permission(admin, Perm.SALES)
-    assert not can_access_pos(admin)
+    assert has_permission(admin, Perm.SALES)
+    assert can_access_pos(admin)
     assert Perm.MANAGE_INVENTORY in user_permissions(admin)
+    # Web admin still lands on overview despite sales permission.
     assert post_login_path(admin) == "/overview"
 
 
@@ -420,8 +421,8 @@ def test_login_token_includes_pos_flags(client, db_session):
     _seed(db_session)
     admin = _login(client, "bar_admin", "AdminPass1234")
     assert admin["landing_path"] == "/overview"
-    assert admin["can_access_pos"] is False
-    assert "sales" not in admin["permissions"]
+    assert admin["can_access_pos"] is True
+    assert "sales" in admin["permissions"]
 
     cash = _login(client, "bar_cashier", "CashPass1234")
     assert cash["landing_path"] == "/"

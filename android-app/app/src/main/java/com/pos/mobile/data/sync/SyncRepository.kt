@@ -356,6 +356,17 @@ class SyncRepository(
         if (recovered > 0) {
             Log.w(TAG, "Requeued $recovered recoverable failed sale(s)")
         }
+        val adminSalesRetry = syncQueueDao.requeueAdminSalesPermissionFailed()
+        if (adminSalesRetry > 0) {
+            Log.i(TAG, "Requeued $adminSalesRetry sale(s) after legacy admin sales permission fix")
+            SaleSyncLog.event(
+                clientSaleId = null,
+                status = SyncQueueEntity.STATUS_PENDING,
+                result = "REQUEUE_ADMIN_SALES_PERM",
+                action = "retry",
+                attempt = adminSalesRetry,
+            )
+        }
         var pushed = 0
         var hadRetryableFailures = false
         for (item in syncQueueDao.getByStatus(SyncQueueEntity.STATUS_PENDING)) {

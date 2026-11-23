@@ -196,11 +196,10 @@ def test_android_has_no_native_product_crud_forms():
 def test_admin_cookie_redirects_away_from_pos(client, db_session):
     _seed(db_session)
     login = _login(client, "hard_admin", "AdminPass1234")
-    assert login.json()["can_access_pos"] is False
+    assert login.json()["can_access_pos"] is True
     assert auth_mod.POS_ACCESS_COOKIE in login.cookies
     r = client.get("/?pos=1", follow_redirects=False)
-    assert r.status_code in (302, 303)
-    assert r.headers["location"] == "/overview"
+    assert r.status_code == 200
 
 
 def test_unauthenticated_pos_shows_login_shell(client, db_session):
@@ -225,11 +224,11 @@ def test_supervisor_has_sales_and_pos_landing():
     assert post_login_path(user) == "/"
 
 
-def test_platform_owner_role_admin_has_no_automatic_sales():
-    """Platform owners are allowlisted separately; tenant admin role still has no sales."""
+def test_tenant_admin_has_sales_for_mobile_pos():
+    """Tenant admin may POST /api/sales (Android); web landing stays overview."""
     ownerish = User(username="owner", role="admin", password_hash="x", is_active=True)
-    assert Perm.SALES not in user_permissions(ownerish)
-    assert not can_access_pos(ownerish)
+    assert Perm.SALES in user_permissions(ownerish)
+    assert can_access_pos(ownerish)
     assert post_login_path(ownerish) == "/overview"
 
 
@@ -237,11 +236,11 @@ def test_multi_role_effective_sales_gate():
     """POS follows effective sales permission, not role label alone."""
     admin = User(username="a", role="admin", password_hash="x", is_active=True)
     cash = User(username="c", role="cashier", password_hash="x", is_active=True)
-    assert can_access_pos(admin) is False
+    assert can_access_pos(admin) is True
     assert can_access_pos(cash) is True
 
 
-def test_admin_sale_403(client, db_session):
+def test_admin_sale_allowed(client, db_session):
     _seed(db_session)
     tok = _login(client, "hard_admin", "AdminPass1234").json()["access_token"]
     product = Product(
@@ -255,7 +254,7 @@ def test_admin_sale_403(client, db_session):
     db_session.add(product)
     db_session.commit()
     db_session.refresh(product)
-    denied = client.post(
+    r = client.post(
         "/api/sales",
         headers=_auth(tok),
         json={
@@ -271,7 +270,7 @@ def test_admin_sale_403(client, db_session):
             "collection_status": "collected",
         },
     )
-    assert denied.status_code == 403
+    assert r.status_code == 200, r.text
 
 
 def test_index_early_gate_script_blocks_pos_flash(client):
@@ -340,8 +339,7 @@ def test_saas_login_sets_access_cookie_and_redirects_admin(client, db_session):
     assert body["landing_path"] == "/overview"
 
     r = client.get("/?pos=1", follow_redirects=False)
-    assert r.status_code in (302, 303)
-    assert r.headers["location"] == "/overview"
+    assert r.status_code == 200
 
     client.post("/auth/logout", json={})
     # Clear client jar so leftover cookie does not linger if delete is soft

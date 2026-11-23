@@ -45,6 +45,16 @@ object SyncPolicy {
     fun isPermanentFailureHttp(code: Int): Boolean =
         code == 400 || code == 403 || code == 404 || code == 409 || code == 422
 
+    /**
+     * Narrow recovery: admin lacked `sales` on server before permission fix.
+     * Do not match other HTTP 403 / permission errors.
+     */
+    fun isRecoverableAdminSalesPermissionError(message: String?): Boolean {
+        val m = (message ?: "").lowercase()
+        if (m.isBlank()) return false
+        return m.contains("permission denied: sales")
+    }
+
     fun isRetryableErrorMessage(message: String?): Boolean {
         val m = (message ?: "").lowercase()
         if (m.isBlank()) return true

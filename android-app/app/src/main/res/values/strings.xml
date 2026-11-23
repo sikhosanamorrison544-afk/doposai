@@ -94,6 +94,8 @@
     <string name="sync_partial">Sync finished with issues: %1$d sale(s) uploaded, %2$d still pending</string>
     <string name="sync_pending_deadline">You can sell offline for at least 3 days. Pending sales stay queued until they sync successfully.</string>
     <string name="sync_master_failed">Could not refresh products from server</string>
+    <string name="sync_sale_permission_denied">Sale upload was denied: missing sales permission on the server. After the server is updated, tap Sync again — your sale is kept and will retry with the same ID.</string>
+    <string name="sync_upload_blocked_queue_open">Sales still need server confirmation before stock can refresh from the server.</string>
     <string name="sync_products_failed_hint">Sales may have uploaded; check Server URL and try again.</string>
     <string name="sync_check_server_url">Check Server URL matches your web login (e.g. https://doposai.onrender.com/).</string>
     <string name="printing_receipt">Printing receipt…</string>

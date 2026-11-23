@@ -1284,17 +1284,21 @@ class MainActivity : AppCompatActivity() {
             }
             manualSyncInProgress = false
             syncButton.isEnabled = true
+            val salePermDenied = outcome.saleUploadPermissionDenied
             val msg = when {
                 outcome.offline ->
                     getString(R.string.sync_waiting_for_internet)
                 outcome.authRequired ->
                     getString(R.string.sync_requires_login)
+                salePermDenied && !outcome.masterOk ->
+                    getString(R.string.sync_sale_permission_denied) +
+                        " " + getString(R.string.sync_partial, outcome.salesPushed, outcome.salesPending)
+                !outcome.masterOk && outcome.salesPending > 0 ->
+                    getString(R.string.sync_upload_blocked_queue_open) +
+                        " " + getString(R.string.sync_partial, outcome.salesPushed, outcome.salesPending)
                 outcome.salesPushed > 0 && !outcome.masterOk ->
                     getString(R.string.sync_partial, outcome.salesPushed, outcome.salesPending) +
                         " " + getString(R.string.sync_products_failed_hint)
-                !outcome.masterOk && outcome.salesPending > 0 ->
-                    getString(R.string.sync_master_failed) +
-                        " " + getString(R.string.sync_partial, outcome.salesPushed, outcome.salesPending)
                 !outcome.masterOk ->
                     getString(R.string.sync_master_failed) +
                         " " + getString(R.string.sync_check_server_url)
@@ -1320,6 +1324,8 @@ class MainActivity : AppCompatActivity() {
         val salesPending: Int,
         val offline: Boolean = false,
         val authRequired: Boolean = false,
+        /** Open queue rows failed with legacy admin missing `sales` permission. */
+        val saleUploadPermissionDenied: Boolean = false,
     )
 
     private suspend fun performManualSync(): ManualSyncOutcome {
@@ -1365,12 +1371,23 @@ class MainActivity : AppCompatActivity() {
         } else {
             db.syncQueueDao().countOpenUploads()
         }
+        val salePermDenied = hasOpenAdminSalesPermissionFailure(db)
         return ManualSyncOutcome(
             masterOk = pipeline.catalogRefreshed,
             productCount = db.productDao().countActive(),
             salesPushed = pipeline.salesPushed,
             salesPending = stillPending.coerceAtLeast(0),
+            saleUploadPermissionDenied = salePermDenied,
         )
+    }
+
+    private suspend fun hasOpenAdminSalesPermissionFailure(db: AppDatabase): Boolean {
+        val failed = db.syncQueueDao().getByStatus(
+            com.pos.mobile.data.local.entity.SyncQueueEntity.STATUS_FAILED,
+        )
+        return failed.any {
+            com.pos.mobile.sync.SyncPolicy.isRecoverableAdminSalesPermissionError(it.lastError)
+        }
     }
 
     /** Enqueue background sync: push pending sales and refresh local stock from server. */

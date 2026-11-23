@@ -68,9 +68,10 @@ SUPERVISOR_ROLES = frozenset({"supervisor"})
 CASHIER_ROLES = frozenset({"cashier"})
 
 _ROLE_PERMS: dict[str, Set[Perm]] = {
-    # Admin/owner manage the business but do not sell on the POS by default.
+    # Platform owner role in tenant DB — management only (no API sales).
     "owner": {p for p in Perm if p != Perm.SALES},
-    "admin": {p for p in Perm if p != Perm.SALES},
+    # Tenant admin may use Android POS / POST /api/sales (same branch rules as cashier).
+    "admin": set(Perm),
     "supervisor": {
         Perm.SALES,
         Perm.VIEW_INVENTORY,
@@ -110,7 +111,7 @@ _ROLE_PERMS: dict[str, Set[Perm]] = {
 }
 
 ROLE_DESCRIPTIONS: dict[str, str] = {
-    "admin": "Full business access — inventory, settings, users, billing, enterprise, and reports. No POS selling.",
+    "admin": "Full business access — inventory, settings, users, billing, enterprise, reports, and POS sales (e.g. Android).",
     "supervisor": "Operational lead — sell on POS, process withdrawals, approve refunds, pending collections, and shifts.",
     "cashier": "Point of sale only — ring up sales and view stock levels.",
 }

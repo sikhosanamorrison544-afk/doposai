@@ -58,6 +58,19 @@ interface SyncQueueDao {
     suspend fun requeueRecoverableFailed(): Int
 
     /**
+     * After server grants admin `sales`, retry rows that failed only with
+     * `Permission denied: sales` (not other 403s).
+     */
+    @Query(
+        """
+        UPDATE sync_queue SET status = 'pending', lastError = NULL
+        WHERE status = 'failed'
+          AND lower(lastError) LIKE '%permission denied: sales%'
+        """,
+    )
+    suspend fun requeueAdminSalesPermissionFailed(): Int
+
+    /**
      * Recover rows left in `syncing` after a crash/kill mid-POST.
      * Drain only loads `pending`, so orphaned syncing sales never uploaded
      * (and never deducted server stock) until reset.

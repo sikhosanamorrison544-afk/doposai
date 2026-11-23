@@ -14,8 +14,10 @@ class SyncPolicyTest {
 
     @Test
     fun forbidden_403_is_permanent_but_retains_failed_status() {
-        assertTrue(SyncPolicy.shouldMarkFailed(403, 1, "Permission denied: sales"))
+        assertTrue(SyncPolicy.shouldMarkFailed(403, 1, "Permission denied: branch.view"))
         assertTrue(SyncPolicy.isPermanentFailureHttp(403))
+        // Requeued separately via isRecoverableAdminSalesPermissionError + DAO hook.
+        assertTrue(SyncPolicy.isRecoverableAdminSalesPermissionError("Permission denied: sales"))
     }
 
     @Test
@@ -46,5 +48,14 @@ class SyncPolicyTest {
         assertTrue(SyncPolicy.isPastDeadline(created))
         // Age past deadline must not imply permanent failure for network errors
         assertFalse(SyncPolicy.shouldMarkFailed(null, 50, "connection reset"))
+    }
+
+    @Test
+    fun recoverable_admin_sales_permission_error_matches_json_body() {
+        assertTrue(
+            SyncPolicy.isRecoverableAdminSalesPermissionError("""{"detail":"Permission denied: sales"}""")
+        )
+        assertFalse(SyncPolicy.isRecoverableAdminSalesPermissionError("""{"detail":"Permission denied: branch.view"}"""))
+        assertFalse(SyncPolicy.isRecoverableAdminSalesPermissionError("HTTP 403"))
     }
 }

@@ -14,13 +14,20 @@ def _user(role: str) -> User:
     return User(username=f"u_{role}", role=role, password_hash="x", is_active=True)
 
 
-def test_admin_has_management_permissions_without_sales():
+def test_admin_has_full_permissions_including_sales():
     perms = user_permissions(_user("admin"))
     assert Perm.MANAGE_USERS in perms
     assert Perm.MANAGE_BRANCHES in perms
     assert Perm.PROCESS_WITHDRAWALS in perms
-    assert Perm.SALES not in perms
-    assert len(perms) == len(Perm) - 1
+    assert Perm.SALES in perms
+    assert len(perms) == len(Perm)
+
+
+def test_owner_role_aliases_to_admin_permissions():
+    """normalize_role maps owner → admin, so owner receives admin permission set."""
+    perms = user_permissions(_user("owner"))
+    assert Perm.SALES in perms
+    assert Perm.MANAGE_USERS in perms
 
 
 def test_supervisor_operational_permissions():
@@ -71,5 +78,5 @@ def test_can_access_pos_requires_sales():
 
     assert can_access_pos(_user("cashier")) is True
     assert can_access_pos(_user("supervisor")) is True
-    assert can_access_pos(_user("admin")) is False
-    assert can_access_pos(_user("owner")) is False
+    assert can_access_pos(_user("admin")) is True
+    assert can_access_pos(_user("owner")) is True
